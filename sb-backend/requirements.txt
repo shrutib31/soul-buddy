@@ -1,0 +1,28 @@
+# ============================================================================
+# SoulBuddy Backend - Python Dependencies
+# ============================================================================
+# This file lists all Python dependencies required for the SoulBuddy backend
+# 
+# Installation:
+#   Using pip:     pip install -r requirements.txt
+#   Using uv:      uv pip install -r requirements.txt
+# ============================================================================
+
+# Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# Environment Configuration
+python-dotenv>=1.0.0
+
+# Database
+asyncpg>=0.30.0
+psycopg2-binary>=2.9.9
+sqlalchemy[asyncio]>=2.0.0
+alembic>=1.13.0
+
+# Supabase Integration
+supabase>=2.10.0
+
+# YAML Configuration
+pyyaml>=6.0.0
