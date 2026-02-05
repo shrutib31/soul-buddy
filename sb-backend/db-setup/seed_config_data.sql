@@ -19,7 +19,9 @@ DO UPDATE SET description = EXCLUDED.description;
 
 INSERT INTO intents (intent_id, description)
 VALUES
-  ('VENT',               'User wants to express and be heard'),
+  ('GREETING',           'User is greeting or saying hello'),
+  ('VENTING',            'User wants to express and be heard'),
+  ('SEEK_INFORMATION',   'User is asking for information or clarification'),
   ('SEEK_UNDERSTANDING', 'User wants explanation or clarity'),
   ('OPEN_TO_SOLUTION',   'User is receptive to suggestions'),
   ('TRY_TOOL',           'User explicitly wants to try a tool'),

@@ -44,7 +44,9 @@ def seed_severity_levels(db: Session):
 def seed_intents(db: Session):
     logger.info("[2/8] Seeding intents...")
     data = [
-        {"intent_id": "VENT", "description": "User wants to express and be heard"},
+        {"intent_id": "GREETING", "description": "User is greeting or saying hello"},
+        {"intent_id": "VENTING", "description": "User wants to express and be heard"},
+        {"intent_id": "SEEK_INFORMATION", "description": "User is asking for information or clarification"},
         {"intent_id": "SEEK_UNDERSTANDING", "description": "User wants explanation or clarity"},
         {"intent_id": "OPEN_TO_SOLUTION", "description": "User is receptive to suggestions"},
         {"intent_id": "TRY_TOOL", "description": "User explicitly wants to try a tool"},

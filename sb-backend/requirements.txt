@@ -26,3 +26,11 @@ supabase>=2.10.0
 
 # YAML Configuration
 pyyaml>=6.0.0
+
+# HTTP Client (Ollama)
+aiohttp>=3.9.0
+
+# LangGraph & AI
+langgraph>=0.2.0
+openai>=1.0.0
+pydantic>=2.0.0

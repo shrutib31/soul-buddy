@@ -1,10 +1,28 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 import asyncio
+import uuid
+import json
+
+from graph.state import ConversationState
+from graph.graph_builder import get_compiled_flow
+from graph.streaming import stream_response_words, stream_as_sse
 
 router = APIRouter(prefix="/chat")
+
+# Initialize the compiled LangGraph
+flow = None
+
+
+async def get_flow():
+    """Get or initialize the compiled graph flow."""
+    global flow
+    if flow is None:
+        flow = get_compiled_flow()
+    return flow
+
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User input message")
@@ -28,19 +46,82 @@ class CognitoChatRequest(ChatRequest):
     user_id: str = None  # user identifier for cognito mode. This is a supabase user ID in string format
     domain: str = "student"  # "student", "employee", "corporate"
 
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+async def invoke_graph(state: ConversationState) -> Dict[str, Any]:
+    """
+    Invoke the LangGraph with the given conversation state.
+    
+    Args:
+        state: ConversationState with user message and metadata
+    
+    Returns:
+        Final state from the graph
+    """
+    try:
+        flow = await get_flow()
+        result = await flow.ainvoke(state.model_dump())
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Graph execution failed: {str(e)}")
+
+
+async def create_initial_state(
+    message: str,
+    mode: str,
+    domain: str,
+    conversation_id: Optional[str] = None
+) -> ConversationState:
+    """
+    Create the initial conversation state for the graph.
+    
+    Args:
+        message: User message
+        mode: "incognito" or "cognito"
+        domain: "student", "employee", or "corporate"
+        conversation_id: Optional existing conversation ID
+    
+    Returns:
+        ConversationState ready for graph invocation
+    """
+    return ConversationState(
+        conversation_id=conversation_id or "",  # Empty string triggers ID generation
+        mode=mode,
+        domain=domain,
+        user_message=message,
+    )
+
+
 @router.post("/incognito/stream")
 async def incognito_chat_stream(req: IncognitoChatRequest):
     """
-    Anonymous chat with streaming response.
-    Returns server-sent events (SSE) stream.
+    Anonymous chat with streaming response using LangGraph.
+    Returns server-sent events (SSE) with real-time graph updates.
     """
-    async def event_stream():
-        dummy_response = f"Thank you for your message: '{req.message}'. This is a dummy streaming response in incognito mode."
-        for word in dummy_response.split():
-            yield f"data: {word} \n\n"
-            await asyncio.sleep(0.1)
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    try:
+        # Create initial state
+        state = await create_initial_state(
+            message=req.message,
+            mode="incognito",
+            domain=req.domain,
+            conversation_id=req.sb_conv_id
+        )
+        
+        # Stream from graph
+        async def event_stream():
+            async for event_data in stream_as_sse(state):
+                yield event_data
+        
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Chat stream failed: {str(e)}"}
+        )
 
 
 @router.post("/incognito")
@@ -49,24 +130,58 @@ async def incognito_chat(req: IncognitoChatRequest):
     Anonymous chat with complete response.
     Returns the full response at once.
     """
-    response = f"Thank you for your message: '{req.message}'. This is a dummy response in incognito mode."
-    return {"message": response}
+    try:
+        # Create initial state
+        state = await create_initial_state(
+            message=req.message,
+            mode="incognito",
+            domain=req.domain,
+            conversation_id=req.sb_conv_id
+        )
+        
+        # Invoke the graph
+        result = await invoke_graph(state)
+        
+        # Return the API response from render node
+        return result.get("api_response", {
+            "success": False,
+            "error": "No response generated"
+        })
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Chat failed: {str(e)}"}
+        )
 
 
 @router.post("/cognito/stream")
 async def cognito_chat_stream(req: CognitoChatRequest):
     """
-    Authenticated chat with streaming response.
-    Returns server-sent events (SSE) stream.
+    Authenticated chat with streaming response using LangGraph.
+    Returns server-sent events (SSE) with real-time graph updates.
     """
-    # auth / identity resolution would go here
-    async def event_stream():
-        dummy_response = f"Hello user {req.user_id}! You said: '{req.message}'. This is a dummy streaming response in cognito mode."
-        for word in dummy_response.split():
-            yield f"data: {word} \n\n"
-            await asyncio.sleep(0.1)
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    try:
+        # Create initial state
+        state = await create_initial_state(
+            message=req.message,
+            mode="cognito",
+            domain=req.domain,
+            conversation_id=req.sb_conv_id
+        )
+        
+        # Stream from graph
+        async def event_stream():
+            async for event_data in stream_as_sse(state):
+                yield event_data
+        
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Chat stream failed: {str(e)}"}
+        )
 
 
 @router.post("/cognito")
@@ -75,6 +190,26 @@ async def cognito_chat(req: CognitoChatRequest):
     Authenticated chat with complete response.
     Returns the full response at once.
     """
-    # auth / identity resolution would go here
-    response = f"Hello user {req.user_id}! You said: '{req.message}'. This is a dummy response in cognito mode."
-    return {"message": response}
+    try:
+        # Create initial state
+        state = await create_initial_state(
+            message=req.message,
+            mode="cognito",
+            domain=req.domain,
+            conversation_id=req.sb_conv_id
+        )
+        
+        # Invoke the graph
+        result = await invoke_graph(state)
+        
+        # Return the API response from render node
+        return result.get("api_response", {
+            "success": False,
+            "error": "No response generated"
+        })
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Chat failed: {str(e)}"}
+        )
