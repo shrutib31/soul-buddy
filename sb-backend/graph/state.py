@@ -35,3 +35,6 @@ class ConversationState(BaseModel):
 
     # metadata
     error: Optional[str] = None
+    
+    # This allows the render node to save the final JSON response here
+    api_response: Optional[Dict[str, Any]] = None

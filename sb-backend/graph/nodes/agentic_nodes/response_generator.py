@@ -47,6 +47,8 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         intent = state.intent
         response_draft = state.response_draft
         
+        print(f"\nIntent detected at this stage is: {intent}\n")
+        
         if not user_message:
             return {"error": "Missing user message for response generation"}
         
@@ -81,8 +83,10 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         
         return {
             "response_draft": selected_response,
-            "ollama_response": ollama_response,
-            "gpt_response": gpt_response,
+            "api_response": {
+                "ollama": ollama_response,
+                "gpt": gpt_response
+            }
         }
         
     except Exception:

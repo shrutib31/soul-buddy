@@ -17,9 +17,9 @@ def get_compiled_flow():
     graph.add_node("conv_id_handler", conv_id_handler_node)
     
     # Parallel execution nodes
-    graph.add_node("store_message", store_message_node)
+    # graph.add_node("store_message", store_message_node)
     graph.add_node("intent_detection", intent_detection_node)
-    graph.add_node("situation_severity_detection", situation_severity_detection_node)
+    # graph.add_node("situation_severity_detection", situation_severity_detection_node)
     
     graph.add_node("response_generator", response_generator_node)
     graph.add_node("store_bot_response", store_bot_response_node)
@@ -29,14 +29,14 @@ def get_compiled_flow():
     graph.set_entry_point("conv_id_handler")
     
     # After conv_id_handler, run store_message, intent_detection, and situation/severity detection in parallel
-    graph.add_edge("conv_id_handler", "store_message")
+    # graph.add_edge("conv_id_handler", "store_message")
     graph.add_edge("conv_id_handler", "intent_detection")
-    graph.add_edge("conv_id_handler", "situation_severity_detection")
+    # graph.add_edge("conv_id_handler", "situation_severity_detection")
 
     # Parallel nodes converge to response_generator
-    graph.add_edge("store_message", "response_generator")
+    # graph.add_edge("store_message", "response_generator")
     graph.add_edge("intent_detection", "response_generator")
-    graph.add_edge("situation_severity_detection", "response_generator")
+    # graph.add_edge("situation_severity_detection", "response_generator")
     
     # Response generator → store bot response → render → end
     graph.add_edge("response_generator", "store_bot_response")
