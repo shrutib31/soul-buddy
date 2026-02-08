@@ -33,5 +33,9 @@ class ConversationState(BaseModel):
     user_personality_profile: Dict[str, Any] = {} # personality traits of the user to be populated from the db
     user_preferences: Dict[str, Any] = {} # user preferences to be populated from the db
 
+    #Guardrail Helpers
+    guardrail_status: str
+    guardrail_feedback: str
+
     # metadata
     error: Optional[str] = None
