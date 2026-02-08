@@ -148,25 +148,36 @@ Guidelines:
 Compassionate response:"""
         
         async with aiohttp.ClientSession() as session:
-            logger.info("generate_response_ollama: calling ollama", extra={"model": OLLAMA_MODEL})
-            async with session.post(
-                f"{OLLAMA_BASE_URL}/api/generate",
-                json={
-                    "model": OLLAMA_MODEL,
-                    "prompt": prompt,
-                    "stream": False,
-                    "temperature": 0.7,
-                },
-                timeout=aiohttp.ClientTimeout(total=OLLAMA_TIMEOUT)
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    response = data.get("response", "").strip()
-                    logger.info("generate_response_ollama: success", extra={"length": len(response)})
-                    return response if response else ""
-                else:
-                    logger.warning("generate_response_ollama: non-200 response", extra={"status": resp.status})
-                    return ""
+            logger.info("generate_response_ollama: calling ollama", extra={"model": OLLAMA_MODEL, "url": OLLAMA_BASE_URL})
+            try:
+                async with session.post(
+                    f"{OLLAMA_BASE_URL}/api/generate",
+                    json={
+                        "model": OLLAMA_MODEL,
+                        "prompt": prompt,
+                        "stream": False,
+                        "temperature": 0.7,
+                    },
+                    timeout=aiohttp.ClientTimeout(total=OLLAMA_TIMEOUT)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        response = data.get("response", "").strip()
+                        logger.info("generate_response_ollama: success", extra={"length": len(response)})
+                        return response if response else ""
+                    else:
+                        error_text = await resp.text()
+                        logger.error(
+                            "generate_response_ollama: non-200 response",
+                            extra={"status": resp.status, "error": error_text[:200]}
+                        )
+                        return ""
+            except asyncio.TimeoutError:
+                logger.error("generate_response_ollama: timeout", extra={"timeout": OLLAMA_TIMEOUT})
+                return ""
+            except aiohttp.ClientConnectionError as e:
+                logger.error("generate_response_ollama: connection error", extra={"error": str(e)[:200]})
+                return ""
                     
     except Exception:
         logger.exception("generate_response_ollama: failed")
@@ -252,27 +263,35 @@ Guidelines:
 
         async with aiohttp.ClientSession() as session:
             logger.info("generate_response_gpt: calling openai", extra={"model": "gpt-4-mini"})
-            async with session.post(
-                "https://api.openai.com/v1/chat/completions",
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    response = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-                    logger.info("generate_response_gpt: success", extra={"length": len(response)})
-                    return response if response else ""
-                else:
-                    error_text = await resp.text()
-                    logger.error(
-                        "generate_response_gpt: api error",
-                        extra={"status": resp.status, "error": error_text[:300]}
-                    )
-                    return ""
+            try:
+                async with session.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        response = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                        logger.info("generate_response_gpt: success", extra={"length": len(response)})
+                        return response if response else ""
+                    else:
+                        error_text = await resp.text()
+                        logger.error(
+                            "generate_response_gpt: api error",
+                            extra={"status": resp.status, "error": error_text[:500]}
+                        )
+                        return ""
+            except asyncio.TimeoutError:
+                logger.error("generate_response_gpt: timeout", extra={"timeout": 30})
+                return ""
+            except aiohttp.ClientConnectionError as e:
+                logger.error("generate_response_gpt: connection error", extra={"error": str(e)[:200]})
+                return ""
                     
     except Exception:
         logger.exception("generate_response_gpt: failed")
+        return ""
 
 
 # ============================================================================
