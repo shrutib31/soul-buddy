@@ -1,7 +1,7 @@
 """
 Response Generator Node for LangGraph
 
-This node generates responses using both Ollama and GPT-4-mini to compare
+This node generates responses using both Ollama and GPT-4o-mini to compare
 which provides better responses. It creates parallel response generation
 and returns both for comparison/evaluation.
 """
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
     """
-    Generate responses using both Ollama and GPT-4-mini in parallel.
+    Generate responses using both Ollama and GPT-4o-mini in parallel.
     
     This node generates compassionate responses using two different LLM sources
     to compare their quality. Both responses are generated concurrently to minimize
@@ -185,7 +185,7 @@ Compassionate response:"""
 
 
 # ============================================================================
-# GPT-4-MINI RESPONSE GENERATION
+# GPT-4o-MINI RESPONSE GENERATION
 # ============================================================================
 
 async def generate_response_gpt(
@@ -196,7 +196,7 @@ async def generate_response_gpt(
     context: Optional[str] = None
 ) -> str:
     """
-    Generate a compassionate response using GPT-4-mini.
+    Generate a compassionate response using GPT-4o-mini.
     
     Args:
         user_message: The user's message
@@ -251,7 +251,7 @@ Guidelines:
         }
         
         payload = {
-            "model": "gpt-4-mini",
+            "model": "gpt-4o-mini",
             "messages": messages,
             "temperature": 0.7,
             "max_tokens": 200,
@@ -262,7 +262,7 @@ Guidelines:
             return ""
 
         async with aiohttp.ClientSession() as session:
-            logger.info("generate_response_gpt: calling openai", extra={"model": "gpt-4-mini"})
+            logger.info("generate_response_gpt: calling openai", extra={"model": "gpt-4o-mini"})
             try:
                 async with session.post(
                     "https://api.openai.com/v1/chat/completions",

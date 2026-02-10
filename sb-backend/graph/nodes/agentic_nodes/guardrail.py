@@ -1,6 +1,7 @@
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Callable, Optional
 import os
+import asyncio
 from langgraph.graph import StateGraph, END
 from langchain_ollama import ChatOllama
 import logging
@@ -8,7 +9,7 @@ import urllib.request
 
 # Note: Configure Ollama connection details as needed
 OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama URL
-OLLAMA_MODEL = "phi3:latest"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
+OLLAMA_MODEL = "wizardlm2:7b"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini") # was phi3:latest
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,10 @@ GUARDRAIL_RULES = [
 ]
 
 
-async def guardrail_node(state) -> Dict[str, Any]:
+async def guardrail_node(
+    state,
+    guardrail_fn: Optional[Callable[[str], str]] = None, #guardrail_fn for testing so we can do unit tests without using dependencies
+) -> Dict[str, Any]:
     """
     Guardrail step node - verifies LLM response against a set of rules, ensuring proper responses
     
@@ -48,9 +52,13 @@ async def guardrail_node(state) -> Dict[str, Any]:
         state: Current conversation state
         
     Returns:
-        String
+        Status -> String
             1. OK - response is verified and safe to send to user, SEND!
             2. REFINE - response has issues and must go through pipeline again, send BACK TO BEGINNING!
+        Feedback -> String
+            Feedback suggestions to improve responses
+        Violation -> String
+            The rule that was violated by the given assistant response
     """
     prompt = f"""
 You are a guardrail checker.
@@ -66,7 +74,8 @@ You are checking to see if the candidate assistant answer is a good response to 
 Return ONLY a JSON object with this exact structure:
 {{
   "status": "OK" or "REFINE",
-  "feedback": "short explanation of why, and what to adjust"
+  "feedback": "short explanation of why, and what to adjust",
+  "violation": "which rule(s) were violated. If more than one, separate by comma. If OK, say "None", If "REFINE" but not "OK", say "None but..." and explain why you say to REFINE even thought it doesn't break any rules."
 }}
 
 Rules:
@@ -79,41 +88,62 @@ Candidate Assistant Answer: {state.response_draft}
 GUARDRAIL_RULES: "{GUARDRAIL_RULES}"
 
 """
+    if guardrail_fn is None:
+        guardrail_fn = call_guardrail_llm
+
+    next_attempt = (state.attempt or 0) + 1
+    next_step = (state.step_index or 0) + 1
+
     try:
         print("Guardrail checking response...")
-        guardrailResponse = await call_guardrail_llm(prompt)
-        data: Dict[str, Any] = safe_json_loads(guardrailResponse)
-        state.guardrail_status = str(data.get("status", "")).upper()
-        state.guardrail_feedback= str(data.get("feedback", "")).strip()
-
-        #checking if we got REFINE from real response or ERROR
-        if (state.guardrail_status != "OK" and state.guardrail_status != "REFINE"):
-            print("Bad Response. Resorting to Refine")
-            print("ERROR. Status = " + "REFINE")
-            print("ERROR. Feedback = " + "Bad response. Need to refine")
+        guardrail_response = await asyncio.to_thread(guardrail_fn, prompt)
+        data: Dict[str, Any] = safe_json_loads(guardrail_response)
+        status = str(data.get("status", "")).upper()
+        feedback = str(data.get("feedback", "")).strip()
+        print("Current LLM Response = " + state.response_draft)
+        print("Status = " + status)
+        print("Feedback = " + feedback)
+        print("Violation = " + str(data.get("violation", "")).strip())
+        if status not in {"OK", "REFINE"}:
+            return {
+                "error": "Error in guardrail node: invalid guardrail status",
+                "guardrail_status": "ERROR",
+                "guardrail_feedback": "Bad response. Need to refine",
+                "attempt": next_attempt,
+                "step_index": next_step,
+            }
 
     except Exception as e:
-        return {"error": f"Error in guardrail node: {str(e)}"}
+        return {
+            "error": f"Error in guardrail node: {str(e)}",
+            "guardrail_status": "ERROR",
+            "guardrail_feedback": "Guardrail parsing failed",
+            "attempt": next_attempt,
+            "step_index": next_step,
+        }
     
-    state["step_index"] += 1
     return {
-        "guardrail_status": state.guardrail_status,
-        "guardrail_feedback": state.guardrail_feedback,
+        "guardrail_status": status,
+        "guardrail_feedback": feedback,
+        "attempt": next_attempt,
+        "step_index": next_step,
     }
 
 def guardrail_router(state) -> str:
+    if state.error or state.guardrail_status == "ERROR":
+        print("[router] Guardrail error → render")
+        return "render"
+
     if state.guardrail_status == "OK":
         print("[router] Guardrail says OK → Finishing Sequences")
-        state.attempt += 1
         return "store_bot_response"
 
-    if state.attempt >= 6:
+    if (state.attempt or 0) >= 6:
         print("[router] Guardrail still REFINE but max attempts reached → Finishing Sequences")
         return "store_bot_response"
 
     print("[router] Guardrail says REFINE → back to beginning")
     print("[router] status=", repr(state.guardrail_status), "attempt=", state.attempt)
-    state.attempt += 1
     return "conv_id_handler" #RETURNS STARTING NODE OF LANG GRAPH
 
 
