@@ -9,7 +9,7 @@ import urllib.request
 
 # Note: Configure Ollama connection details as needed
 OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama URL
-OLLAMA_MODEL = "phi3:latest"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
+OLLAMA_MODEL = "qwen2.5:1.5b"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
 
 logger = logging.getLogger(__name__)
