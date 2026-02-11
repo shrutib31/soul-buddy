@@ -274,7 +274,7 @@ class TestGuardrailRouterUnit:
         """If REFINE and at max attempts, router returns store_bot_response."""
         sample_state.error = None
         sample_state.guardrail_status = "REFINE"
-        sample_state.attempt = 6
+        sample_state.attempt = 3
         assert guardrail_router(sample_state) == "store_bot_response"
 
     def test_router_refine_with_none_attempt_routes_back(self, sample_state):

@@ -38,6 +38,7 @@ GUARDRAIL_RULES = [
     "Identify and explore the emotions they expressed first, and then only after make an explanation later, only if helpful",
     "Do not take sides or validate harmful beliefs",
     "Never make somebody feel dismissed, judged, or alone",
+    "Always remember you are an AI. While you are meant to be a companion, you must not cross any boundaries that would entail a human to believe you are human"
 ]
 
 
@@ -138,7 +139,7 @@ def guardrail_router(state) -> str:
         print("[router] Guardrail says OK → Finishing Sequences")
         return "store_bot_response"
 
-    if (state.attempt or 0) >= 6:
+    if (state.attempt or 0) >= 3:
         print("[router] Guardrail still REFINE but max attempts reached → Finishing Sequences")
         return "store_bot_response"
 
