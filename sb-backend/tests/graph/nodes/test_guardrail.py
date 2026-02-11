@@ -57,7 +57,7 @@ def sample_state_with_attempts():
         domain="general",
         user_message="I'm feeling really overwhelmed and anxious.",
         response_draft="I'm sorry you're feeling this way. I'm here with you.",
-        attempt=5,
+        attempt=2,
         step_index=3,
     )
 
@@ -90,6 +90,7 @@ Rules:
 - Use "OK" only if the answer clearly does NOT violate the rules.
 - Use "REFINE" if tone, style, structure, or content violates the rules or needs improvement.
 - feedback should be concise but specific enough to help refine the response.
+- There should always be some sort of field in "violation" even if it's 'None'
 
 User Message: "{user_message}"
 Candidate Assistant Answer: {candidate_answer}
@@ -108,6 +109,7 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_guardrail_ok_response(self, sample_state, sync_to_thread):
         """Test OK response returns expected fields and increments attempt/step."""
+
         with patch(
             "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
             return_value='{"status": "OK", "feedback": "Looks good", "violation": "None"}',
@@ -123,6 +125,7 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_guardrail_refine_response(self, sample_state, sync_to_thread):
         """Test REFINE response returns expected fields and increments attempt/step."""
+
         with patch(
             "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
             return_value='{"status": "REFINE", "feedback": "Too directive", "violation": "Do not rush into advice"}',
@@ -138,6 +141,7 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_guardrail_status_is_uppercased(self, sample_state, sync_to_thread):
         """Lowercase status should be normalized to uppercase."""
+
         with patch(
             "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
             return_value='{"status": "ok", "feedback": "ok", "violation": "None"}',
@@ -149,6 +153,7 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_guardrail_invalid_status_sets_error(self, sample_state, sync_to_thread):
         """Test invalid status returns ERROR and sets error field."""
+
         with patch(
             "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
             return_value='{"status": "MAYBE", "feedback": "?", "violation": "None"}',
@@ -163,6 +168,7 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_guardrail_invalid_json_sets_error(self, sample_state, sync_to_thread):
         """Test invalid JSON triggers error handling."""
+
         with patch(
             "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
             return_value="not json at all",
@@ -177,6 +183,7 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_guardrail_json_extracted_from_wrapped_text(self, sample_state, sync_to_thread):
         """JSON embedded in extra text should still parse."""
+
         wrapped = 'preface text {"status":"OK","feedback":"Fine","violation":"None"} trailing'
         with patch(
             "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
@@ -190,6 +197,7 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_guardrail_missing_feedback_defaults_empty(self, sample_state, sync_to_thread):
         """Missing feedback should not crash and should become empty string."""
+
         with patch(
             "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
             return_value='{"status": "OK", "violation": "None"}',
@@ -202,6 +210,7 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_guardrail_fn_injection_used(self, sample_state, sync_to_thread):
         """Injected guardrail_fn should be used instead of default call."""
+
         def fake_guardrail(_prompt: str) -> str:
             return '{"status": "OK", "feedback": "Injected", "violation": "None"}'
 
@@ -232,13 +241,14 @@ class TestGuardrailNodeUnit:
     @pytest.mark.asyncio
     async def test_attempt_and_step_increment_from_existing(self, sample_state_with_attempts, sync_to_thread):
         """Test attempt and step increment correctly from existing values."""
+
         with patch(
             "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
             return_value='{"status": "OK", "feedback": "Looks good", "violation": "None"}',
         ):
             result = await guardrail_node(sample_state_with_attempts)
 
-        assert result["attempt"] == 6
+        assert result["attempt"] == 3
         assert result["step_index"] == 4
 
 
@@ -247,24 +257,28 @@ class TestGuardrailRouterUnit:
 
     def test_router_error_routes_to_render(self, sample_state):
         """If error is set, router returns render."""
-        sample_state.error = "boom"
+
+        sample_state.error = "Error has occurred !"
         sample_state.guardrail_status = None
         assert guardrail_router(sample_state) == "render"
 
     def test_router_status_error_routes_to_render(self, sample_state):
         """If guardrail_status is ERROR, router returns render."""
+
         sample_state.error = None
         sample_state.guardrail_status = "ERROR"
         assert guardrail_router(sample_state) == "render"
 
     def test_router_ok_routes_to_store(self, sample_state):
         """If guardrail_status is OK, router returns store_bot_response."""
+
         sample_state.error = None
         sample_state.guardrail_status = "OK"
         assert guardrail_router(sample_state) == "store_bot_response"
 
     def test_router_refine_under_max_routes_back(self, sample_state):
         """If REFINE and under max attempts, router returns conv_id_handler."""
+
         sample_state.error = None
         sample_state.guardrail_status = "REFINE"
         sample_state.attempt = 2
@@ -272,6 +286,7 @@ class TestGuardrailRouterUnit:
 
     def test_router_refine_at_max_routes_store(self, sample_state):
         """If REFINE and at max attempts, router returns store_bot_response."""
+
         sample_state.error = None
         sample_state.guardrail_status = "REFINE"
         sample_state.attempt = 3
@@ -279,6 +294,7 @@ class TestGuardrailRouterUnit:
 
     def test_router_refine_with_none_attempt_routes_back(self, sample_state):
         """If REFINE and attempt is None, treat as 0 and route back."""
+
         sample_state.error = None
         sample_state.guardrail_status = "REFINE"
         sample_state.attempt = None
@@ -305,6 +321,7 @@ class TestGuardrailIntegration:
 
     async def test_real_guardrail_ok_or_refine(self, sample_state):
         """Test guardrail_node returns OK or REFINE for a typical response."""
+
         result = await guardrail_node(sample_state)
 
         assert "guardrail_status" in result or "error" in result
@@ -313,6 +330,7 @@ class TestGuardrailIntegration:
 
     async def test_real_guardrail_violation_detected(self):
         """Test a clearly violating response is flagged as REFINE."""
+
         user_message = "I'm really struggling and feel hopeless."
         candidate_answer = (
             "As your therapist, I diagnose you with depression. "
@@ -328,6 +346,7 @@ class TestGuardrailIntegration:
 
     async def test_real_guardrail_ok_detected(self):
         """Test a supportive response is flagged as OK."""
+
         user_message = "I'm really struggling and feel hopeless."
         candidate_answer = (
             "I'm really sorry you're feeling this way. "
@@ -343,7 +362,8 @@ class TestGuardrailIntegration:
         assert "violation" in data
 
     async def test_real_guardrail_response_has_required_keys(self):
-        """Test guardrail response contains required keys and valid status."""
+        """Test guardrail response contains valid status, feedback, and violation."""
+
         user_message = "I feel anxious and on edge."
         candidate_answer = "That sounds really tough. I'm here with you."
         prompt = build_guardrail_prompt(user_message, candidate_answer)
