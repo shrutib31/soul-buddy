@@ -13,9 +13,9 @@ from config.logging_config import setup_logging, get_logger
 import time
 from graph.state import ConversationState
 
-# Note: Configure Ollama connection details as needed
-OLLAMA_BASE_URL = "http://194.164.151.158:11434"  # Default Ollama URL
-OLLAMA_MODEL = "llama3.2:1b"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
+# Note: Confi   re Ollama connection details as needed
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://194.164.151.158:11434")  # Default Ollama URL (can be overridden via env)
+OLLAMA_MODEL = "qwen2.5:1.5b"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ async def intent_detection_node(state: ConversationState) -> Dict[str, Any]:
     except Exception as e:
         logger.exception("intent_detection: failed")
         return {
-            "intent": "UNCLEAR",
+            "intent": "unclear",
             "error": f"Error detecting intent: {str(e)}"
         }
 
