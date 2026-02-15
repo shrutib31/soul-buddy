@@ -87,6 +87,7 @@ async def create_initial_state(
     Returns:
         ConversationState ready for graph invocation
     """
+    print(f"\nReturned Conversation State:\n conv_id: {conversation_id},\n mode: {mode},\n domain: {domain},\n message: {message}\n")
     return ConversationState(
         conversation_id=conversation_id or "",  # Empty string triggers ID generation
         mode=mode,

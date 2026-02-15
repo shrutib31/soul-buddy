@@ -1,0 +1,52 @@
+{"text":"Hi, I just started college and I feel lost.","situation":"FIRST_YEAR_OVERWHELM","severity":"medium","intent":"VENTING","risk":0}
+{"text":"First year is harder than I expected.","situation":"FIRST_YEAR_OVERWHELM","severity":"medium","intent":"VENTING","risk":0}
+{"text":"I don't think I can handle first year.","situation":"FIRST_YEAR_OVERWHELM","severity":"high","intent":"VENTING","risk":0}
+{"text":"Is it normal to feel overwhelmed in first year?","situation":"FIRST_YEAR_OVERWHELM","severity":"low","intent":"SEEK_INFORMATION","risk":0}
+{"text":"Why is first year so stressful?","situation":"FIRST_YEAR_OVERWHELM","severity":"medium","intent":"SEEK_UNDERSTANDING","risk":0}
+{"text":"Hello, everything feels overwhelming since I joined.","situation":"FIRST_YEAR_OVERWHELM","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Can you explain why first year feels this way?","situation":"FIRST_YEAR_OVERWHELM","severity":"medium","intent":"SEEK_UNDERSTANDING","risk":0}
+{"text":"I am scared I will fail my first year.","situation":"FIRST_YEAR_OVERWHELM","severity":"high","intent":"VENTING","risk":0}
+
+{"text":"Everyone seems smarter than me.","situation":"ACADEMIC_COMPARISON","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Hi, I feel behind compared to others.","situation":"ACADEMIC_COMPARISON","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Why am I always behind academically?","situation":"ACADEMIC_COMPARISON","severity":"medium","intent":"SEEK_UNDERSTANDING","risk":0}
+{"text":"How do I stop comparing myself to classmates?","situation":"ACADEMIC_COMPARISON","severity":"medium","intent":"SEEK_SUPPORT","risk":0}
+{"text":"I feel stupid compared to everyone else.","situation":"ACADEMIC_COMPARISON","severity":"high","intent":"VENTING","risk":0}
+{"text":"Hello, I am not as good as others.","situation":"ACADEMIC_COMPARISON","severity":"medium","intent":"VENTING","risk":0}
+
+{"text":"Exams make me panic.","situation":"EXAM_ANXIETY","severity":"high","intent":"VENTING","risk":0}
+{"text":"I can't sleep before exams.","situation":"EXAM_ANXIETY","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Hi, tests give me anxiety.","situation":"EXAM_ANXIETY","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Can you give me tips for exam anxiety?","situation":"EXAM_ANXIETY","severity":"medium","intent":"TRY_TOOL","risk":0}
+{"text":"Why do exams make me panic?","situation":"EXAM_ANXIETY","severity":"medium","intent":"SEEK_UNDERSTANDING","risk":0}
+{"text":"I feel nervous about my upcoming test.","situation":"EXAM_ANXIETY","severity":"low","intent":"VENTING","risk":0}
+
+{"text":"Everything feels like too much.","situation":"GENERAL_OVERWHELM","severity":"high","intent":"VENTING","risk":0}
+{"text":"Hi, I can't handle all of this anymore.","situation":"GENERAL_OVERWHELM","severity":"high","intent":"VENTING","risk":0}
+{"text":"Life feels overwhelming lately.","situation":"GENERAL_OVERWHELM","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Why do I feel constant pressure?","situation":"GENERAL_OVERWHELM","severity":"medium","intent":"SEEK_UNDERSTANDING","risk":0}
+{"text":"What can I do when everything feels overwhelming?","situation":"GENERAL_OVERWHELM","severity":"medium","intent":"OPEN_TO_SOLUTION","risk":0}
+
+{"text":"I don't feel like doing anything.","situation":"LOW_MOTIVATION","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Hi, I feel drained all the time.","situation":"LOW_MOTIVATION","severity":"medium","intent":"VENTING","risk":0}
+{"text":"How can I get my motivation back?","situation":"LOW_MOTIVATION","severity":"medium","intent":"OPEN_TO_SOLUTION","risk":0}
+{"text":"Why do I feel so tired mentally?","situation":"LOW_MOTIVATION","severity":"medium","intent":"SEEK_UNDERSTANDING","risk":0}
+
+{"text":"I don't feel like I belong here.","situation":"BELONGING_DOUBT","severity":"high","intent":"VENTING","risk":0}
+{"text":"Hi, I feel out of place.","situation":"BELONGING_DOUBT","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Why do I feel like an outsider?","situation":"BELONGING_DOUBT","severity":"medium","intent":"SEEK_UNDERSTANDING","risk":0}
+{"text":"How do I feel more connected?","situation":"BELONGING_DOUBT","severity":"medium","intent":"SEEK_SUPPORT","risk":0}
+
+
+{"text":"I just feel off lately.","situation":"UNLABELED_DISTRESS","severity":"low","intent":"VENTING","risk":0}
+{"text":"Hi, I'm not feeling good.","situation":"UNLABELED_DISTRESS","severity":"medium","intent":"VENTING","risk":0}
+{"text":"Something feels wrong but I can't explain it.","situation":"UNLABELED_DISTRESS","severity":"medium","intent":"UNCLEAR","risk":0}
+{"text":"I don't know why but I feel bad.","situation":"UNLABELED_DISTRESS","severity":"medium","intent":"UNCLEAR","risk":0}
+{"text":"Can you help me figure out why I feel this way?","situation":"UNLABELED_DISTRESS","severity":"medium","intent":"SEEK_UNDERSTANDING","risk":0}
+
+{"text":"I wish I wouldn't wake up.","situation":"PASSIVE_DEATH_WISH","severity":"high","intent":"VENTING","risk":1}
+{"text":"I don't see the point of continuing.","situation":"PASSIVE_DEATH_WISH","severity":"high","intent":"VENTING","risk":1}
+{"text":"I feel like everyone would be better off without me.","situation":"PASSIVE_DEATH_WISH","severity":"high","intent":"VENTING","risk":1}
+{"text":"Hi, I just want everything to stop.","situation":"PASSIVE_DEATH_WISH","severity":"high","intent":"SEEK_SUPPORT","risk":1}
+{"text":"I wish I could disappear.","situation":"PASSIVE_DEATH_WISH","severity":"high","intent":"VENTING","risk":1}
+{"text":"I don't want to be here anymore.","situation":"PASSIVE_DEATH_WISH","severity":"high","intent":"VENTING","risk":1}

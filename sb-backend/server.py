@@ -31,6 +31,7 @@ import sys
 from typing import Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 # Import configuration modules
@@ -382,6 +383,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ============================================================================
 # API Router Registration
@@ -389,8 +396,10 @@ app = FastAPI(
 
 # Import and register API routers
 from api.chat import router as chat_router
+from api.classify import router as classify_router
 
 app.include_router(chat_router, prefix="/api/v1", tags=["Chat"])
+app.include_router(classify_router, prefix="/api/v1", tags=["Classification"])
 
 
 # ============================================================================
