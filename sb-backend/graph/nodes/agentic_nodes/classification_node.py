@@ -270,10 +270,10 @@ def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "situation": classifications["situation"],
             "severity": classifications["severity"],
             "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
-            "is_greeting": "true" if classifications["intent"] == "greeting" else "false",
-            "is_high_crisis": "true" if classifications["risk_level"] == "high" and classifications["situation"] == "suicidal" else "false",
+            "is_greeting": classifications["intent"] == "greeting",
+            "is_high_crisis": classifications["risk_level"] == "high",
             "classification_details": classifications,
-            "is_medium_crisis": "true" if classifications["risk_level"] == "medium" and classifications["situation"] == "suicidal" else "false",
+            "is_medium_crisis": classifications["risk_level"] == "medium",
         }
         
     except Exception as e:
