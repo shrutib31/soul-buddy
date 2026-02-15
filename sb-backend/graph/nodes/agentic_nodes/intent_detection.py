@@ -15,7 +15,7 @@ from graph.state import ConversationState
 
 # Note: Configure Ollama connection details as needed
 OLLAMA_BASE_URL = "http://194.164.151.158:11434"  # Default Ollama URL
-OLLAMA_MODEL = "qwen2.5:1.5b"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
+OLLAMA_MODEL = "llama3.2:1b"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,11 @@ async def intent_detection_node(state: ConversationState) -> Dict[str, Any]:
             extra={"ollama_base_url": OLLAMA_BASE_URL, "ollama_model": OLLAMA_MODEL}
         )
 
-        intent = await detect_intent_with_ollama(user_message)
+        # manual check first for speed
+        intent = manual_intent_check(user_message)
+        
+        if intent == "unclear":
+            intent = await detect_intent_with_ollama(user_message)
         
         return {
             "intent": intent
@@ -71,6 +75,39 @@ async def intent_detection_node(state: ConversationState) -> Dict[str, Any]:
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
+
+def manual_intent_check(message: str) -> str:
+    """
+    Check for intents using simple membership operators befor calling LLM.
+    Ordering matters: check for emotional/specific intents before greetings.
+    """
+    msg = message.lower().strip()
+    
+    # 1. VENTING (High Priority - catch phrases like "fed up", "yelling", "tired")
+    if any(word in msg for word in ["fed up", "tired of", "yelling", "hate", "angry", "frustrated", "annoyed", "sick of"]):
+        return "venting"
+
+    # 2. SEEK_SUPPORT
+    if any(word in msg for word in ["help", "support", "stuck", "lonely", "hurt", "please help", "don't know what to do"]):
+        return "seek_support"
+
+    # 3. TRY_TOOL
+    if any(word in msg for word in ["tool", "calculator", "exercise", "practice", "activity", "use", "test"]):
+        return "try_tool"
+
+    # 4. OPEN_TO_SOLUTION
+    if any(word in msg for word in ["advice", "suggest", "fix", "improve", "solve", "what should i do"]):
+        return "open_to_solution"
+
+    # 5. SEEK_INFORMATION / UNDERSTANDING
+    if any(word in msg for word in ["what is", "how to", "info", "tell me about", "why", "how come", "explain"]):
+        return "seek_information"
+
+    # 6. GREETING (Low Priority - only if no other intent is found)
+    if any(word in msg for word in ["hello", "hi", "hey", "greetings", "good morning", "yo"]):
+        return "greeting"
+    
+    return "unclear"
 
 async def detect_intent_with_ollama(message: str) -> str:
     """
@@ -102,8 +139,8 @@ async def detect_intent_with_ollama(message: str) -> str:
         - try_tool: User is requesting to use a tool or resource
         - seek_support: User is seeking emotional support or empathy
         - unclear: Other or unclear intent
-    .  
-        Response:"""
+
+        Response (one word only):"""
         
         timeout = aiohttp.ClientTimeout(total=OLLAMA_TIMEOUT)
         request_payload = {
