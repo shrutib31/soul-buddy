@@ -35,3 +35,11 @@ class ConversationState(BaseModel):
 
     # metadata
     error: Optional[str] = None
+    
+    #Guardrail Helpers
+    guardrail_status: Optional[str] = None
+    guardrail_feedback: Optional[str] = None
+    attempt: Optional[int] = 0
+    
+    # This allows the render node to save the final JSON response here
+    api_response: Optional[Dict[str, Any]] = None

@@ -32,5 +32,12 @@ aiohttp>=3.9.0
 
 # LangGraph & AI
 langgraph>=0.2.0
+langchain>=0.2.0
+langchain-community>=0.2.0
+langchain-ollama>=0.1.0
 openai>=1.0.0
 pydantic>=2.0.0
+
+# Machine Learning
+transformers>=4.30.0
+torch>=2.0.0

@@ -39,7 +39,10 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
         bot_response = state.response_draft
         
         if not conversation_id or not bot_response:
-            return {"error": "Missing conversation_id or bot response"}
+            return {
+                "error": "Missing conversation_id or bot response",
+                "response_draft": state.response_draft or ""
+            }
         
         async with data_db.get_session() as session:
             # Get the current turn count for this conversation to set turn_index
@@ -59,7 +62,9 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
             session.add(turn)
             await session.commit()
             
-            return {}
+            return {
+                "api_response": None
+            }
             
     except Exception as e:
         return {

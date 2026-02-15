@@ -165,6 +165,13 @@ user_preferences: Dict[str, Any] = {}
 
 # Metadata
 error: Optional[str] = None
+
+#Guardrail Helpers
+guardrail_status: str
+guardrail_feedback: str
+
+# This allows the render node to save the final JSON response here
+api_response: Optional[Dict[str, Any]] = None
 ```
 
 ## Common Node Types
