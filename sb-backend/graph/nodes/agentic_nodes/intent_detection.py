@@ -63,7 +63,7 @@ async def intent_detection_node(state: ConversationState) -> Dict[str, Any]:
     except Exception as e:
         logger.exception("intent_detection: failed")
         return {
-            "intent": "UNCLEAR",
+            "intent": "unclear",
             "error": f"Error detecting intent: {str(e)}"
         }
 
