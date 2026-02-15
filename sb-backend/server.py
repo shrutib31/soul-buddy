@@ -396,8 +396,10 @@ app.add_middleware(
 
 # Import and register API routers
 from api.chat import router as chat_router
+from api.classify import router as classify_router
 
 app.include_router(chat_router, prefix="/api/v1", tags=["Chat"])
+app.include_router(classify_router, prefix="/api/v1", tags=["Classification"])
 
 
 # ============================================================================

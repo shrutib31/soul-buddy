@@ -3,13 +3,23 @@ from typing import Any, Dict, Callable, Optional
 import os
 import asyncio
 from langgraph.graph import StateGraph, END
-from langchain_ollama import ChatOllama
 import logging
 import urllib.request
 
+# Try to import ChatOllama from langchain_community if available
+try:
+    from langchain_community.llms import Ollama
+except ImportError:
+    try:
+        from langchain.llms import Ollama
+    except ImportError:
+        Ollama = None
+        logger = logging.getLogger(__name__)
+        logger.warning("Ollama import not available - guardrail LLM features will be limited")
+
 # Note: Configure Ollama connection details as needed
-OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama URL
-OLLAMA_MODEL = "qwen2.5:1.5b"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
+OLLAMA_BASE_URL = "http://72.60.99.35:11434"  # Default Ollama URL
+OLLAMA_MODEL = "llama3.2"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
 
 logger = logging.getLogger(__name__)
@@ -99,7 +109,19 @@ GUARDRAIL_RULES: "{GUARDRAIL_RULES}"
     try:
         print("Guardrail checking response...")
         guardrail_response = await asyncio.to_thread(guardrail_fn, prompt)
-        data: Dict[str, Any] = safe_json_loads(guardrail_response)
+        print("Raw guardrail LLM response:", repr(guardrail_response))
+        try:
+            data: Dict[str, Any] = safe_json_loads(guardrail_response)
+        except Exception as parse_exc:
+            # Log and return a fallback error if no JSON found
+            print("Failed to parse guardrail LLM response as JSON:", parse_exc)
+            return {
+                "error": f"Error in guardrail node: Could not parse LLM response as JSON. Raw response: {guardrail_response}",
+                "guardrail_status": "ERROR",
+                "guardrail_feedback": "Guardrail LLM did not return valid JSON.",
+                "attempt": next_attempt,
+                "step_index": next_step,
+            }
         status = str(data.get("status", "")).upper()
         feedback = str(data.get("feedback", "")).strip()
         print("Current LLM Response = " + state.response_draft)

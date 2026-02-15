@@ -14,8 +14,8 @@ import logging
 from graph.state import ConversationState
 
 # Configuration
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://194.164.151.158:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "phi3:latest")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://72.60.99.35:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
@@ -341,10 +341,14 @@ async def select_best_response(
         Selected response
     """
     if preference == "gpt":
+        logger.info("select_best_response: preferring GPT response")
         return gpt_response if gpt_response else ollama_response
     elif preference == "ollama":
+        logger.info("select_best_response: preferring Ollama response")
         return ollama_response if ollama_response else gpt_response
     elif preference == "longer":
+        logger.info("select_best_response: preferring longer response")
         return gpt_response if len(gpt_response) >= len(ollama_response) else ollama_response
     else:
+        logger.info("select_best_response: preferring default response (GPT if available)")
         return gpt_response if gpt_response else ollama_response
