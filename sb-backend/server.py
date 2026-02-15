@@ -101,6 +101,9 @@ async def lifespan(app: FastAPI):
     logger.info("   • POST /api/v1/chat/incognito/stream - Anonymous streaming chat")
     logger.info("   • POST /api/v1/chat/cognito - Authenticated chat")
     logger.info("   • POST /api/v1/chat/cognito/stream - Authenticated streaming chat")
+    logger.info("")
+    logger.info(" Privacy Endpoint:")
+    logger.info("   • POST /api/v1/privacy - Mask Sensitive Data")
     logger.info("=" * 80)
     logger.info("")
     
@@ -397,9 +400,11 @@ app.add_middleware(
 # Import and register API routers
 from api.chat import router as chat_router
 from api.classify import router as classify_router
+from api.privacy import router as privacy_router
 
 app.include_router(chat_router, prefix="/api/v1", tags=["Chat"])
 app.include_router(classify_router, prefix="/api/v1", tags=["Classification"])
+app.include_router(privacy_router, prefix="/api/v1", tags=["Privacy"])
 
 
 # ============================================================================
