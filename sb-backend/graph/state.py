@@ -7,6 +7,7 @@ class ConversationState(BaseModel):
     mode: str                    # incognito / cognito
     domain: str                  # student / employee / general
     user_message: str
+    user_id: Optional[str] = None
 
     # intent detection
     intent: Optional[str] = None

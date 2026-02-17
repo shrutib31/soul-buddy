@@ -1,12 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
-import asyncio
-import uuid
-import json
 
 from graph.state import ConversationState
+from config.supabase import get_user_by_id
 from graph.graph_builder import get_compiled_flow
 from graph.streaming import stream_response_words, stream_as_sse
 
@@ -43,8 +41,10 @@ class IncognitoChatRequest(ChatRequest):
 class CognitoChatRequest(ChatRequest):
     mode: str = "cognito"  # "incognito" or "cognito"
     sb_conv_id: str = None #conversation id for cognito mode
-    user_id: str = None  # user identifier for cognito mode. This is a supabase user ID in string format
+    user_id: str  # user identifier for cognito mode. This is a supabase user ID in string format
     domain: str = "student"  # "student", "employee", "corporate"
+
+
 
 
 # ============================================================================
@@ -73,7 +73,8 @@ async def create_initial_state(
     message: str,
     mode: str,
     domain: str,
-    conversation_id: Optional[str] = None
+    conversation_id: Optional[str] = None,
+    user_id: Optional[str] = None
 ) -> ConversationState:
     """
     Create the initial conversation state for the graph.
@@ -93,7 +94,27 @@ async def create_initial_state(
         mode=mode,
         domain=domain,
         user_message=message,
+        user_id=user_id,
     )
+
+
+async def require_cognito_user_id(user_id: str) -> str:
+    """
+    Validate that the provided user_id exists in Supabase.
+    """
+    if not user_id or not user_id.strip():
+        raise HTTPException(status_code=400, detail="Missing user_id for cognito mode")
+
+    try:
+        user = await get_user_by_id(user_id)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"User verification failed: {str(e)}")
+
+    verified_user_id = getattr(user, "id", None)
+    if not verified_user_id:
+        raise HTTPException(status_code=401, detail="User verification failed: missing id")
+
+    return verified_user_id
 
 
 @router.post("/incognito/stream")
@@ -163,12 +184,15 @@ async def cognito_chat_stream(req: CognitoChatRequest):
     Returns server-sent events (SSE) with real-time graph updates.
     """
     try:
+        verified_user_id = await require_cognito_user_id(req.user_id)
+
         # Create initial state
         state = await create_initial_state(
             message=req.message,
             mode="cognito",
             domain=req.domain,
-            conversation_id=req.sb_conv_id
+            conversation_id=req.sb_conv_id,
+            user_id=verified_user_id
         )
         
         # Stream from graph
@@ -192,12 +216,15 @@ async def cognito_chat(req: CognitoChatRequest):
     Returns the full response at once.
     """
     try:
+        verified_user_id = await require_cognito_user_id(req.user_id)
+
         # Create initial state
         state = await create_initial_state(
             message=req.message,
             mode="cognito",
             domain=req.domain,
-            conversation_id=req.sb_conv_id
+            conversation_id=req.sb_conv_id,
+            user_id=verified_user_id
         )
         
         # Invoke the graph
@@ -214,3 +241,4 @@ async def cognito_chat(req: CognitoChatRequest):
             status_code=500,
             content={"success": False, "error": f"Chat failed: {str(e)}"}
         )
+
