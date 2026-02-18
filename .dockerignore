@@ -1,0 +1,49 @@
+# Ignore Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtual environments
+venv/
+.env/
+
+# Ignore environment files except the demo
+.env
+!.env.demo
+
+# Ignore test and coverage outputs
+.coverage
+coverage.xml
+dist/
+build/
+*.egg-info/
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore database files
+*.sqlite3
+*.db
+
+# Ignore IDE/editor/project files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Ignore migrations cache
+sb-backend/migrations/__pycache__/
+
+# Ignore frontend build artifacts
+sb-frontend/node_modules/
+sb-frontend/dist/
+
+# Ignore other common files
+*.bak
+*.tmp
+
+# Ignore Docker-related files that shouldn't be copied
+Dockerfile*
+docker-compose*
