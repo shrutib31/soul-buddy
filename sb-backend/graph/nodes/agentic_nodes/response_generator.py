@@ -14,7 +14,7 @@ import logging
 from graph.state import ConversationState
 
 # Configuration
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://72.60.99.35:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -164,6 +164,7 @@ Compassionate response:"""
                         data = await resp.json()
                         response = data.get("response", "").strip()
                         logger.info("generate_response_ollama: success", extra={"length": len(response)})
+                        logger.debug(f"generate_response_ollama: full response: {response}")
                         return response if response else ""
                     else:
                         error_text = await resp.text()
@@ -274,6 +275,7 @@ Guidelines:
                         data = await resp.json()
                         response = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
                         logger.info("generate_response_gpt: success", extra={"length": len(response)})
+                        logger.debug(f"generate_response_gpt: full response: {response}")
                         return response if response else ""
                     else:
                         error_text = await resp.text()

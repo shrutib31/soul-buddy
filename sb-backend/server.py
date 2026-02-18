@@ -40,6 +40,7 @@ from config.database import DatabaseConfig
 from config.auth_database import AuthDatabaseConfig
 from config.sqlalchemy_db import SQLAlchemyDataDB, SQLAlchemyAuthDB
 from config.supabase import test_connection as test_supabase_connection
+import os
 
 # Load environment variables
 load_dotenv()
@@ -85,16 +86,21 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 SERVER READY")
     logger.info("=" * 80)
     logger.info("📍 Server accessible at:")
-    logger.info("   • Localhost: http://localhost:8000")
-    logger.info("   • Local IP: http://127.0.0.1:8000")
-    logger.info("   • Network: http://0.0.0.0:8000")
+    # Use environment variables for server URLs
+    server_host = os.environ.get("SERVER_HOST", "localhost")
+    server_port = os.environ.get("PORT", "8000")
+    local_ip = os.environ.get("SERVER_LOCAL_IP", "127.0.0.1")
+    network_ip = os.environ.get("SERVER_NETWORK_IP", "0.0.0.0")
+    logger.info(f"   • Localhost: http://{server_host}:{server_port}")
+    logger.info(f"   • Local IP: http://{local_ip}:{server_port}")
+    logger.info(f"   • Network: http://{network_ip}:{server_port}")
     logger.info("")
     logger.info("📖 API Documentation:")
-    logger.info("   • Interactive Swagger UI: http://localhost:8000/docs")
-    logger.info("   • Alternative ReDoc UI: http://localhost:8000/redoc")
-    logger.info("   • OpenAPI JSON Schema: http://localhost:8000/openapi.json")
+    logger.info(f"   • Interactive Swagger UI: http://{server_host}:{server_port}/docs")
+    logger.info(f"   • Alternative ReDoc UI: http://{server_host}:{server_port}/redoc")
+    logger.info(f"   • OpenAPI JSON Schema: http://{server_host}:{server_port}/openapi.json")
     logger.info("")
-    logger.info("🏥 Health Check: http://localhost:8000/health")
+    logger.info(f"🏥 Health Check: http://{server_host}:{server_port}/health")
     logger.info("")
     logger.info("💬 Chat Endpoints:")
     logger.info("   • POST /api/v1/chat/incognito - Anonymous chat")
@@ -385,7 +391,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -426,7 +432,9 @@ async def health_check():
 # ============================================================================
 # Server Entry Point
 # ============================================================================
+import os
 
+port = int(os.environ.get("PORT", 8000))
 if __name__ == "__main__":
     import uvicorn
     
@@ -434,6 +442,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=port,
         log_config=None  # Use our custom logging configuration
     )
