@@ -84,6 +84,17 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS encryption_audit_log (
+    id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(50) NOT NULL,
+    operation VARCHAR(20) NOT NULL,
+    accessed_by_type VARCHAR(20) NOT NULL,
+    accessed_by_id VARCHAR(255) NOT NULL,
+    accessed_reason TEXT,
+    vault_key_name VARCHAR(100),
+    accessed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS situation_assessments (
   turn_id UUID REFERENCES conversation_turns(id),
   situation_id TEXT,

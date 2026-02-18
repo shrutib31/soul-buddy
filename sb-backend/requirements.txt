@@ -41,3 +41,7 @@ pydantic>=2.0.0
 # Machine Learning
 transformers>=4.30.0
 torch>=2.0.0
+
+google-cloud-kms>=2.19.0
+cryptography>=41.0.0
+python-dotenv>=1.0.0

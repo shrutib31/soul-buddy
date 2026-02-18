@@ -9,6 +9,9 @@ DROP TABLE IF EXISTS risk_assessments;
 DROP TABLE IF EXISTS situation_assessments;
 DROP TABLE IF EXISTS conversation_turns;
 
+--Audit log
+DROP TABLE IF EXISTS encryption_audit_log;
+
 -- Core conversation table
 DROP TABLE IF EXISTS sb_conversations;
 
