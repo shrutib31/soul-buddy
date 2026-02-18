@@ -1,0 +1,14 @@
+version: '3.9'
+
+services:
+  sb-backend:
+    build: ./sb-backend
+    container_name: sb-backend
+    # Use the .env.demo file for environment variables in the container
+    # we can pass this as part of the docker-compose command or specify it here
+    env_file:
+      - ./sb-backend/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./sb-backend:/app
