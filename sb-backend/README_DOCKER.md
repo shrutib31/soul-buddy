@@ -71,13 +71,14 @@ docker compose down
 ## Customizing Environment Variables
 
 - The backend uses environment variables for configuration.
-- Edit `.env.demo` or provide your own `.env` file as needed.
+- Provide your own `.env` file as needed.
 
 ## Development Tips
 - Use a `.dockerignore` file to avoid copying unnecessary files into the image.
 - The Dockerfile installs dependencies first for efficient caching.
 - The entrypoint script (`entrypoint.sh`) is used to start the server.
-
+- In .env file to access postgres running on localhost please use `host.docker.internal` instead of `localhost` e.g. `postgres://<db_user>:<db_password>@host.docker.internal:<port>>/<db_name>`
+- In .env file of postgres running on container then please use container-name `postgresql://<db_user>:<db_password>@<container-name>:<port>>/<db_name>`
 ## Troubleshooting
 - Ensure ports are not already in use on your host.
 - Check logs with `docker logs <container_id>` if the server does not start.

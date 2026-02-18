@@ -7,12 +7,7 @@ services:
     # Use the .env.demo file for environment variables in the container
     # we can pass this as part of the docker-compose command or specify it here
     env_file:
-      - ./sb-backend/.env.demo
-    environment:
-      # Set your environment variables here
-      # DATABASE_URL: postgresql://user:password@host:port/dbname
-      # DATA_DB_URL: postgresql://user:password@host:port/dbname
-      # Add other env vars as needed, e.g. OPENAI_API_KEY
+      - ./sb-backend/.env
     ports:
       - "8000:8000"
     volumes:
