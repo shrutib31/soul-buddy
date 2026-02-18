@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy .env file
-COPY .env.demo .env
+COPY .env .env
 
 # Copy requirements and install dependencies first
 COPY requirements.txt ./
