@@ -37,14 +37,12 @@ def get_compiled_flow():
     graph.add_edge("conv_id_handler", "classification_node")
     # graph.add_edge("conv_id_handler", "situation_severity_detection")
 
-    # Parallel nodes converge to response_generator
-    # graph.add_edge("store_message", "response_generator")
-    graph.add_edge("classification_node", "response_generator")
     # graph.add_edge("situation_severity_detection", "response_generator")
     
     #Response generator to Guardrail check
     #graph.add_edge("response_generator", "guardrail")
     graph.add_edge("response_generator", "store_bot_response")
+    
     #Links GUARDRAIL back to starting node OR continue to "store_bot_response"
     #graph.add_conditional_edges("guardrail", guardrail_router)
 

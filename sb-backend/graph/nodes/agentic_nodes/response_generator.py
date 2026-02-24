@@ -13,6 +13,7 @@ import logging
 import json
 
 from graph.state import ConversationState
+from graph.nodes.function_nodes.load_user_context import load_user_context
 
 # Configuration
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -69,6 +70,16 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         Dict with ollama_response, gpt_response, and selected_response
     """
     try:
+        # Load stored user context for cognito sessions
+        ctx_updates: Dict[str, Any] = {}
+        if state.mode == "cognito":
+            ctx_updates = await load_user_context(state)
+            if "error" in ctx_updates:
+                return ctx_updates
+            # apply updates locally for this node
+            for key, value in ctx_updates.items():
+                setattr(state, key, value)
+
         user_message = state.user_message
         situation = state.situation
         severity = state.severity
@@ -110,6 +121,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         )
         
         return {
+            **ctx_updates,
             "response_draft": selected_response,
             "api_response": {
                 "ollama": ollama_response,

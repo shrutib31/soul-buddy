@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 
 from graph.state import ConversationState
-from config.supabase import get_user_by_id
 from graph.graph_builder import get_compiled_flow
 from graph.streaming import stream_response_words, stream_as_sse
 
@@ -46,8 +45,6 @@ class CognitoChatRequest(ChatRequest):
     sb_conv_id: Optional[str] = None  # conversation id for cognito mode
     user_id: str  # user identifier for cognito mode. This is a supabase user ID in string format
     domain: str # "student", "employee", "corporate"
-    user_profile: Optional[Dict[str, Any]] = None
-    user_personality_profiles: Optional[Dict[str, Any]] = None
 
 
 
@@ -107,25 +104,6 @@ async def create_initial_state(
         user_profile=user_profile or {},
         user_personality_profile=user_personality_profiles or {},
     )
-
-
-async def require_cognito_user_id(user_id: str) -> str:
-    """
-    Validate that the provided user_id exists in Supabase.
-    """
-    if not user_id or not user_id.strip():
-        raise HTTPException(status_code=400, detail="Missing user_id for cognito mode")
-
-    try:
-        user = await get_user_by_id(user_id)
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"User verification failed: {str(e)}")
-
-    verified_user_id = getattr(user, "id", None)
-    if not verified_user_id:
-        raise HTTPException(status_code=401, detail="User verification failed: missing id")
-
-    return verified_user_id
 
 
 @router.post("/incognito/stream")
@@ -195,8 +173,8 @@ async def cognito_chat_stream(req: CognitoChatRequest):
     Returns server-sent events (SSE) with real-time graph updates.
     """
     try:
-        print(f"\nCognito /stream request payload:\n{req.model_dump()}\n")
-        verified_user_id = await require_cognito_user_id(req.user_id)
+        if not req.user_id or not req.user_id.strip():
+            raise HTTPException(status_code=400, detail="Missing user_id for cognito mode")
 
         # Create initial state
         state = await create_initial_state(
@@ -204,10 +182,8 @@ async def cognito_chat_stream(req: CognitoChatRequest):
             mode="cognito",
             domain=req.domain,
             conversation_id=req.sb_conv_id,
-            user_id=verified_user_id,
+            user_id=req.user_id,
             domain_config=req.domain_config,
-            user_profile=req.user_profile,
-            user_personality_profiles=req.user_personality_profiles,
         )
         
         # Stream from graph
@@ -231,8 +207,8 @@ async def cognito_chat(req: CognitoChatRequest):
     Returns the full response at once.
     """
     try:
-        print(f"\nCognito request payload:\n{req.model_dump()}\n")
-        verified_user_id = await require_cognito_user_id(req.user_id)
+        if not req.user_id or not req.user_id.strip():
+            raise HTTPException(status_code=400, detail="Missing user_id for cognito mode")
 
         # Create initial state
         state = await create_initial_state(
@@ -240,10 +216,8 @@ async def cognito_chat(req: CognitoChatRequest):
             mode="cognito",
             domain=req.domain,
             conversation_id=req.sb_conv_id,
-            user_id=verified_user_id,
+            user_id=req.user_id,
             domain_config=req.domain_config,
-            user_profile=req.user_profile,
-            user_personality_profiles=req.user_personality_profiles,
         )
         
         # Invoke the graph
