@@ -9,9 +9,14 @@ from typing import Dict, Any
 from datetime import datetime
 from sqlalchemy import select, func
 
+
 from graph.state import ConversationState
 from orm.models import ConversationTurn
 from config.sqlalchemy_db import SQLAlchemyDataDB
+import logging
+
+# Logger setup
+logger = logging.getLogger(__name__)
 
 # Initialize database connection
 data_db = SQLAlchemyDataDB()
@@ -37,6 +42,7 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
     try:
         conversation_id = state.conversation_id
         bot_response = state.response_draft
+        logger.info(f"Storing bot response for conversation_id: {conversation_id}")
         
         if not conversation_id or not bot_response:
             return {
