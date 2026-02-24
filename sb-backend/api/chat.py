@@ -28,21 +28,26 @@ class ChatRequest(BaseModel):
         default=None,
         description="Optional metadata (client info, tags, etc.)"
     )
-    sb_conv_id: str = None #conversation id for cognito mode
-    domain: str = "student"  # "student", "employee", "corporate"
+    sb_conv_id: Optional[str] = None  # conversation id for cognito mode
+    domain: Optional[str] = None  # "student", "employee", "corporate"
+    domain_config: Optional[Dict[str, Any]] = None
+    user_profile: Optional[Dict[str, Any]] = None
+    user_personality_profiles: Optional[Dict[str, Any]] = None
     
 
 class IncognitoChatRequest(ChatRequest):
     mode: str = "incognito"  # "incognito" or "cognito"
-    sb_conv_id: str = None #conversation id for cognito mode
+    sb_conv_id: Optional[str] = None  # conversation id for cognito mode
     domain: str = "student"  # "student", "employee", "corporate"
     upgrade_suggested: bool = False
 
 class CognitoChatRequest(ChatRequest):
     mode: str = "cognito"  # "incognito" or "cognito"
-    sb_conv_id: str = None #conversation id for cognito mode
+    sb_conv_id: Optional[str] = None  # conversation id for cognito mode
     user_id: str  # user identifier for cognito mode. This is a supabase user ID in string format
-    domain: str = "student"  # "student", "employee", "corporate"
+    domain: str # "student", "employee", "corporate"
+    user_profile: Optional[Dict[str, Any]] = None
+    user_personality_profiles: Optional[Dict[str, Any]] = None
 
 
 
@@ -74,7 +79,10 @@ async def create_initial_state(
     mode: str,
     domain: str,
     conversation_id: Optional[str] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    domain_config: Optional[Dict[str, Any]] = None,
+    user_profile: Optional[Dict[str, Any]] = None,
+    user_personality_profiles: Optional[Dict[str, Any]] = None,
 ) -> ConversationState:
     """
     Create the initial conversation state for the graph.
@@ -95,6 +103,9 @@ async def create_initial_state(
         domain=domain,
         user_message=message,
         user_id=user_id,
+        domain_config=domain_config or {},
+        user_profile=user_profile or {},
+        user_personality_profile=user_personality_profiles or {},
     )
 
 
@@ -129,7 +140,7 @@ async def incognito_chat_stream(req: IncognitoChatRequest):
             message=req.message,
             mode="incognito",
             domain=req.domain,
-            conversation_id=req.sb_conv_id
+            conversation_id=req.sb_conv_id,
         )
         
         # Stream from graph
@@ -158,7 +169,7 @@ async def incognito_chat(req: IncognitoChatRequest):
             message=req.message,
             mode="incognito",
             domain=req.domain,
-            conversation_id=req.sb_conv_id
+            conversation_id=req.sb_conv_id,
         )
         
         # Invoke the graph
@@ -184,6 +195,7 @@ async def cognito_chat_stream(req: CognitoChatRequest):
     Returns server-sent events (SSE) with real-time graph updates.
     """
     try:
+        print(f"\nCognito /stream request payload:\n{req.model_dump()}\n")
         verified_user_id = await require_cognito_user_id(req.user_id)
 
         # Create initial state
@@ -192,7 +204,10 @@ async def cognito_chat_stream(req: CognitoChatRequest):
             mode="cognito",
             domain=req.domain,
             conversation_id=req.sb_conv_id,
-            user_id=verified_user_id
+            user_id=verified_user_id,
+            domain_config=req.domain_config,
+            user_profile=req.user_profile,
+            user_personality_profiles=req.user_personality_profiles,
         )
         
         # Stream from graph
@@ -216,6 +231,7 @@ async def cognito_chat(req: CognitoChatRequest):
     Returns the full response at once.
     """
     try:
+        print(f"\nCognito request payload:\n{req.model_dump()}\n")
         verified_user_id = await require_cognito_user_id(req.user_id)
 
         # Create initial state
@@ -224,7 +240,10 @@ async def cognito_chat(req: CognitoChatRequest):
             mode="cognito",
             domain=req.domain,
             conversation_id=req.sb_conv_id,
-            user_id=verified_user_id
+            user_id=verified_user_id,
+            domain_config=req.domain_config,
+            user_profile=req.user_profile,
+            user_personality_profiles=req.user_personality_profiles,
         )
         
         # Invoke the graph
@@ -241,4 +260,3 @@ async def cognito_chat(req: CognitoChatRequest):
             status_code=500,
             content={"success": False, "error": f"Chat failed: {str(e)}"}
         )
-

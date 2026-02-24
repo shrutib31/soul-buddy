@@ -29,10 +29,9 @@ class ConversationState(BaseModel):
     tool: Optional[Dict[str, Any]] = None
 
     # context
-    page_context: Dict[str, Any] = {} # from which UI page it is coming from (e.g., dashboard, profile, settings)
     domain_config: Dict[str, Any] = {} # domain-specific configurations
+    user_profile: Dict[str, Any] = {} # user profile info to be populated frmo db
     user_personality_profile: Dict[str, Any] = {} # personality traits of the user to be populated from the db
-    user_preferences: Dict[str, Any] = {} # user preferences to be populated from the db
 
     # metadata
     error: Optional[str] = None

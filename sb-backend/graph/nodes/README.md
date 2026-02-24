@@ -158,10 +158,9 @@ readiness_score: int = 0
 tool: Optional[Dict[str, Any]] = None
 
 # Context
-page_context: Dict[str, Any] = {}
 domain_config: Dict[str, Any] = {}
+user_profile: Dict[str, Any] = {}
 user_personality_profile: Dict[str, Any] = {}
-user_preferences: Dict[str, Any] = {}
 
 # Metadata
 error: Optional[str] = None

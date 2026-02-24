@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 import os
 import asyncio
 import logging
+import json
 
 from graph.state import ConversationState
 
@@ -25,6 +26,33 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # LANGRAPH NODE FUNCTION
 # ============================================================================
+
+def _append_context_line(lines: list[str], label: str, value: Any) -> None:
+    if value is None:
+        return
+    if isinstance(value, dict) and not value:
+        return
+    if isinstance(value, list) and not value:
+        return
+    try:
+        serialized = json.dumps(value, ensure_ascii=True)
+    except Exception:
+        serialized = str(value)
+    lines.append(f"{label}: {serialized}")
+
+
+def _build_additional_context(state: ConversationState) -> str:
+    lines: list[str] = []
+    if state.mode:
+        lines.append(f"mode: {state.mode}")
+    if state.domain:
+        lines.append(f"domain: {state.domain}")
+    _append_context_line(lines, "user_profile", state.user_profile)
+    _append_context_line(lines, "user_personality_profiles", state.user_personality_profile)
+    if state.response_draft:
+        lines.append(f"Existing draft: {state.response_draft}")
+    return "\n".join(lines).strip()
+
 
 async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
     """
@@ -45,7 +73,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         situation = state.situation
         severity = state.severity
         intent = state.intent
-        response_draft = state.response_draft
+        additional_context = _build_additional_context(state)
         
         print(f"\nIntent detected at this stage is: {intent}\n")
         
@@ -61,10 +89,10 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         # This reduces total execution time from ~5-7s (sequential) to ~2-5s (parallel)
         ollama_response, gpt_response = await asyncio.gather(
             generate_response_ollama(
-                user_message, situation, severity, intent, response_draft
+                user_message, situation, severity, intent, additional_context
             ),
             generate_response_gpt(
-                user_message, situation, severity, intent, response_draft
+                user_message, situation, severity, intent, additional_context
             ),
             return_exceptions=False  # If either fails, exception will be raised
         )
@@ -131,6 +159,8 @@ async def generate_response_ollama(
             context_info += f"\nSeverity: {severity}"
         if intent:
             context_info += f"\nUser intent: {intent}"
+        if context:
+            context_info += f"\nAdditional context:\n{context}"
         
         prompt = f"""You are a compassionate mental health support chatbot. 
 Your role is to provide empathetic, supportive responses that validate the user's feelings.
@@ -224,6 +254,8 @@ async def generate_response_gpt(
             context_info += f"\nSeverity: {severity}"
         if intent:
             context_info += f"\nUser intent: {intent}"
+        if context:
+            context_info += f"\nAdditional context:\n{context}"
         
         messages = [
             {
