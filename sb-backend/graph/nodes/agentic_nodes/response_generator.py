@@ -47,8 +47,6 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         intent = state.intent
         response_draft = state.response_draft
         
-        print(f"\nIntent detected at this stage is: {intent}\n")
-        
         if not user_message:
             return {"error": "Missing user message for response generation"}
         
@@ -211,9 +209,8 @@ async def generate_response_gpt(
     """
     try:
         if not OPENAI_API_KEY:
-            print("OpenAI API key not configured")
+            logger.debug("generate_response_gpt: OpenAI API key not configured")
             return ""
-        
         import aiohttp
         import json
         
