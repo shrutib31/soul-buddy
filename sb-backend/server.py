@@ -231,6 +231,11 @@ async def initialize_sqlalchemy_engines() -> bool:
         True if successful, False otherwise
     """
     try:
+        from config.sqlalchemy_db import get_data_db, SQLAlchemyAuthDB
+        # This initializes and caches the instance
+        data_db = get_data_db()
+        await data_db.init_engine()
+        
         logger.info("\n[4/5] Initializing SQLAlchemy Engines...")
         global data_db_sqlalchemy, auth_db_sqlalchemy
         

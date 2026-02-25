@@ -11,10 +11,7 @@ from sqlalchemy import select, func
 
 from graph.state import ConversationState
 from orm.models import ConversationTurn
-from config.sqlalchemy_db import SQLAlchemyDataDB
-
-# Initialize database connection
-data_db = SQLAlchemyDataDB()
+from config.sqlalchemy_db import get_data_db
 
 
 # ============================================================================
@@ -28,6 +25,9 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
     This node saves the current user message to the conversation history
     in the ConversationTurn table. Runs in parallel with intent detection.
     
+    - cognito mode: message is encrypted before storing using AES-256-GCM
+    - incognito mode: no DB storage (privacy preserved)
+    
     The turn_id is auto-generated (UUID), so we don't need to set it.
     
     Args:
@@ -39,10 +39,22 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
     try:
         conversation_id = state.conversation_id
         user_message = state.user_message
-        
+        mode = state.mode
+
+        # Incognito = no persistence, return immediately
+        if mode == "incognito":
+            return {}
+
         if not conversation_id or not user_message:
             return {"error": "Missing conversation_id or user_message"}
-        
+
+        # Encrypt the message for cognito mode before storing
+        from services.key_manager import get_key_manager
+        km = get_key_manager()
+        message_to_store = await km.encrypt(conversation_id, user_message)
+        # message_to_store is now "ENC:v1:<base64>" format
+
+        data_db = get_data_db()
         async with data_db.get_session() as session:
             # Get the current turn count for this conversation to set turn_index
             from sqlalchemy import func
@@ -59,7 +71,7 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
                 session_id=conversation_id,
                 turn_index=turn_count,  # Sequential turn number (0-indexed)
                 speaker="user",
-                message=user_message
+                message=message_to_store  # stored encrypted as "ENC:v1:..."
             )
             session.add(turn)
             await session.commit()

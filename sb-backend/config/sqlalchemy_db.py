@@ -38,6 +38,30 @@ AuthBase = declarative_base()
 
 
 # ============================================================================
+# Helpers
+# ============================================================================
+
+def _clean_url(db_url: str) -> str:
+    """
+    Convert postgres:// to postgresql+asyncpg:// and strip sslmode from URL.
+    asyncpg does not accept sslmode as a query parameter — SSL is passed
+    via connect_args instead.
+    """
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
+    elif db_url.startswith('postgresql://'):
+        db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+
+    # Strip sslmode and channel_binding — not supported by asyncpg as URL params
+    db_url = db_url.replace('?sslmode=require', '')
+    db_url = db_url.replace('&sslmode=require', '')
+    db_url = db_url.replace('?channel_binding=require', '')
+    db_url = db_url.replace('&channel_binding=require', '')
+
+    return db_url.strip()
+
+
+# ============================================================================
 # Database Engine Configuration
 # ============================================================================
 
@@ -62,21 +86,18 @@ class SQLAlchemyDataDB:
                 db_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
             else:
                 db_url = f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
-        else:
-            # Convert postgres:// to postgresql+asyncpg://
-            if db_url.startswith('postgres://'):
-                db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
-            elif db_url.startswith('postgresql://'):
-                db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
         
-        self.database_url = db_url
+        # Clean and convert URL for asyncpg compatibility
+        self.database_url = _clean_url(db_url)
         self.engine: Optional[AsyncEngine] = None
         self.session_factory: Optional[async_sessionmaker] = None
         self.log_level = os.getenv('LOG_LEVEL', 'info')
     
     async def init_engine(self) -> AsyncEngine:
         """
-        Initialize the SQLAlchemy async engine with connection pooling
+        Initialize the SQLAlchemy async engine with connection pooling.
+        SSL is passed via connect_args since asyncpg does not support
+        sslmode as a URL query parameter.
         
         Returns:
             AsyncEngine: Configured async engine
@@ -89,6 +110,7 @@ class SQLAlchemyDataDB:
                 max_overflow=10,  # Additional connections beyond pool_size
                 pool_pre_ping=True,  # Verify connections before using
                 pool_recycle=3600,  # Recycle connections after 1 hour
+                connect_args={"ssl": "require"},  # asyncpg SSL — replaces ?sslmode=require
             )
             
             # Create session factory
@@ -98,8 +120,7 @@ class SQLAlchemyDataDB:
                 expire_on_commit=False,
             )
             
-            if self.log_level == 'debug':
-                print(f"✅ SQLAlchemy Data DB engine initialized: {self.database_url.split('@')[1]}")
+            print(f"✅ SQLAlchemy Data DB engine initialized: {self.database_url.split('@')[1]}")
         
         return self.engine
     
@@ -183,21 +204,18 @@ class SQLAlchemyAuthDB:
                 db_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
             else:
                 db_url = f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
-        else:
-            # Convert postgres:// to postgresql+asyncpg://
-            if db_url.startswith('postgres://'):
-                db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
-            elif db_url.startswith('postgresql://'):
-                db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
         
-        self.database_url = db_url
+        # Clean and convert URL for asyncpg compatibility
+        self.database_url = _clean_url(db_url)
         self.engine: Optional[AsyncEngine] = None
         self.session_factory: Optional[async_sessionmaker] = None
         self.log_level = os.getenv('LOG_LEVEL', 'info')
     
     async def init_engine(self) -> AsyncEngine:
         """
-        Initialize the SQLAlchemy async engine with connection pooling
+        Initialize the SQLAlchemy async engine with connection pooling.
+        SSL is passed via connect_args since asyncpg does not support
+        sslmode as a URL query parameter.
         
         Returns:
             AsyncEngine: Configured async engine
@@ -210,6 +228,7 @@ class SQLAlchemyAuthDB:
                 max_overflow=10,  # Additional connections beyond pool_size
                 pool_pre_ping=True,  # Verify connections before using
                 pool_recycle=3600,  # Recycle connections after 1 hour
+                connect_args={"ssl": "require"},  # asyncpg SSL — replaces ?sslmode=require
             )
             
             # Create session factory
@@ -219,8 +238,7 @@ class SQLAlchemyAuthDB:
                 expire_on_commit=False,
             )
             
-            if self.log_level == 'debug':
-                print(f"✅ SQLAlchemy Auth DB engine initialized: {self.database_url.split('@')[1]}")
+            print(f"✅ SQLAlchemy Auth DB engine initialized: {self.database_url.split('@')[1]}")
         
         return self.engine
     
@@ -290,6 +308,22 @@ class SQLAlchemyAuthDB:
 # Global SQLAlchemy instances (initialized in server.py)
 data_db_sqlalchemy: Optional[SQLAlchemyDataDB] = None
 auth_db_sqlalchemy: Optional[SQLAlchemyAuthDB] = None
+
+
+def get_data_db() -> SQLAlchemyDataDB:
+    """Return the global data DB instance, creating it if needed."""
+    global data_db_sqlalchemy
+    if data_db_sqlalchemy is None:
+        data_db_sqlalchemy = SQLAlchemyDataDB()
+    return data_db_sqlalchemy
+
+
+def get_auth_db() -> SQLAlchemyAuthDB:
+    """Return the global auth DB instance, creating it if needed."""
+    global auth_db_sqlalchemy
+    if auth_db_sqlalchemy is None:
+        auth_db_sqlalchemy = SQLAlchemyAuthDB()
+    return auth_db_sqlalchemy
 
 
 # ============================================================================

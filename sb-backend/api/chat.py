@@ -5,10 +5,16 @@ from typing import Optional, Dict, Any
 import asyncio
 import uuid
 import json
+import psycopg2
+import os
 
 from graph.state import ConversationState
 from graph.graph_builder import get_compiled_flow
 from graph.streaming import stream_response_words, stream_as_sse
+
+
+from graph.nodes.function_nodes.get_messages import get_conversation_messages
+from graph.nodes.function_nodes.get_bot_response import get_latest_bot_response
 
 router = APIRouter(prefix="/chat")
 
@@ -23,6 +29,40 @@ async def get_flow():
         flow = get_compiled_flow()
     return flow
 
+
+# ============================================================================
+# DATABASE HELPERS
+# ============================================================================
+
+def get_db_connection():
+    return psycopg2.connect(os.getenv("DATABASE_URL"))
+
+
+def ensure_conversation_exists(conversation_id: str, mode: str) -> None:
+    """
+    Create a row in sb_conversations if it doesn't already exist.
+    Required before any inserts into conversation_turns due to FK constraint.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO sb_conversations (id, mode, started_at)
+            VALUES (%s::uuid, %s, NOW())
+            ON CONFLICT (id) DO NOTHING
+            """,
+            (conversation_id, mode),
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================================================
+# REQUEST MODELS
+# ============================================================================
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User input message")
@@ -96,6 +136,10 @@ async def create_initial_state(
     )
 
 
+# ============================================================================
+# INCOGNITO ENDPOINTS (no DB storage)
+# ============================================================================
+
 @router.post("/incognito/stream")
 async def incognito_chat_stream(req: IncognitoChatRequest):
     """
@@ -156,6 +200,10 @@ async def incognito_chat(req: IncognitoChatRequest):
         )
 
 
+# ============================================================================
+# COGNITO ENDPOINTS (encrypted DB storage via graph nodes)
+# ============================================================================
+
 @router.post("/cognito/stream")
 async def cognito_chat_stream(req: CognitoChatRequest):
     """
@@ -163,6 +211,15 @@ async def cognito_chat_stream(req: CognitoChatRequest):
     Returns server-sent events (SSE) with real-time graph updates.
     """
     try:
+        if not req.sb_conv_id:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "sb_conv_id is required for cognito mode"}
+            )
+
+        # Ensure parent row exists before graph runs (FK constraint on conversation_turns)
+        ensure_conversation_exists(req.sb_conv_id, "cognito")
+
         # Create initial state
         state = await create_initial_state(
             message=req.message,
@@ -172,6 +229,7 @@ async def cognito_chat_stream(req: CognitoChatRequest):
         )
         
         # Stream from graph
+        # Graph handles: store_message (encrypted) → classify → generate → store_bot_response (encrypted) → render
         async def event_stream():
             async for event_data in stream_as_sse(state):
                 yield event_data
@@ -192,6 +250,15 @@ async def cognito_chat(req: CognitoChatRequest):
     Returns the full response at once.
     """
     try:
+        if not req.sb_conv_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "sb_conv_id is required for cognito mode"}
+            )
+
+        # Ensure parent row exists before graph runs (FK constraint on conversation_turns)
+        ensure_conversation_exists(req.sb_conv_id, "cognito")
+
         # Create initial state
         state = await create_initial_state(
             message=req.message,
@@ -201,6 +268,7 @@ async def cognito_chat(req: CognitoChatRequest):
         )
         
         # Invoke the graph
+        # Graph handles: store_message (encrypted) → classify → generate → store_bot_response (encrypted) → render
         result = await invoke_graph(state)
         
         # Return the API response from render node
@@ -213,4 +281,53 @@ async def cognito_chat(req: CognitoChatRequest):
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": f"Chat failed: {str(e)}"}
+        )
+
+# ============================================================================
+# HISTORY ENDPOINTS
+# ============================================================================
+
+@router.get("/conversation/{conversation_id}/messages")
+async def get_messages(conversation_id: str):
+    """
+    Retrieve and decrypt all messages for a cognito conversation.
+    Plaintext messages (legacy/incognito) are returned as-is.
+    """
+    try:
+        messages = await get_conversation_messages(conversation_id)
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "messages": messages,
+            "count": len(messages)
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@router.get("/conversation/{conversation_id}/bot-response/latest")
+async def get_latest_bot_response_endpoint(conversation_id: str):
+    """
+    Retrieve and decrypt the latest bot response for a cognito conversation.
+    Plaintext messages (legacy/incognito) are returned as-is.
+    """
+    try:
+        response = await get_latest_bot_response(conversation_id)
+        if response is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "No bot response found for this conversation"}
+            )
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "bot_response": response
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
         )
