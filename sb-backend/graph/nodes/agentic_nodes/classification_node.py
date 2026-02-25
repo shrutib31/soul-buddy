@@ -457,13 +457,7 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
                 r"wish i could disappear",
                 r"want to disappear",
                 r"would be better if i wasn't here",
-                r"would be easier if i was gone",
-                r"don't want to live anymore",
-                r"do not want to live anymore",
-                r"don't want to live",
-                r"do not want to live",
-                r"i don't see any reason to live",
-                r"i do not see any reason to live"
+                r"would be easier if i was gone"
             ],
             "intent": "crisis_disclosure",
             "situation": "PASSIVE_DEATH_WISH",
