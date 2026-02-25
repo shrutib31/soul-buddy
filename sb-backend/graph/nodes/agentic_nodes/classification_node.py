@@ -271,15 +271,6 @@ def get_classifications(message: str) -> Dict[str, Any]:
         logger.exception(f"Error during classification: {str(e)}")
         raise
 
-import re
-import logging
-from typing import Dict, Any
-
-
-import logging
-import re
-from typing import Dict, Any
-
 def is_true_negation(msg_lower: str) -> bool:
     """
     Returns True only if the message clearly negates suicidal action.
@@ -500,7 +491,10 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
     highest_priority = -1
 
     # ===== Pattern matching with negation handling =====
-    negation_words = ["not", "never", "no", "can't", "cannot", "don't", "do not"]
+    # Use whole-word matching to avoid negations inside other words (e.g. "no" in "know").
+    negation_pattern = re.compile(
+        r"\b(?:not|never|no|can't|cannot|don't)\b|\bdo\s+not\b"
+    )
 
     for category, details in crisis_categories.items():
         for pattern in details["patterns"]:
@@ -509,7 +503,7 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
                 # Check if any negation appears within 5 words before the match
                 window_start = max(0, start - 50)  # ~50 chars before
                 context = message_lower[window_start:start]
-                if any(neg in context for neg in negation_words):
+                if negation_pattern.search(context):
                     if logger_to_use:
                         logger_to_use.debug(f"Negated pattern skipped for '{pattern}'")
                     continue
@@ -585,26 +579,6 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
         "message_length": len(message),
         "word_count": len(message.split())
     }
-
-
-def _no_crisis_response(message: str) -> Dict[str, Any]:
-    return {
-        "is_crisis": False,
-        "intent": "unclear",
-        "situation": "NO_SITUATION",
-        "severity": "low",
-        "risk_level": "low",
-        "risk_score": 0.0,
-        "requires_immediate_response": False,
-        "crisis_type": None,
-        "crisis_category": None,
-        "matched_patterns": [],
-        "confidence": 0.0,
-        "message_length": len(message) if message else 0,
-        "word_count": len(message.split()) if message else 0
-    }
-
-
 # Example usage and testing
 if __name__ == "__main__":
     test_messages = [
@@ -625,17 +599,21 @@ if __name__ == "__main__":
     
     for msg in test_messages:
         result = detect_crisis(msg)
-        print(f"\nMessage: {msg}")
-        print(f"Crisis: {result['is_crisis']}")
+        logger.debug(f"Test message: {msg}")
+        logger.debug(f"Crisis: {result['is_crisis']}")
         if result['is_crisis']:
-            print(f"  Type: {result['crisis_type']}")
-            print(f"  Risk Level: {result['risk_level']}")
-            print(f"  Risk Score: {result['risk_score']}")
-            print(f"  Situation: {result['situation']}")
-            print(f"  Intent: {result['intent']}")
-            print(f"  Immediate Response: {result['requires_immediate_response']}")
-            print(f"  Confidence: {result['confidence']}")
-            print(f"  Matched: {result['matched_patterns'][:2]}...")
+            logger.debug(
+                "Type: %s, Risk Level: %s, Risk Score: %s, Situation: %s, "
+                "Intent: %s, Immediate Response: %s, Confidence: %s, Matched: %s",
+                result.get("crisis_type"),
+                result.get("risk_level"),
+                result.get("risk_score"),
+                result.get("situation"),
+                result.get("intent"),
+                result.get("requires_immediate_response"),
+                result.get("confidence"),
+                (result.get("matched_patterns") or [])[:2],
+            )
 
 def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -665,7 +643,7 @@ def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "severity": classifications["severity"],
             "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
             "is_greeting": classifications["intent"] == "greeting",
-            "is_high_crisis": classifications["risk_level"] == "high",
+            "is_high_crisis": classifications["risk_level"] in ("high", "critical"),
             "classification_details": classifications,
             "is_medium_crisis": classifications["risk_level"] == "medium",
         }

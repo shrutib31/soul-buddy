@@ -12,6 +12,7 @@ Features:
 """
 
 import os
+import logging
 from typing import AsyncGenerator, Optional
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import (
@@ -25,6 +26,8 @@ from sqlalchemy.pool import NullPool, QueuePool
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # SQLAlchemy Base Models
@@ -99,7 +102,7 @@ class SQLAlchemyDataDB:
             )
             
             if self.log_level == 'debug':
-                print(f"✅ SQLAlchemy Data DB engine initialized: {self.database_url.split('@')[1]}")
+                logger.debug("✅ SQLAlchemy Data DB engine initialized: %s", self.database_url.split('@')[1])
         
         return self.engine
     
@@ -108,7 +111,7 @@ class SQLAlchemyDataDB:
         if self.engine:
             await self.engine.dispose()
             if self.log_level == 'debug':
-                print("✅ SQLAlchemy Data DB engine closed")
+                logger.debug("✅ SQLAlchemy Data DB engine closed")
             self.engine = None
             self.session_factory = None
     
@@ -220,7 +223,7 @@ class SQLAlchemyAuthDB:
             )
             
             if self.log_level == 'debug':
-                print(f"✅ SQLAlchemy Auth DB engine initialized: {self.database_url.split('@')[1]}")
+                logger.debug("✅ SQLAlchemy Auth DB engine initialized: %s", self.database_url.split('@')[1])
         
         return self.engine
     
@@ -229,7 +232,7 @@ class SQLAlchemyAuthDB:
         if self.engine:
             await self.engine.dispose()
             if self.log_level == 'debug':
-                print("✅ SQLAlchemy Auth DB engine closed")
+                logger.debug("✅ SQLAlchemy Auth DB engine closed")
             self.engine = None
             self.session_factory = None
     
@@ -306,7 +309,7 @@ async def init_all_engines():
     auth_db_sqlalchemy = SQLAlchemyAuthDB()
     await auth_db_sqlalchemy.init_engine()
     
-    print("✅ All SQLAlchemy engines initialized")
+    logger.debug("✅ All SQLAlchemy engines initialized")
 
 
 async def close_all_engines():
@@ -317,4 +320,4 @@ async def close_all_engines():
     if auth_db_sqlalchemy:
         await auth_db_sqlalchemy.close_engine()
     
-    print("✅ All SQLAlchemy engines closed")
+    logger.debug("✅ All SQLAlchemy engines closed")

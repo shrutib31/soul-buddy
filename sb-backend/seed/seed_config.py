@@ -52,6 +52,9 @@ def seed_intents(db: Session):
         {"intent_id": "TRY_TOOL", "description": "User explicitly wants to try a tool"},
         {"intent_id": "SEEK_SUPPORT", "description": "User wants external or human help"},
         {"intent_id": "UNCLEAR", "description": "Intent is not yet clear"},
+        {"intent_id": "CRISIS_DISCLOSURE", "description": "User is disclosing a crisis situation"},
+        {"intent_id": "SEEK_HELP", "description": "User is actively seeking immediate help"},
+        {"intent_id": "SELF_HARM_DISCLOSURE", "description": "User is disclosing self-harm thoughts or behavior"},
     ]
 
     stmt = insert(Intent).values(data)
@@ -137,6 +140,20 @@ def seed_situations(db: Session):
         {"situation_id": "BELONGING_DOUBT", "category": "social", "description": "Feeling out of place or not fitting in", "is_crisis": False},
         {"situation_id": "UNLABELED_DISTRESS", "category": "fallback", "description": "Vague or unclear distress", "is_crisis": False},
         {"situation_id": "PASSIVE_DEATH_WISH", "category": "crisis", "description": "Passive death-related thoughts", "is_crisis": True},
+        {"situation_id": "HEALTH_CONCERNS", "category": "health", "description": "Health or medical worries", "is_crisis": False},
+        {"situation_id": "RELATIONSHIP_ISSUES", "category": "relationship", "description": "Stress or conflict in relationships", "is_crisis": False},
+        {"situation_id": "FINANCIAL_STRESS", "category": "financial", "description": "Money, debt, or financial insecurity", "is_crisis": False},
+        {"situation_id": "FUTURE_UNCERTAINTY", "category": "future", "description": "Worry or confusion about the future", "is_crisis": False},
+        {"situation_id": "OTHER", "category": "other", "description": "Other situation not captured by existing categories", "is_crisis": False},
+        {"situation_id": "NO_SITUATION", "category": "fallback", "description": "No clear situation identified", "is_crisis": False},
+        {"situation_id": "UNCLEAR", "category": "fallback", "description": "Situation not yet clear", "is_crisis": False},
+        {"situation_id": "SUICIDAL", "category": "crisis", "description": "Active suicidal thoughts, plans, or intent", "is_crisis": True},
+        {"situation_id": "SELF_HARM", "category": "crisis", "description": "Non-suicidal self-harm or self-injury", "is_crisis": True},
+        {"situation_id": "SEVERE_HOPELESSNESS", "category": "crisis", "description": "Intense hopelessness and despair", "is_crisis": True},
+        {"situation_id": "SEVERE_BURDEN", "category": "crisis", "description": "Feeling like an extreme burden to others", "is_crisis": True},
+        {"situation_id": "SEVERE_DISTRESS", "category": "crisis", "description": "High, persistent distress across domains", "is_crisis": True},
+        {"situation_id": "GIVING_AWAY", "category": "crisis", "description": "Giving away possessions or making final arrangements", "is_crisis": True},
+        {"situation_id": "SAYING_GOODBYE", "category": "crisis", "description": "Goodbye messages that may signal risk", "is_crisis": True},
     ]
 
     stmt = insert(Situation).values(data)
