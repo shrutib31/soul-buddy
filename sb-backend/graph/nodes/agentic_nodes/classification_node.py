@@ -328,7 +328,7 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
     message_lower = message.lower().strip()
     msg_lower = message.lower().strip()
 
-# Check for true negation first
+    # Check for true negation first
     if is_true_negation(msg_lower):
         return {
             "is_crisis": False,
