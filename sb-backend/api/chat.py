@@ -5,12 +5,14 @@ from typing import Optional, Dict, Any
 import asyncio
 import uuid
 import json
+import logging
 
 from graph.state import ConversationState
 from graph.graph_builder import get_compiled_flow
 from graph.streaming import stream_response_words, stream_as_sse
 
 router = APIRouter(prefix="/chat")
+logger = logging.getLogger(__name__)
 
 # Initialize the compiled LangGraph
 flow = None
@@ -87,7 +89,13 @@ async def create_initial_state(
     Returns:
         ConversationState ready for graph invocation
     """
-    print(f"\nReturned Conversation State:\n conv_id: {conversation_id},\n mode: {mode},\n domain: {domain},\n message: {message}\n")
+    logger.debug(
+        "Returned Conversation State | conv_id=%s mode=%s domain=%s message=%s",
+        conversation_id,
+        mode,
+        domain,
+        message,
+    )
     return ConversationState(
         conversation_id=conversation_id or "",  # Empty string triggers ID generation
         mode=mode,
