@@ -10,8 +10,7 @@ from graph.nodes.agentic_nodes.situation_severity_detection import situation_sev
 from graph.nodes.agentic_nodes.response_generator import response_generator_node
 from graph.nodes.agentic_nodes.guardrail import guardrail_node, guardrail_router
 from graph.nodes.agentic_nodes.classification_node import classification_node
-from graph.nodes.function_nodes.privacy_masking import privacy_masking_node
-
+from graph.nodes.function_nodes.privacy_masking import new_masking_node as privacy_masking_node
 
 def get_compiled_flow():
     graph = StateGraph(ConversationState)

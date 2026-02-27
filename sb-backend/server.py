@@ -299,7 +299,7 @@ async def initialize_all_configurations() -> bool:
         ("Data Database", initialize_data_database),
         ("Auth Database", initialize_auth_database),
         ("SQLAlchemy Engines", initialize_sqlalchemy_engines),
-        ("Supabase", initialize_supabase),
+        # ("Supabase", initialize_supabase),
     ]
     
     for step_name, step_function in initialization_steps:

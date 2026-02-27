@@ -78,3 +78,88 @@ def privacy_masking_node(state) -> Dict[str, Any]:
         # Fail open or closed? Here we fail open (return original) to keep chat working, 
         # but in high security, you might return an error state.
         return {"user_message": text_to_clean}
+    
+## NEW CODE
+
+import spacy
+from transformers import pipeline
+import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+class AdvancedPHIPIIMasker:
+    def __init__(self):
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+        except:
+            self.nlp = None
+        
+        # We use 'simple' aggregation but we will clean up the duplicates manually
+        self.ner_pipeline = pipeline(
+            "ner",
+            model="dslim/bert-base-NER",
+            aggregation_strategy="simple"
+        )
+        
+    def mask_indian_patterns(self, text: str) -> str:
+        # Aadhaar: 12 digits
+        text = re.sub(r'\b\d{4}[ -]?\d{4}[ -]?\d{4}\b', "[AADHAAR]", text)
+        
+        # PAN Card
+        text = re.sub(r'\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b', "[PAN_CARD]", text, flags=re.IGNORECASE)
+        
+        # Phone Numbers: Catches +91..., 0..., and standard 10 digits (including 1234567890)
+        text = re.sub(r'\b(?:\+91|0)?[6-9]\d{9}\b|\b\d{10}\b', "[PHONE_NUMBER]", text)
+        
+        # UPI & Email
+        text = re.sub(r'\b[\w\.\-]+@(?:ok\w+|upi|ybl|paytm|ibl|axl)\b', "[UPI_ID]", text, flags=re.IGNORECASE)
+        text = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', "[EMAIL]", text)
+        
+        return text
+
+    def mask_with_transformers(self, text: str) -> str:
+        entities = self.ner_pipeline(text)
+        # Sort in reverse to keep indices valid
+        entities = sorted(entities, key=lambda e: e['start'], reverse=True)
+        
+        for ent in entities:
+            if ent['entity_group'] in ['PER', 'LOC', 'ORG']:
+                label = "NAME" if ent['entity_group'] == 'PER' else ent['entity_group']
+                text = text[:ent['start']] + f"[{label}]" + text[ent['end']:]
+        
+        # --- DEDUPLICATION STEP ---
+        # Fixes [NAME][NAME] by merging adjacent identical tags
+        text = re.sub(r'(\[NAME\])+', '[NAME]', text)
+        text = re.sub(r'(\[ORG\])+', '[ORGANIZATION]', text)
+        text = re.sub(r'(\[LOC\])+', '[LOCATION]', text)
+        
+        return text
+
+    def comprehensive_mask(self, text: str) -> str:
+        if not text: return ""
+        # 1. Regex first (Very precise)
+        text = self.mask_indian_patterns(text)
+        # 2. AI second (Contextual)
+        text = self.mask_with_transformers(text)
+        return text
+
+# Global Instance
+masker_instance = AdvancedPHIPIIMasker()
+
+def new_masking_node(state):
+    # Handle MockState vs Dict
+    if isinstance(state, dict):
+        original_text = state.get("user_message", "")
+    else:
+        original_text = getattr(state, "user_message", "")
+    
+    if not original_text:
+        return {"user_message": ""}
+
+    try:
+        protected_text = masker_instance.comprehensive_mask(original_text)
+        return {"user_message": protected_text}
+    except Exception as e:
+        logger.error(f"Masking error: {e}")
+        return {"user_message": original_text}

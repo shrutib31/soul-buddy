@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # We wrap this in a try/except to prevent the whole API from crashing 
 # if the path to the graph node is slightly different in your setup.
 try:
-    from graph.nodes.function_nodes.privacy_masking import privacy_masking_node
+    from graph.nodes.function_nodes.privacy_masking import new_masking_node as privacy_masking_node
 except ImportError:
     print("⚠️ WARNING: Could not import privacy_masking_node. Check your file paths.")
     privacy_masking_node = None
