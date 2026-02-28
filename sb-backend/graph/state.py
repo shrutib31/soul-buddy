@@ -8,6 +8,7 @@ class ConversationState(BaseModel):
     domain: str                  # student / employee / general
     user_message: str
     user_id: Optional[str] = None
+    supabase_user_id: Optional[int] = None
 
     # intent detection
     intent: Optional[str] = None

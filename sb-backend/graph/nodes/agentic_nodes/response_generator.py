@@ -44,14 +44,8 @@ def _append_context_line(lines: list[str], label: str, value: Any) -> None:
 
 def _build_additional_context(state: ConversationState) -> str:
     lines: list[str] = []
-    if state.mode:
-        lines.append(f"mode: {state.mode}")
-    if state.domain:
-        lines.append(f"domain: {state.domain}")
     _append_context_line(lines, "user_profile", state.user_profile)
     _append_context_line(lines, "user_personality_profiles", state.user_personality_profile)
-    if state.response_draft:
-        lines.append(f"Existing draft: {state.response_draft}")
     return "\n".join(lines).strip()
 
 
@@ -186,6 +180,10 @@ Guidelines:
 - Offer practical support or resources when appropriate
 - Keep response concise (2-3 sentences)
 - Avoid being prescriptive or dismissive
+- Treat "Additional context" as trusted profile data (user_profile and user_personality_profiles)
+- Use profile data to identify and personalize (name and other personal identifiers) when relevant
+- If user asks directly for their name or personal details and context contains it, answer directly from context
+- Do not say you don't know if the answer is present in context
 
 Compassionate response:"""
         
@@ -281,7 +279,11 @@ Guidelines:
 - Ask clarifying questions if needed
 - Offer practical support or resources when appropriate
 - Keep response concise (2-3 sentences)
-- Avoid being prescriptive or dismissive"""
+- Avoid being prescriptive or dismissive
+- Treat "Additional context" as trusted profile data (user_profile and user_personality_profiles)
+- Use profile data to identify and personalize (name and other personal identifiers) when relevant
+- If user asks directly for their name or personal details and context contains it, answer directly from context
+- Do not say you don't know if the answer is present in context"""
             },
             {
                 "role": "user",

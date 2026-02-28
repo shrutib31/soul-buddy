@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 from graph.state import ConversationState
 from graph.graph_builder import get_compiled_flow
 from graph.streaming import stream_response_words, stream_as_sse
+from graph.nodes.function_nodes.user_context_helpers import resolve_supabase_uid_from_payload_user_id
 
 router = APIRouter(prefix="/chat")
 
@@ -31,7 +32,7 @@ class ChatRequest(BaseModel):
     domain: Optional[str] = None  # "student", "employee", "corporate"
     domain_config: Optional[Dict[str, Any]] = None
     user_profile: Optional[Dict[str, Any]] = None
-    user_personality_profiles: Optional[Dict[str, Any]] = None
+    user_personality_profiles: str = None
     
 
 class IncognitoChatRequest(ChatRequest):
@@ -43,7 +44,7 @@ class IncognitoChatRequest(ChatRequest):
 class CognitoChatRequest(ChatRequest):
     mode: str = "cognito"  # "incognito" or "cognito"
     sb_conv_id: Optional[str] = None  # conversation id for cognito mode
-    user_id: str  # user identifier for cognito mode. This is a supabase user ID in string format
+    user_id: int  # user identifier for cognito mode. This is an app user ID in integer format
     domain: str # "student", "employee", "corporate"
 
 
@@ -77,6 +78,7 @@ async def create_initial_state(
     domain: str,
     conversation_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    supabase_user_id: Optional[int] = None,
     domain_config: Optional[Dict[str, Any]] = None,
     user_profile: Optional[Dict[str, Any]] = None,
     user_personality_profiles: Optional[Dict[str, Any]] = None,
@@ -100,6 +102,7 @@ async def create_initial_state(
         domain=domain,
         user_message=message,
         user_id=user_id,
+        supabase_user_id=supabase_user_id,
         domain_config=domain_config or {},
         user_profile=user_profile or {},
         user_personality_profile=user_personality_profiles or {},
@@ -173,8 +176,13 @@ async def cognito_chat_stream(req: CognitoChatRequest):
     Returns server-sent events (SSE) with real-time graph updates.
     """
     try:
-        if not req.user_id or not req.user_id.strip():
-            raise HTTPException(status_code=400, detail="Missing user_id for cognito mode")
+        if req.user_id is None:
+            return JSONResponse(status_code=400, content={"error": "Missing user_id for cognito mode"})
+
+        try:
+            supabase_uid = await resolve_supabase_uid_from_payload_user_id(req.user_id)
+        except ValueError as e:
+            return JSONResponse(status_code=400, content={"error": str(e)})
 
         # Create initial state
         state = await create_initial_state(
@@ -182,7 +190,8 @@ async def cognito_chat_stream(req: CognitoChatRequest):
             mode="cognito",
             domain=req.domain,
             conversation_id=req.sb_conv_id,
-            user_id=req.user_id,
+            user_id=supabase_uid,
+            supabase_user_id=req.user_id,
             domain_config=req.domain_config,
         )
         
@@ -207,8 +216,13 @@ async def cognito_chat(req: CognitoChatRequest):
     Returns the full response at once.
     """
     try:
-        if not req.user_id or not req.user_id.strip():
-            raise HTTPException(status_code=400, detail="Missing user_id for cognito mode")
+        if req.user_id is None:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Missing user_id for cognito mode"})
+
+        try:
+            supabase_uid = await resolve_supabase_uid_from_payload_user_id(req.user_id)
+        except ValueError as e:
+            return JSONResponse(status_code=400, content={"success": False, "error": str(e)})
 
         # Create initial state
         state = await create_initial_state(
@@ -216,7 +230,8 @@ async def cognito_chat(req: CognitoChatRequest):
             mode="cognito",
             domain=req.domain,
             conversation_id=req.sb_conv_id,
-            user_id=req.user_id,
+            user_id=supabase_uid,
+            supabase_user_id=req.user_id,
             domain_config=req.domain_config,
         )
         
