@@ -2,6 +2,8 @@
 
 ## Test Structure
 
+A **test gaps analysis** is in [tests/TEST_GAPS.md](TEST_GAPS.md). It lists what is covered vs missing and suggested priorities.
+
 ```
 tests/
 ├── __init__.py
@@ -216,8 +218,14 @@ pip install pytest-asyncio
 
 ## Next Steps
 
-- Add tests for `situation_severity_detection.py`
-- Add tests for `response_generator.py`
+- Add tests for **classification_node** (the node actually used in the graph): `classification_node`, `get_classifications`, `detect_crisis`, `detect_greeting`
+- Add tests for **response_generator.py**
+- Add tests for **situation_severity_detection.py** (when re-enabled)
+- Add tests for function nodes: **conv_id_handler**, **store_message**, **store_bot_response**, **render**
+- Add a **graph structure test** for `get_compiled_flow()` (nodes and edges)
+- Add tests for **api/chat.py** and **api/classify.py**
 - Add integration tests for full graph execution
 - Add performance/load tests
 - Set up CI/CD pipeline with automated testing
+
+See [TEST_GAPS.md](TEST_GAPS.md) for full gap analysis and priorities.

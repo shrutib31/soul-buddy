@@ -624,14 +624,14 @@ def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
         
         if not message:
             return {
-                **state.dict(),
+                **state.model_dump(),
                 "error": "No user message to classify"
             }
         
         
         classifications = get_classifications(message)
         return {
-            **state.dict(),
+            **state.model_dump(),
             "intent": classifications["intent"],
             "situation": classifications["situation"],
             "severity": classifications["severity"],
@@ -645,6 +645,6 @@ def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.exception("Classification node failed")
         return {
-            **state.dict(),
+            **state.model_dump(),
             "error": f"Classification failed: {str(e)}"
         }
