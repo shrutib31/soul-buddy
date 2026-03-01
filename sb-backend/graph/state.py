@@ -10,9 +10,11 @@ class ConversationState(BaseModel):
 
     # intent detection
     intent: Optional[str] = None
+    is_greeting: bool = False
 
     # safety
     risk_level: str = "low"
+    is_crisis_detected: bool = False
 
     # situation
     situation: Optional[str] = None

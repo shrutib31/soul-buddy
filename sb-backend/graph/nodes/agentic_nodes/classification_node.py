@@ -5,6 +5,7 @@ import os
 import logging
 from transformer_models.SoulBuddyClassifier import SoulBuddyClassifier
 import re
+from graph.state import ConversationState
 
 logger = logging.getLogger(__name__)
 
@@ -94,49 +95,63 @@ def load_model():
 
 def detect_greeting(message: str) -> bool:
     """
-    Comprehensive greeting detection that handles:
-    - Pure greetings
-    - Greetings with names
-    - Greetings with punctuation
-    - Avoids false positives in longer messages
+    Detect if a message is a conversation-initiating greeting. Covers:
+    - Common words:      hi, hello, hey, namaste, yo, sup, hiya …
+    - Enthusiastic form: hiii, heyyy (repeated trailing chars normalised)
+    - Time-based:        good morning/afternoon/evening/night/day, gm, gn
+    - Phrases:           hi there, hello there, nice to meet you …
+    - Informal:          what's up, wassup, howdy, hola …
+    - Check-in openers:  how are you, how r u, how have you been …
     """
-    
-    # Define greeting patterns
-    simple_greetings = ["hi", "hello", "hey", "greetings", "howdy"]
-    time_greetings = ["good morning", "good afternoon", "good evening"]
-    phrase_greetings = ["nice to meet you", "hello there", "hi there"]
-    
-    all_greetings = simple_greetings + time_greetings + phrase_greetings
-    
     message_lower = message.lower().strip()
-    words = message_lower.split()
-    
-    # If message is empty or too long, quick check
     if not message_lower:
         return False
-    
-    # Rule 1: Message is exactly a greeting (with possible punctuation)
-    message_clean = re.sub(r'[^\w\s]', '', message_lower)
-    if message_clean in all_greetings:
+
+    # Normalise repeated trailing characters so "hiii" → "hii", "heyyy" → "heyy"
+    # (one collapse step is enough to reach a known root)
+    message_lower = re.sub(r'(.)\1{2,}', r'\1\1', message_lower)
+
+    # Strip punctuation for clean word comparison
+    message_clean = re.sub(r'[^\w\s]', '', message_lower).strip()
+    words = message_clean.split()
+    if not words:
+        return False
+
+    # ── Rule 1: Exact match against known greeting phrases ──────────────────
+    EXACT_GREETINGS = {
+        "hi", "hii", "hello", "hey", "heyy", "greetings", "howdy",
+        "hi there", "hey there", "hello there", "howdy there",
+        "hiya", "hola", "yo", "sup", "wassup", "watsup", "whats up",
+        "namaste", "namaskar",
+        "good morning", "good afternoon", "good evening",
+        "good night", "good day", "gm", "gn",
+        "morning", "afternoon", "evening",
+        "nice to meet you", "great to meet you", "pleased to meet you",
+        "long time no see", "hey hey",
+        # common check-in phrases used as openers
+        "how are you", "how are you doing", "how are you today",
+        "how r u", "how ru", "how are u", "how do you do",
+        "how have you been", "hope you are well", "hope youre well",
+    }
+    if message_clean in EXACT_GREETINGS:
         return True
-    
-    # Rule 2: Short messages (1-3 words) starting with greeting
-    if len(words) <= 3:
-        first_word = words[0].rstrip('!,.').lower()
-        
-        # Check if first word is a simple greeting
-        if first_word in simple_greetings:
-            return True
-        
-        # Check first two words for multi-word greetings
-        first_two = ' '.join(words[:2]).lower()
-        if first_two in time_greetings or first_two in phrase_greetings:
-            return True
-    
-    # Rule 3: Messages that start with greeting + anything (for very short only)
-    if len(words) == 2 and words[0].rstrip('!,.').lower() in simple_greetings:
+
+    # ── Rule 2: Short messages (≤ 4 words) starting with a greeting word ────
+    GREETING_STARTERS = {
+        "hi", "hii", "hello", "hey", "heyy", "howdy", "hiya",
+        "namaste", "namaskar", "yo", "sup", "hola", "greetings", "morning",
+    }
+    if len(words) <= 4 and words[0] in GREETING_STARTERS:
         return True
-    
+
+    # ── Rule 3: Time-based greetings as first two words ─────────────────────
+    TIME_GREETING_PAIRS = {
+        "good morning", "good afternoon", "good evening",
+        "good night", "good day",
+    }
+    if len(words) >= 2 and " ".join(words[:2]) in TIME_GREETING_PAIRS:
+        return True
+
     return False
 
 
@@ -179,6 +194,7 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "severity": "low",
             "risk_score": 0.0,
             "risk_level": "low",
+            "is_greeting": True,
             "raw_scores": {
                 "situation": 0.0,
                 "severity": 0.0,
@@ -198,6 +214,7 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "severity": crisis_detect_result["severity"],
             "risk_score": crisis_detect_result["risk_score"],
             "risk_level": crisis_detect_result["risk_level"],
+            "is_crisis_detected": True,
             "raw_scores": {
                 "situation": 0.0,
                 "severity": crisis_detect_result["severity"] == "high" and 1.0 or 0.0, # Set severity score to 1 for high severity cases
@@ -401,7 +418,19 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
                 r"don't want to live",
                 r"do not want to live",
                 r"i don't see any reason to live",
-                r"i do not see any reason to live"
+                r"i do not see any reason to live",
+                r"want to die",
+                r"want to be dead",
+                r"feel like dying",
+                r"feel like i('?m)? dying",
+                r"feel like i should die",
+                r"i should die",
+                r"feel like i want to die",
+                r"wish i would die",
+                r"wish i could die",
+                r"sometimes i feel like dying",
+                r"sometimes i feel like i should die",
+                r"i want to die"
             ],
             "intent": "crisis_disclosure",
             "situation": "SUICIDAL",
@@ -475,8 +504,8 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
     priority_order = {
         "SUICIDAL_PLAN": 10,
         "SUICIDAL_IDEATION": 9,
-        "SELF_HARM": 8
-        # Add other categories here as needed
+        "SELF_HARM": 8,
+        "PASSIVE_DEATH_WISH": 7
     }
 
     matched_patterns = []
@@ -512,9 +541,9 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
     # ===== Fallback high-risk word scoring =====
     if not crisis_type:
         high_risk_words = {
-            "die": 0.3, "dead": 0.3, "death": 0.3, "suicide": 0.5,
-            "suicidal": 0.5, "kill": 0.4, "ending": 0.3, "pain": 0.2,
-            "hurt": 0.2, "suffering": 0.2, "hopeless": 0.3, "despair": 0.3
+            "die": 0.5, "dead": 0.4, "death": 0.4, "suicide": 0.6,
+            "suicidal": 0.6, "kill": 0.5, "ending": 0.3, "pain": 0.2,
+            "hurt": 0.2, "suffering": 0.2, "hopeless": 0.4, "despair": 0.4
         }
         words = message_lower.split()
         risk_score_combined = 0.0
@@ -573,43 +602,9 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
         "message_length": len(message),
         "word_count": len(message.split())
     }
-# Example usage and testing
-if __name__ == "__main__":
-    test_messages = [
-        "Hi, how are you?",
-        "I've been feeling really sad lately",
-        "I want to kill myself",
-        "I have a plan to end it all tonight",
-        "Sometimes I wish I could just disappear",
-        "I bought some pills and I'm going to use them",
-        "No one would care if I died",
-        "I'm so overwhelmed with everything",
-        "This is goodbye. I love you all.",
-        "I can't take this pain anymore",
-        "I've been cutting myself to cope",
-        "What's the point of living anyway?",
-        "I'm a burden to everyone around me"
-    ]
-    
-    for msg in test_messages:
-        result = detect_crisis(msg)
-        logger.debug(f"Test message: {msg}")
-        logger.debug(f"Crisis: {result['is_crisis']}")
-        if result['is_crisis']:
-            logger.debug(
-                "Type: %s, Risk Level: %s, Risk Score: %s, Situation: %s, "
-                "Intent: %s, Immediate Response: %s, Confidence: %s, Matched: %s",
-                result.get("crisis_type"),
-                result.get("risk_level"),
-                result.get("risk_score"),
-                result.get("situation"),
-                result.get("intent"),
-                result.get("requires_immediate_response"),
-                result.get("confidence"),
-                (result.get("matched_patterns") or [])[:2],
-            )
 
-def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
+
+def classification_node(state: ConversationState) -> Dict[str, Any]:
     """
     LangGraph node for classifying conversation state.
     
@@ -624,27 +619,25 @@ def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
         
         if not message:
             return {
-                **state.dict(),
+                **state.model_dump(),
                 "error": "No user message to classify"
             }
         
         
         classifications = get_classifications(message)
         return {
-            **state.dict(),
+            **state.model_dump(),
             "intent": classifications["intent"],
             "situation": classifications["situation"],
             "severity": classifications["severity"],
+            "is_greeting": classifications.get("is_greeting", False),
+            "is_crisis_detected": classifications.get("is_crisis_detected", False),
             "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
-            "is_greeting": classifications["intent"] == "greeting",
-            "is_high_crisis": classifications["risk_level"] in ("high", "critical"),
-            "classification_details": classifications,
-            "is_medium_crisis": classifications["risk_level"] == "medium",
         }
         
     except Exception as e:
         logger.exception("Classification node failed")
         return {
-            **state.dict(),
+            **state.model_dump(),
             "error": f"Classification failed: {str(e)}"
         }

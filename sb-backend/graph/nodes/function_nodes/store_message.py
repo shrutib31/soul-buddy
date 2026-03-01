@@ -2,11 +2,10 @@
 Store Message Node for LangGraph
 
 This node stores the user message in the database for conversation history.
-It runs in parallel with intent detection.
+It runs in parallel with classification.
 """
 
 from typing import Dict, Any
-from datetime import datetime
 from sqlalchemy import select, func
 
 from graph.state import ConversationState
@@ -24,15 +23,13 @@ data_db = SQLAlchemyDataDB()
 async def store_message_node(state: ConversationState) -> Dict[str, Any]:
     """
     Store user message in the database.
-    
+
     This node saves the current user message to the conversation history
-    in the ConversationTurn table. Runs in parallel with intent detection.
-    
-    The turn_id is auto-generated (UUID), so we don't need to set it.
-    
+    in the ConversationTurn table. Runs in parallel with classification_node in the current graph flow.
+
     Args:
         state: Current conversation state
-    
+
     Returns:
         Dict with any updates (typically empty unless error)
     """
@@ -45,8 +42,6 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
         
         async with data_db.get_session() as session:
             # Get the current turn count for this conversation to set turn_index
-            from sqlalchemy import func
-            
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(
                 ConversationTurn.session_id == conversation_id
             )

@@ -257,26 +257,26 @@ async def initialize_sqlalchemy_engines() -> bool:
 async def initialize_supabase() -> bool:
     """
     Initialize Supabase client and test connection.
-    
+
     Returns:
-        True if successful, False otherwise
+        True always — Supabase is non-fatal (only required for cognito routes).
     """
     try:
         logger.info("\n[5/5] Initializing Supabase Configuration...")
         logger.info("   Testing Supabase connection...")
-        
+
         supabase_test_passed = await test_supabase_connection()
-        
+
         if not supabase_test_passed:
-            logger.error("❌ Supabase connection test failed")
-            return False
-        
+            logger.warning("⚠️  Supabase connection test failed — cognito routes will be unavailable")
+            return True
+
         logger.info("✅ Supabase initialized and verified successfully")
         return True
-        
+
     except Exception as error:
-        logger.critical(f"❌ Failed to initialize Supabase: {error}")
-        return False
+        logger.warning(f"⚠️  Supabase unreachable: {error} — cognito routes will be unavailable")
+        return True
 
 
 async def initialize_all_configurations() -> bool:
