@@ -12,8 +12,6 @@ from graph.nodes.agentic_nodes.response_generator import (
     response_generator_node,
     generate_response_ollama,
     generate_response_gpt,
-    compare_responses,
-    select_best_response,
 )
 
 
@@ -31,6 +29,32 @@ def sample_state():
         intent="venting",
         situation="GENERAL_OVERWHELM",
         severity="medium",
+    )
+
+
+@pytest.fixture
+def crisis_state():
+    return ConversationState(
+        conversation_id="test-conv-123",
+        mode="incognito",
+        domain="general",
+        user_message="I want to end my life.",
+        intent="crisis_disclosure",
+        situation="SUICIDAL",
+        severity="high",
+        is_crisis_detected=True,
+    )
+
+
+@pytest.fixture
+def greeting_state():
+    return ConversationState(
+        conversation_id="test-conv-123",
+        mode="incognito",
+        domain="student",
+        user_message="Hello!",
+        intent="greeting",
+        is_greeting=True,
     )
 
 
@@ -58,6 +82,37 @@ class TestResponseGeneratorNodeUnit:
         assert "Missing user message" in result["error"]
 
     @pytest.mark.asyncio
+    async def test_crisis_state_returns_template_without_calling_llm(self, crisis_state):
+        with patch(
+            "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
+            new_callable=AsyncMock,
+        ) as mock_ollama, patch(
+            "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
+            new_callable=AsyncMock,
+        ) as mock_gpt:
+            result = await response_generator_node(crisis_state)
+        # LLMs must not be called when a template applies
+        mock_ollama.assert_not_called()
+        mock_gpt.assert_not_called()
+        assert "error" not in result
+        assert len(result["response_draft"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_greeting_state_returns_template_without_calling_llm(self, greeting_state):
+        with patch(
+            "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
+            new_callable=AsyncMock,
+        ) as mock_ollama, patch(
+            "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
+            new_callable=AsyncMock,
+        ) as mock_gpt:
+            result = await response_generator_node(greeting_state)
+        mock_ollama.assert_not_called()
+        mock_gpt.assert_not_called()
+        assert "error" not in result
+        assert len(result["response_draft"]) > 0
+
+    @pytest.mark.asyncio
     async def test_returns_response_draft_and_api_response(self, sample_state):
         with patch(
             "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
@@ -76,18 +131,24 @@ class TestResponseGeneratorNodeUnit:
         assert result["api_response"]["gpt"] == "GPT compassionate reply."
 
     @pytest.mark.asyncio
-    async def test_prefers_gpt_when_available(self, sample_state):
+    async def test_api_response_includes_score_fields(self, sample_state):
         with patch(
             "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
             new_callable=AsyncMock,
-            return_value="Ollama only",
+            return_value="Ollama reply.",
         ), patch(
             "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
             new_callable=AsyncMock,
-            return_value="GPT response",
+            return_value="GPT reply.",
         ):
             result = await response_generator_node(sample_state)
-        assert result["response_draft"] == "GPT response"
+        api = result["api_response"]
+        assert "selected_source" in api
+        assert api["selected_source"] in ("ollama", "gpt")
+        assert "ollama_score" in api
+        assert "gpt_score" in api
+        assert isinstance(api["ollama_score"], float)
+        assert isinstance(api["gpt_score"], float)
 
     @pytest.mark.asyncio
     async def test_falls_back_to_ollama_when_gpt_empty(self, sample_state):
@@ -169,34 +230,3 @@ class TestGenerateResponseGptUnit:
         with patch("graph.nodes.agentic_nodes.response_generator.OPENAI_API_KEY", ""):
             result = await generate_response_gpt("Hello")
         assert result == ""
-
-
-# ============================================================================
-# compare_responses / select_best_response
-# ============================================================================
-
-class TestResponseComparisonUnit:
-    """Unit tests for compare_responses and select_best_response."""
-
-    @pytest.mark.asyncio
-    async def test_compare_responses_returns_metrics(self):
-        out = await compare_responses("Ollama reply here", "GPT reply", "User msg")
-        assert out["ollama_length"] == len("Ollama reply here")
-        assert out["gpt_length"] == len("GPT reply")
-        assert out["ollama_available"] is True
-        assert out["gpt_available"] is True
-
-    @pytest.mark.asyncio
-    async def test_select_best_response_prefer_gpt(self):
-        out = await select_best_response("Ollama", "GPT", preference="gpt")
-        assert out == "GPT"
-
-    @pytest.mark.asyncio
-    async def test_select_best_response_prefer_ollama(self):
-        out = await select_best_response("Ollama", "GPT", preference="ollama")
-        assert out == "Ollama"
-
-    @pytest.mark.asyncio
-    async def test_select_best_response_fallback_when_preferred_empty(self):
-        out = await select_best_response("Only Ollama", "", preference="gpt")
-        assert out == "Only Ollama"

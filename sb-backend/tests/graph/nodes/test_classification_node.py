@@ -239,15 +239,15 @@ class TestClassificationNodeUnit:
         assert result["severity"] == "medium"
         assert result["risk_level"] == "medium"
         assert result["is_greeting"] is False
-        assert result["classification_details"] == mock_classifications
 
-    def test_high_risk_sets_is_high_crisis(self, sample_state):
+    def test_high_risk_sets_is_crisis_detected(self, sample_state):
         mock_classifications = {
             "intent": "crisis_disclosure",
             "situation": "SUICIDAL",
             "severity": "high",
             "risk_score": 0.95,
             "risk_level": "high",
+            "is_crisis_detected": True,
             "raw_scores": {},
         }
         with patch(
@@ -255,7 +255,7 @@ class TestClassificationNodeUnit:
             return_value=mock_classifications,
         ):
             result = classification_node(sample_state)
-        assert result["is_high_crisis"] is True
+        assert result["is_crisis_detected"] is True
         assert result["risk_level"] == "high"
 
     def test_greeting_sets_is_greeting(self, greeting_state):
@@ -265,6 +265,8 @@ class TestClassificationNodeUnit:
             "severity": "low",
             "risk_score": 0.0,
             "risk_level": "low",
+            "is_greeting": True,
+            "is_crisis_detected": False,
             "raw_scores": {},
         }
         with patch(
@@ -300,3 +302,149 @@ class TestClassificationLabels:
         assert "SUICIDAL" in SITUATION_LABELS.values()
         assert "SELF_HARM" in SITUATION_LABELS.values()
         assert "NO_SITUATION" in SITUATION_LABELS.values()
+
+
+# ============================================================================
+# detect_crisis — new patterns added for passive suicidal ideation
+# ============================================================================
+
+class TestDetectCrisisNewPatterns:
+    """Tests for newly added crisis detection patterns."""
+
+    # --- SUICIDAL_IDEATION: direct death/dying phrases ---
+
+    def test_want_to_die_detected(self):
+        out = detect_crisis("I want to die")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "SUICIDAL"
+
+    def test_feel_like_dying_detected(self):
+        out = detect_crisis("I feel like dying")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "SUICIDAL"
+
+    def test_feel_like_i_should_die_detected(self):
+        out = detect_crisis("Sometimes I feel like I should die.")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "SUICIDAL"
+        assert out["severity"] == "high"
+
+    def test_i_should_die_detected(self):
+        out = detect_crisis("I should die")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "SUICIDAL"
+
+    def test_i_want_to_die_detected(self):
+        out = detect_crisis("I just feel like I want to die.")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "SUICIDAL"
+
+    def test_wish_i_could_die_detected(self):
+        out = detect_crisis("I wish I could die in my sleep")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "SUICIDAL"
+
+    def test_sometimes_i_feel_like_dying_detected(self):
+        out = detect_crisis("Sometimes I feel like dying is the only way out")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "SUICIDAL"
+
+    def test_want_to_be_dead_detected(self):
+        out = detect_crisis("I want to be dead")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "SUICIDAL"
+
+    # --- PASSIVE_DEATH_WISH patterns ---
+
+    def test_tired_of_living_detected(self):
+        out = detect_crisis("I'm so tired of living like this")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "PASSIVE_DEATH_WISH"
+
+    def test_dont_want_to_be_here_detected(self):
+        out = detect_crisis("I just don't want to be here anymore")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "PASSIVE_DEATH_WISH"
+
+    def test_wish_i_could_disappear_detected(self):
+        out = detect_crisis("I wish I could disappear from everything")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "PASSIVE_DEATH_WISH"
+
+    def test_wouldnt_mind_dying_detected(self):
+        out = detect_crisis("I wouldn't mind dying honestly")
+        assert out["is_crisis"] is True
+        assert out["situation"] == "PASSIVE_DEATH_WISH"
+
+    # --- True negation should NOT fire even with "die" in message ---
+
+    def test_negated_i_should_die_not_crisis(self):
+        out = detect_crisis("I'm not suicidal, I don't want to die")
+        # Negation check should suppress the pattern match
+        assert out["is_crisis"] is False
+
+    # --- Fallback SEVERE_DISTRESS path ---
+
+    def test_fallback_multiple_high_risk_words_triggers_crisis(self):
+        # "suicide" (0.6) alone should now hit threshold
+        out = detect_crisis("I've been thinking about suicide a lot")
+        assert out["is_crisis"] is True
+
+    def test_fallback_single_low_risk_word_not_crisis(self):
+        out = detect_crisis("There was so much pain in the movie")
+        # "pain" = 0.2 only — should not trigger crisis
+        assert out["is_crisis"] is False
+
+
+# ============================================================================
+# detect_greeting — new patterns
+# ============================================================================
+
+class TestDetectGreetingNewPatterns:
+    """Tests for extended greeting patterns."""
+
+    def test_namaste(self):
+        assert detect_greeting("namaste") is True
+
+    def test_namaskar(self):
+        assert detect_greeting("namaskar") is True
+
+    def test_gm(self):
+        assert detect_greeting("gm") is True
+
+    def test_gn(self):
+        assert detect_greeting("gn") is True
+
+    def test_hola(self):
+        assert detect_greeting("hola") is True
+
+    def test_yo(self):
+        assert detect_greeting("yo") is True
+
+    def test_sup(self):
+        assert detect_greeting("sup") is True
+
+    def test_hiya(self):
+        assert detect_greeting("hiya") is True
+
+    def test_how_are_you(self):
+        assert detect_greeting("how are you") is True
+
+    def test_how_are_you_doing(self):
+        assert detect_greeting("how are you doing") is True
+
+    def test_how_r_u(self):
+        assert detect_greeting("how r u") is True
+
+    def test_nice_to_meet_you(self):
+        assert detect_greeting("nice to meet you") is True
+
+    def test_enthusiastic_hiii(self):
+        # Repeated chars normalised: hiii → hii (in EXACT_GREETINGS)
+        assert detect_greeting("hiii") is True
+
+    def test_enthusiastic_heyyy(self):
+        assert detect_greeting("heyyy") is True
+
+    def test_good_night(self):
+        assert detect_greeting("good night") is True

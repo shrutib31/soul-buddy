@@ -12,6 +12,8 @@ import asyncio
 import logging
 
 from graph.state import ConversationState
+from graph.nodes.agentic_nodes.response_templates import get_template_response
+from graph.nodes.agentic_nodes.response_evaluator import select_best_response
 
 # Configuration
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://72.60.99.35:11434")
@@ -45,18 +47,30 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         situation = state.situation
         severity = state.severity
         intent = state.intent
+        domain = state.domain
         response_draft = state.response_draft
-        
+        is_crisis_detected = state.is_crisis_detected
+        is_greeting = state.is_greeting
+
         if not user_message:
             return {"error": "Missing user message for response generation"}
-        
+
         logger.info(
             "response_generator: starting",
-            extra={"intent": intent, "situation": situation, "severity": severity}
+            extra={"intent": intent, "situation": situation, "severity": severity,
+                   "is_crisis_detected": is_crisis_detected, "is_greeting": is_greeting}
         )
-        
-        # Generate responses from both sources IN PARALLEL using asyncio.gather
-        # This reduces total execution time from ~5-7s (sequential) to ~2-5s (parallel)
+
+        # Use a readymade template when crisis or greeting is explicitly detected.
+        template = get_template_response(is_crisis_detected, is_greeting, domain)
+        if template:
+            logger.info(
+                "response_generator: using template response",
+                extra={"is_crisis_detected": is_crisis_detected, "is_greeting": is_greeting, "domain": domain}
+            )
+            return {"response_draft": template}
+
+        # No template applies — generate response via LLMs in parallel.
         ollama_response, gpt_response = await asyncio.gather(
             generate_response_ollama(
                 user_message, situation, severity, intent, response_draft
@@ -64,26 +78,33 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             generate_response_gpt(
                 user_message, situation, severity, intent, response_draft
             ),
-            return_exceptions=False  # If either fails, exception will be raised
+            return_exceptions=False
         )
-        
-        # For now, default to GPT response (can be changed to Ollama or use a selector node)
-        selected_response = gpt_response if gpt_response else ollama_response
-        
+
+        selected_response, source, ollama_score, gpt_score = select_best_response(
+            ollama_response, gpt_response
+        )
+
         logger.info(
-            "response_generator: completed",
+            "response_generator: completed via LLM",
             extra={
-                "used_gpt": bool(gpt_response),
+                "selected_source": source,
+                "ollama_score": round(ollama_score, 2),
+                "gpt_score": round(gpt_score, 2),
                 "gpt_length": len(gpt_response) if gpt_response else 0,
-                "ollama_length": len(ollama_response) if ollama_response else 0
+                "ollama_length": len(ollama_response) if ollama_response else 0,
+                "intent": intent,
             }
         )
-        
+
         return {
             "response_draft": selected_response,
             "api_response": {
                 "ollama": ollama_response,
-                "gpt": gpt_response
+                "gpt": gpt_response,
+                "selected_source": source,
+                "ollama_score": round(ollama_score, 2),
+                "gpt_score": round(gpt_score, 2),
             }
         }
         

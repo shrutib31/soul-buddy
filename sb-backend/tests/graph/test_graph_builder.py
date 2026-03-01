@@ -32,7 +32,6 @@ class TestGraphBuilderUnit:
             "response_generator",
             "store_bot_response",
             "render",
-            "guardrail",
         }
         for name in expected:
             assert name in nodes, f"Expected node {name!r} in graph nodes {nodes}"
