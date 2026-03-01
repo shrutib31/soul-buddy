@@ -6,7 +6,6 @@ It creates a ConversationTurn record with the bot's message.
 """
 
 from typing import Dict, Any
-from datetime import datetime
 from sqlalchemy import select, func
 
 
@@ -77,37 +76,3 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
             "error": f"Error storing bot response: {str(e)}"
         }
 
-
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
-
-async def get_conversation_history(conversation_id: str) -> list:
-    """
-    Retrieve the full conversation history for a conversation.
-    
-    Args:
-        conversation_id: The conversation ID
-    
-    Returns:
-        List of conversation turns
-    """
-    try:
-        async with data_db.get_session() as session:
-            stmt = select(ConversationTurn).where(
-                ConversationTurn.session_id == conversation_id
-            ).order_by(ConversationTurn.turn_index)
-            result = await session.execute(stmt)
-            turns = result.scalars().all()
-            
-            return [
-                {
-                    "turn_index": turn.turn_index,
-                    "speaker": turn.speaker,
-                    "message": turn.message,
-                    "created_at": turn.created_at.isoformat() if turn.created_at else None
-                }
-                for turn in turns
-            ]
-    except Exception:
-        return []
