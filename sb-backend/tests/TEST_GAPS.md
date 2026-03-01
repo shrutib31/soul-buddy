@@ -8,11 +8,12 @@ This document summarizes **what is tested** vs **what is not** in `sb-backend`, 
 
 | Area | Test file | What’s covered |
 |------|-----------|----------------|
-| **Graph nodes** | `tests/graph/nodes/test_intent_detection.py` | `intent_detection_node`, `detect_intent_with_ollama`, `get_intent_description` (Ollama-based intent flow) |
+| **Graph nodes** | `tests/graph/nodes/test_classification_node.py` | `classification_node`, `get_classifications`, `detect_greeting`, `detect_crisis`, `is_true_negation`, intent/situation/severity labels |
 | **Graph nodes** | `tests/graph/nodes/test_guardrail.py` | `guardrail_node`, `guardrail_router`, `call_guardrail_llm`, `safe_json_loads`, config constants |
-| **Graph nodes** | `tests/graph/nodes/test_classification_node.py` | `detect_greeting`, `is_true_negation`, `detect_crisis`, `get_classifications` (empty/greeting/crisis), `classification_node` (mocked get_classifications) |
-| **Graph nodes** | `tests/graph/nodes/test_response_generator.py` | `response_generator_node`, `generate_response_ollama`, `generate_response_gpt`, `compare_responses`, `select_best_response` (mocked LLM) |
-| **Graph nodes** | `tests/graph/nodes/test_function_nodes.py` | `conv_id_handler_node`, `store_message_node`, `store_bot_response_node`, `render_node`, `format_api_response`, `format_error_response` (mocked DB) |
+| **Graph nodes** | `tests/graph/nodes/test_response_generator.py` | `response_generator_node`, `generate_response_ollama`, `generate_response_gpt` (mocked LLM) |
+| **Graph nodes** | `tests/graph/nodes/test_response_evaluator.py` | `score_response`, `select_best_response`, scoring helpers |
+| **Graph nodes** | `tests/graph/nodes/test_response_templates.py` | `get_template_response`, greeting/crisis template logic |
+| **Graph nodes** | `tests/graph/nodes/test_function_nodes.py` | `conv_id_handler_node`, `store_message_node`, `store_bot_response_node`, `render_node` (mocked DB) |
 | **Graph** | `tests/graph/test_graph_builder.py` | `get_compiled_flow()`: nodes, edges, entry point |
 | **Graph** | `tests/graph/test_graph_integration.py` | Full graph invoke (conv_id → … → render) with mocked DB and LLM (`@pytest.mark.integration`) |
 | **API** | `tests/api/test_chat.py` | `create_initial_state`, POST `/api/v1/chat/incognito` (mocked flow) |
@@ -26,11 +27,11 @@ This document summarizes **what is tested** vs **what is not** in `sb-backend`, 
 
 ## Critical gaps (used in production flow but untested)
 
-The compiled LangGraph uses **classification_node**, not **intent_detection_node**. Classification node and the rest of the main path are now covered by unit tests (see Current test suite above). Remaining gaps:
+The compiled LangGraph now uses **classification_node** as the main entry point (not intent_detection_node). The current test suite covers the classification-based flow, but gaps remain:
 
 | Component | File(s) | Gap |
 |-----------|---------|-----|
-| **Classification node (model path)** | `graph/nodes/agentic_nodes/classification_node.py` | When message is not greeting and not crisis, `get_classifications` loads the real model; unit tests mock this or use greeting/crisis/empty. No test with real model without mocking. |
+| **Classification node (model path)** | `graph/nodes/agentic_nodes/classification_node.py` | Real model loading (non-mocked) is not tested; only greeting/crisis/empty cases are covered. |
 | **Response generator (real LLM)** | `graph/nodes/agentic_nodes/response_generator.py` | Real Ollama/GPT calls are not tested; only mocked. |
 | **Conv ID / store message / store bot (real DB)** | function nodes | Real DB writes are not tested; only mocked sessions. |
 | **Streaming** | `graph/streaming.py` | `stream_response_words`, `stream_as_sse` – no tests. |
@@ -55,8 +56,12 @@ The compiled LangGraph uses **classification_node**, not **intent_detection_node
 
 ## Intent detection vs classification (important distinction)
 
-- **`intent_detection_node`** (in `intent_detection.py`) is **tested** but **not used** in the current graph; it is only imported in `graph_builder.py`.
-- **`classification_node`** (in `classification_node.py`) **is used** in the graph and calls `get_classifications` (model + `detect_crisis` / `detect_greeting`). It has **no tests**.
+**Intent detection vs classification (important distinction):**
+
+- **`intent_detection_node`** (in `intent_detection.py`) is no longer used or imported in the graph; its test file has been removed.
+- **`classification_node`** (in `classification_node.py`) is now the main entry point in the graph and is covered by unit tests, along with its helpers (`get_classifications`, `detect_greeting`, `detect_crisis`, etc.).
+
+The main gap is no longer classification node coverage, but rather real model/LLM/DB integration and streaming, as detailed above.
 
 So the main gap is **classification_node** and its helpers, not intent_detection.
 

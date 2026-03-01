@@ -5,6 +5,7 @@ import os
 import logging
 from transformer_models.SoulBuddyClassifier import SoulBuddyClassifier
 import re
+from graph.state import ConversationState
 
 logger = logging.getLogger(__name__)
 
@@ -603,7 +604,7 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
     }
 
 
-def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
+def classification_node(state: ConversationState) -> Dict[str, Any]:
     """
     LangGraph node for classifying conversation state.
     
