@@ -573,41 +573,7 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
         "message_length": len(message),
         "word_count": len(message.split())
     }
-# Example usage and testing
-if __name__ == "__main__":
-    test_messages = [
-        "Hi, how are you?",
-        "I've been feeling really sad lately",
-        "I want to kill myself",
-        "I have a plan to end it all tonight",
-        "Sometimes I wish I could just disappear",
-        "I bought some pills and I'm going to use them",
-        "No one would care if I died",
-        "I'm so overwhelmed with everything",
-        "This is goodbye. I love you all.",
-        "I can't take this pain anymore",
-        "I've been cutting myself to cope",
-        "What's the point of living anyway?",
-        "I'm a burden to everyone around me"
-    ]
-    
-    for msg in test_messages:
-        result = detect_crisis(msg)
-        logger.debug(f"Test message: {msg}")
-        logger.debug(f"Crisis: {result['is_crisis']}")
-        if result['is_crisis']:
-            logger.debug(
-                "Type: %s, Risk Level: %s, Risk Score: %s, Situation: %s, "
-                "Intent: %s, Immediate Response: %s, Confidence: %s, Matched: %s",
-                result.get("crisis_type"),
-                result.get("risk_level"),
-                result.get("risk_score"),
-                result.get("situation"),
-                result.get("intent"),
-                result.get("requires_immediate_response"),
-                result.get("confidence"),
-                (result.get("matched_patterns") or [])[:2],
-            )
+
 
 def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -636,10 +602,6 @@ def classification_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "situation": classifications["situation"],
             "severity": classifications["severity"],
             "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
-            "is_greeting": classifications["intent"] == "greeting",
-            "is_high_crisis": classifications["risk_level"] in ("high", "critical"),
-            "classification_details": classifications,
-            "is_medium_crisis": classifications["risk_level"] == "medium",
         }
         
     except Exception as e:
