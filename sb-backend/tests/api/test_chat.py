@@ -102,7 +102,7 @@ class TestChatEndpointsUnit:
         assert resp.status_code in (422, 400)
 
     def test_classify_endpoint_not_on_chat_router(self, client):
-        # Classify is on classify_router; this client only has chat_router
+        # Classify is on classify_router; this client only mounts chat_router,
+        # so /api/v1/classify must always be 404.
         resp = client.post("/api/v1/classify", json={"message": "Hello"})
-        # If classify is not mounted, 404
-        assert resp.status_code in (200, 404)
+        assert resp.status_code == 404

@@ -23,10 +23,10 @@ data_db = SQLAlchemyDataDB()
 async def store_message_node(state: ConversationState) -> Dict[str, Any]:
     """
     Store user message in the database.
-    
+
     This node saves the current user message to the conversation history
-    in the ConversationTurn table. Runs in parallel with intent detection.
-    
+    in the ConversationTurn table. Runs in parallel with classification_node in the current graph flow.
+
     Args:
         state: Current conversation state
 
