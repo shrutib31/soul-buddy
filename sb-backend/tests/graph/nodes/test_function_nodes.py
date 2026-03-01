@@ -12,11 +12,7 @@ from graph.state import ConversationState
 from graph.nodes.function_nodes.conv_id_handler import conv_id_handler_node
 from graph.nodes.function_nodes.store_message import store_message_node
 from graph.nodes.function_nodes.store_bot_response import store_bot_response_node
-from graph.nodes.function_nodes.render import (
-    render_node,
-    format_api_response,
-    format_error_response,
-)
+from graph.nodes.function_nodes.render import render_node
 
 
 # ============================================================================
@@ -275,27 +271,3 @@ class TestRenderNodeUnit:
         assert result["api_response"].get("error") == "Something went wrong"
 
 
-# ============================================================================
-# format_api_response / format_error_response
-# ============================================================================
-
-class TestRenderHelpers:
-    """Unit tests for render helper functions."""
-
-    def test_format_api_response(self):
-        out = format_api_response("conv-1", "Hello", {"key": "value"})
-        assert out["success"] is True
-        assert out["conversation_id"] == "conv-1"
-        assert out["response"] == "Hello"
-        assert out["metadata"] == {"key": "value"}
-        assert "timestamp" in out
-
-    def test_format_error_response(self):
-        out = format_error_response("Failed", conversation_id="conv-1")
-        assert out["success"] is False
-        assert out["error"] == "Failed"
-        assert out["conversation_id"] == "conv-1"
-
-    def test_format_error_response_no_conv_id(self):
-        out = format_error_response("Failed")
-        assert "conversation_id" not in out or out.get("conversation_id") is None
