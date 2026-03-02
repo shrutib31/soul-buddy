@@ -12,9 +12,11 @@ import asyncio
 import logging
 
 from graph.state import ConversationState
+from graph.nodes.agentic_nodes.response_templates import get_template_response
+from graph.nodes.agentic_nodes.response_evaluator import select_best_response
 
 # Configuration
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://72.60.99.35:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -45,20 +47,30 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         situation = state.situation
         severity = state.severity
         intent = state.intent
+        domain = state.domain
         response_draft = state.response_draft
-        
-        print(f"\nIntent detected at this stage is: {intent}\n")
-        
+        is_crisis_detected = state.is_crisis_detected
+        is_greeting = state.is_greeting
+
         if not user_message:
             return {"error": "Missing user message for response generation"}
-        
+
         logger.info(
             "response_generator: starting",
-            extra={"intent": intent, "situation": situation, "severity": severity}
+            extra={"intent": intent, "situation": situation, "severity": severity,
+                   "is_crisis_detected": is_crisis_detected, "is_greeting": is_greeting}
         )
-        
-        # Generate responses from both sources IN PARALLEL using asyncio.gather
-        # This reduces total execution time from ~5-7s (sequential) to ~2-5s (parallel)
+
+        # Use a readymade template when crisis or greeting is explicitly detected.
+        template = get_template_response(is_crisis_detected, is_greeting, domain)
+        if template:
+            logger.info(
+                "response_generator: using template response",
+                extra={"is_crisis_detected": is_crisis_detected, "is_greeting": is_greeting, "domain": domain}
+            )
+            return {"response_draft": template}
+
+        # No template applies — generate response via LLMs in parallel.
         ollama_response, gpt_response = await asyncio.gather(
             generate_response_ollama(
                 user_message, situation, severity, intent, response_draft
@@ -66,26 +78,33 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             generate_response_gpt(
                 user_message, situation, severity, intent, response_draft
             ),
-            return_exceptions=False  # If either fails, exception will be raised
+            return_exceptions=False
         )
-        
-        # For now, default to GPT response (can be changed to Ollama or use a selector node)
-        selected_response = gpt_response if gpt_response else ollama_response
-        
+
+        selected_response, source, ollama_score, gpt_score = select_best_response(
+            ollama_response, gpt_response
+        )
+
         logger.info(
-            "response_generator: completed",
+            "response_generator: completed via LLM",
             extra={
-                "used_gpt": bool(gpt_response),
+                "selected_source": source,
+                "ollama_score": round(ollama_score, 2),
+                "gpt_score": round(gpt_score, 2),
                 "gpt_length": len(gpt_response) if gpt_response else 0,
-                "ollama_length": len(ollama_response) if ollama_response else 0
+                "ollama_length": len(ollama_response) if ollama_response else 0,
+                "intent": intent,
             }
         )
-        
+
         return {
             "response_draft": selected_response,
             "api_response": {
                 "ollama": ollama_response,
-                "gpt": gpt_response
+                "gpt": gpt_response,
+                "selected_source": source,
+                "ollama_score": round(ollama_score, 2),
+                "gpt_score": round(gpt_score, 2),
             }
         }
         
@@ -164,6 +183,7 @@ Compassionate response:"""
                         data = await resp.json()
                         response = data.get("response", "").strip()
                         logger.info("generate_response_ollama: success", extra={"length": len(response)})
+                        logger.debug(f"generate_response_ollama: full response: {response}")
                         return response if response else ""
                     else:
                         error_text = await resp.text()
@@ -210,9 +230,8 @@ async def generate_response_gpt(
     """
     try:
         if not OPENAI_API_KEY:
-            print("OpenAI API key not configured")
+            logger.debug("generate_response_gpt: OpenAI API key not configured")
             return ""
-        
         import aiohttp
         import json
         
@@ -274,6 +293,7 @@ Guidelines:
                         data = await resp.json()
                         response = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
                         logger.info("generate_response_gpt: success", extra={"length": len(response)})
+                        logger.debug(f"generate_response_gpt: full response: {response}")
                         return response if response else ""
                     else:
                         error_text = await resp.text()
@@ -293,62 +313,3 @@ Guidelines:
         logger.exception("generate_response_gpt: failed")
         return ""
 
-
-# ============================================================================
-# RESPONSE COMPARISON UTILITIES
-# ============================================================================
-
-async def compare_responses(
-    ollama_response: str,
-    gpt_response: str,
-    user_message: str
-) -> Dict[str, Any]:
-    """
-    Compare two responses for quality metrics.
-    
-    Could be extended to use LLM-based evaluation.
-    
-    Args:
-        ollama_response: Response from Ollama
-        gpt_response: Response from GPT
-        user_message: Original user message for context
-    
-    Returns:
-        Comparison metrics
-    """
-    return {
-        "ollama_length": len(ollama_response),
-        "gpt_length": len(gpt_response),
-        "ollama_available": bool(ollama_response),
-        "gpt_available": bool(gpt_response),
-    }
-
-
-async def select_best_response(
-    ollama_response: str,
-    gpt_response: str,
-    preference: str = "gpt"  # "gpt", "ollama", or "longer"
-) -> str:
-    """
-    Select the best response based on preference.
-    
-    Args:
-        ollama_response: Response from Ollama
-        gpt_response: Response from GPT
-        preference: Selection strategy
-    
-    Returns:
-        Selected response
-    """
-    if preference == "gpt":
-        logger.info("select_best_response: preferring GPT response")
-        return gpt_response if gpt_response else ollama_response
-    elif preference == "ollama":
-        logger.info("select_best_response: preferring Ollama response")
-        return ollama_response if ollama_response else gpt_response
-    elif preference == "longer":
-        logger.info("select_best_response: preferring longer response")
-        return gpt_response if len(gpt_response) >= len(ollama_response) else ollama_response
-    else:
-        logger.info("select_best_response: preferring default response (GPT if available)")
-        return gpt_response if gpt_response else ollama_response

@@ -1,0 +1,19 @@
+version: '3.9'
+
+services:
+  sb-backend:
+    build: ./sb-backend
+    container_name: sb-backend
+    # Override .env file dynamically
+    env_file:
+      - ${ENV_FILE:-./sb-backend/.env} 
+    # Override individual variables dynamically
+    environment:
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-8000}
+      - DEBUG=${DEBUG:-0}
+    # Override port mapping dynamically
+    ports:
+      - "${BACKEND_PORT:-8000}:${PORT:-8000}"
+    volumes:
+      - ./sb-backend:/app

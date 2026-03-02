@@ -26,7 +26,10 @@ VALUES
   ('OPEN_TO_SOLUTION',   'User is receptive to suggestions'),
   ('TRY_TOOL',           'User explicitly wants to try a tool'),
   ('SEEK_SUPPORT',       'User wants external or human help'),
-  ('UNCLEAR',            'Intent is not yet clear')
+  ('UNCLEAR',            'Intent is not yet clear'),
+  ('CRISIS_DISCLOSURE',  'User is disclosing a crisis situation'),
+  ('SEEK_HELP',          'User is actively seeking immediate help'),
+  ('SELF_HARM_DISCLOSURE','User is disclosing self-harm thoughts or behavior')
 ON CONFLICT (intent_id)
 DO UPDATE SET description = EXCLUDED.description;
 
@@ -83,7 +86,21 @@ VALUES
   ('LOW_MOTIVATION',         'emotional','Exhaustion and reduced drive', FALSE),
   ('BELONGING_DOUBT',        'social',   'Feeling out of place or not fitting in', FALSE),
   ('UNLABELED_DISTRESS',     'fallback', 'Vague or unclear distress', FALSE),
-  ('PASSIVE_DEATH_WISH',     'crisis',   'Passive death-related thoughts', TRUE)
+  ('PASSIVE_DEATH_WISH',     'crisis',   'Passive death-related thoughts', TRUE),
+  ('HEALTH_CONCERNS',        'health',   'Health or medical worries', FALSE),
+  ('RELATIONSHIP_ISSUES',    'relationship','Stress or conflict in relationships', FALSE),
+  ('FINANCIAL_STRESS',       'financial','Money, debt, or financial insecurity', FALSE),
+  ('FUTURE_UNCERTAINTY',     'future',  'Worry or confusion about the future', FALSE),
+  ('OTHER',                  'other',   'Other situation not captured by existing categories', FALSE),
+  ('NO_SITUATION',           'fallback','No clear situation identified', FALSE),
+  ('UNCLEAR',                'fallback','Situation not yet clear', FALSE),
+  ('SUICIDAL',               'crisis',  'Active suicidal thoughts, plans, or intent', TRUE),
+  ('SELF_HARM',              'crisis',  'Non-suicidal self-harm or self-injury', TRUE),
+  ('SEVERE_HOPELESSNESS',    'crisis',  'Intense hopelessness and despair', TRUE),
+  ('SEVERE_BURDEN',          'crisis',  'Feeling like an extreme burden to others', TRUE),
+  ('SEVERE_DISTRESS',        'crisis',  'High, persistent distress across domains', TRUE),
+  ('GIVING_AWAY',            'crisis',  'Giving away possessions or making final arrangements', TRUE),
+  ('SAYING_GOODBYE',         'crisis',  'Goodbye messages that may signal risk', TRUE)
 ON CONFLICT (situation_id)
 DO UPDATE SET
   category    = EXCLUDED.category,
