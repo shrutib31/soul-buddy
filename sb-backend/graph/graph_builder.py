@@ -5,7 +5,10 @@ from graph.nodes.function_nodes.conv_id_handler import conv_id_handler_node
 from graph.nodes.function_nodes.store_message import store_message_node
 from graph.nodes.function_nodes.render import render_node
 from graph.nodes.function_nodes.store_bot_response import store_bot_response_node
+from graph.nodes.agentic_nodes.intent_detection import intent_detection_node
+# from graph.nodes.agentic_nodes.situation_severity_detection import situation_severity_detection_node
 from graph.nodes.agentic_nodes.response_generator import response_generator_node
+from graph.nodes.agentic_nodes.guardrail import guardrail_node, guardrail_router
 from graph.nodes.agentic_nodes.classification_node import classification_node
 from graph.nodes.function_nodes.privacy_masking import new_masking_node as privacy_masking_node
 
@@ -19,11 +22,19 @@ def get_compiled_flow():
     graph.add_node("store_bot_response", store_bot_response_node)
     graph.add_node("render", render_node)
 
-    graph.set_entry_point("conv_id_handler")
+    graph.add_node("guardrail", guardrail_node)
+    
+    # For Data Masking PII and PHI data
+    graph.add_node("privacy_shield", privacy_masking_node)
 
-    # store_message and classification_node run in parallel after conv_id_handler
-    graph.add_edge("conv_id_handler", "store_message")
-    graph.add_edge("conv_id_handler", "classification_node")
+    # edges
+    graph.set_entry_point("conv_id_handler")
+    
+    # After conv_id_handler, run store_message, intent_detection, and situation/severity detection in parallel
+    # graph.add_edge("conv_id_handler", "store_message")
+    graph.add_edge("conv_id_handler", "privacy_shield")
+    graph.add_edge("privacy_shield", "classification_node")
+    # graph.add_edge("conv_id_handler", "situation_severity_detection")
 
     graph.add_edge("classification_node", "response_generator")
     graph.add_edge("response_generator", "store_bot_response")
