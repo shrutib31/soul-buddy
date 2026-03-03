@@ -161,3 +161,26 @@ class CrisisEvent(Base):
     triggered_at: Mapped[DateTime | None] = mapped_column(DateTime, server_default=func.now())
     risk_level: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved: Mapped[bool] = mapped_column(Boolean, server_default=text("FALSE"))
+
+
+class UserConversationSummary(Base):
+    """
+    Stores the latest rolling conversation summary for a cognito user.
+
+    One row per user (user_id is the PK). The row is upserted after every
+    bot response turn, overwriting the previous summary.  The summary is a
+    structured text string built from the classification state — no extra LLM
+    call required — so it adds no latency to the critical path.
+
+    Redis cache key: user:<userId>:conversation_summary  (TTL 30 min)
+    DB acts as the durable fallback when the cache entry expires.
+    """
+
+    __tablename__ = "user_conversation_summaries"
+
+    user_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    last_conversation_id: Mapped[UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sb_conversations.id"), nullable=True
+    )
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
