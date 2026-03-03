@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from api.supabase_auth import verify_supabase_token, optional_supabase_token
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
@@ -45,8 +46,24 @@ class IncognitoChatRequest(ChatRequest):
 class CognitoChatRequest(ChatRequest):
     mode: str = "cognito"  # "incognito" or "cognito"
     sb_conv_id: str = None #conversation id for cognito mode
-    user_id: str = None  # user identifier for cognito mode. This is a supabase user ID in string format
     domain: str = "student"  # "student", "employee", "corporate"
+    # supabase_uid is NOT accepted from the client — always derived from the verified JWT.
+
+
+class UnifiedChatRequest(BaseModel):
+    """
+    Single request model for both incognito and cognito chat.
+
+    Set is_incognito=True (default) for anonymous sessions — no Authorization
+    header required.  Set is_incognito=False for authenticated sessions — an
+    Authorization: Bearer <token> header must be present; the supabase_uid is
+    always derived from the verified token, never accepted from the client.
+    """
+    message: str = Field(..., min_length=1, description="User input message")
+    is_incognito: bool = Field(True, description="True for anonymous session, False for authenticated session")
+    sb_conv_id: Optional[str] = None
+    domain: str = "student"
+    metadata: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================
@@ -75,17 +92,19 @@ async def create_initial_state(
     message: str,
     mode: str,
     domain: str,
-    conversation_id: Optional[str] = None
+    conversation_id: Optional[str] = None,
+    supabase_uid: Optional[str] = None,
 ) -> ConversationState:
     """
     Create the initial conversation state for the graph.
-    
+
     Args:
         message: User message
         mode: "incognito" or "cognito"
         domain: "student", "employee", or "corporate"
         conversation_id: Optional existing conversation ID
-    
+        supabase_uid: Optional supabase user ID (cognito mode only)
+
     Returns:
         ConversationState ready for graph invocation
     """
@@ -101,6 +120,7 @@ async def create_initial_state(
         mode=mode,
         domain=domain,
         user_message=message,
+        supabase_uid=supabase_uid,
     )
 
 
@@ -165,27 +185,29 @@ async def incognito_chat(req: IncognitoChatRequest):
 
 
 @router.post("/cognito/stream")
-async def cognito_chat_stream(req: CognitoChatRequest):
+async def cognito_chat_stream(req: CognitoChatRequest, user=Depends(verify_supabase_token)):
     """
     Authenticated chat with streaming response using LangGraph.
     Returns server-sent events (SSE) with real-time graph updates.
     """
+    supabase_uid: str = user["id"]
     try:
         # Create initial state
         state = await create_initial_state(
             message=req.message,
             mode="cognito",
             domain=req.domain,
-            conversation_id=req.sb_conv_id
+            conversation_id=req.sb_conv_id,
+            supabase_uid=supabase_uid,
         )
-        
+
         # Stream from graph
         async def event_stream():
             async for event_data in stream_as_sse(state):
                 yield event_data
-        
+
         return StreamingResponse(event_stream(), media_type="text/event-stream")
-        
+
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -194,31 +216,96 @@ async def cognito_chat_stream(req: CognitoChatRequest):
 
 
 @router.post("/cognito")
-async def cognito_chat(req: CognitoChatRequest):
+async def cognito_chat(req: CognitoChatRequest, user=Depends(verify_supabase_token)):
     """
     Authenticated chat with complete response.
     Returns the full response at once.
     """
+    supabase_uid: str = user["id"]
     try:
         # Create initial state
         state = await create_initial_state(
             message=req.message,
             mode="cognito",
             domain=req.domain,
-            conversation_id=req.sb_conv_id
+            conversation_id=req.sb_conv_id,
+            supabase_uid=supabase_uid,
         )
-        
+
         # Invoke the graph
         result = await invoke_graph(state)
-        
+
         # Return the API response from render node
         return result.get("api_response", {
             "success": False,
             "error": "No response generated"
         })
-        
+
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": f"Chat failed: {str(e)}"}
         )
+
+
+# ============================================================================
+# UNIFIED ENDPOINTS  (incognito + cognito in one)
+# ============================================================================
+
+@router.post("")
+async def chat(req: UnifiedChatRequest, user=Depends(optional_supabase_token)):
+    """
+    Unified chat endpoint — handles both incognito and cognito in a single route.
+
+    Incognito  (is_incognito=True):  no Authorization header needed.
+    Cognito    (is_incognito=False): Authorization: Bearer <token> + supabase_uid required.
+    """
+    if not req.is_incognito and user is None:
+        raise HTTPException(status_code=401, detail="Authorization header required for cognito mode")
+
+    supabase_uid: Optional[str] = None if req.is_incognito else user["id"]
+    mode = "incognito" if req.is_incognito else "cognito"
+    try:
+        state = await create_initial_state(
+            message=req.message,
+            mode=mode,
+            domain=req.domain,
+            conversation_id=req.sb_conv_id,
+            supabase_uid=supabase_uid,
+        )
+        result = await invoke_graph(state)
+        return result.get("api_response", {"success": False, "error": "No response generated"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": f"Chat failed: {str(e)}"})
+
+
+@router.post("/stream")
+async def chat_stream(req: UnifiedChatRequest, user=Depends(optional_supabase_token)):
+    """
+    Unified streaming chat endpoint — handles both incognito and cognito.
+
+    Returns server-sent events (SSE).
+    Incognito  (is_incognito=True):  no Authorization header needed.
+    Cognito    (is_incognito=False): Authorization: Bearer <token> + supabase_uid required.
+    """
+    if not req.is_incognito and user is None:
+        raise HTTPException(status_code=401, detail="Authorization header required for cognito mode")
+
+    supabase_uid: Optional[str] = None if req.is_incognito else user["id"]
+    mode = "incognito" if req.is_incognito else "cognito"
+    try:
+        state = await create_initial_state(
+            message=req.message,
+            mode=mode,
+            domain=req.domain,
+            conversation_id=req.sb_conv_id,
+            supabase_uid=supabase_uid,
+        )
+
+        async def event_stream():
+            async for event_data in stream_as_sse(state):
+                yield event_data
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Chat stream failed: {str(e)}"})

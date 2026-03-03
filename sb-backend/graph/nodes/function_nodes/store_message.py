@@ -1,8 +1,11 @@
 """
 Store Message Node for LangGraph
 
-This node stores the user message in the database for conversation history.
-It runs in parallel with classification.
+Persists the current user message as a ConversationTurn row (speaker="user"),
+then invalidates the Redis conversation-history cache for this conversation so
+the next load_user_context call fetches fresh data from the database.
+
+Graph position: runs in parallel with classification_node after load_user_context.
 """
 
 from typing import Dict, Any
@@ -11,6 +14,7 @@ from sqlalchemy import select, func
 from graph.state import ConversationState
 from orm.models import ConversationTurn
 from config.sqlalchemy_db import SQLAlchemyDataDB
+from services.cache_service import cache_service
 
 # Initialize database connection
 data_db = SQLAlchemyDataDB()
@@ -58,9 +62,12 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
             )
             session.add(turn)
             await session.commit()
-            
+
+            # Invalidate cached history so the next load picks up the new turn
+            await cache_service.invalidate_conversation_history(conversation_id)
+
             return {}
-            
+
     except Exception as e:
         return {
             "error": f"Error storing message: {str(e)}"

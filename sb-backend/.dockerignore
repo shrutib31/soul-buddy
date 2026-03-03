@@ -1,0 +1,41 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+.env/
+
+# All env files with secrets — env vars are injected at runtime via docker-compose env_file
+.env
+.env.*
+!.env.example
+
+# Logs (written at runtime, not baked into the image)
+logs/
+*.log
+
+# Test & coverage output
+tests/
+.coverage
+coverage.xml
+
+# Build artifacts
+dist/
+build/
+
+# IDE & OS noise
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.bak
+*.tmp
+
+# Git
+.git/
+.gitignore
