@@ -5,14 +5,10 @@ from typing import Optional, Dict, Any
 import asyncio
 import uuid
 import json
-import psycopg2
-import os
 
 from graph.state import ConversationState
 from graph.graph_builder import get_compiled_flow
 from graph.streaming import stream_response_words, stream_as_sse
-
-
 from graph.nodes.function_nodes.get_messages import get_conversation_messages
 from graph.nodes.function_nodes.get_bot_response import get_latest_bot_response
 
@@ -29,35 +25,24 @@ async def get_flow():
         flow = get_compiled_flow()
     return flow
 
-
-# ============================================================================
-# DATABASE HELPERS
-# ============================================================================
-
-def get_db_connection():
-    return psycopg2.connect(os.getenv("DATABASE_URL"))
-
-
-def ensure_conversation_exists(conversation_id: str, mode: str) -> None:
+async def ensure_conversation_exists(conversation_id: str, mode: str) -> None:
     """
     Create a row in sb_conversations if it doesn't already exist.
     Required before any inserts into conversation_turns due to FK constraint.
+    Uses SQLAlchemy so no separate psycopg2 connection is needed.
     """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            """
-            INSERT INTO sb_conversations (id, mode, started_at)
-            VALUES (%s::uuid, %s, NOW())
-            ON CONFLICT (id) DO NOTHING
-            """,
-            (conversation_id, mode),
-        )
-        conn.commit()
-    finally:
-        cursor.close()
-        conn.close()
+    from config.sqlalchemy_db import get_data_db
+    from orm.models import SbConversation
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    data_db = get_data_db()
+    async with data_db.get_session() as session:
+        stmt = pg_insert(SbConversation).values(
+            id=conversation_id,
+            mode=mode,
+        ).on_conflict_do_nothing(index_elements=["id"])
+        await session.execute(stmt)
+        await session.commit()
 
 
 # ============================================================================
@@ -201,7 +186,7 @@ async def incognito_chat(req: IncognitoChatRequest):
 
 
 # ============================================================================
-# COGNITO ENDPOINTS (encrypted DB storage via graph nodes)
+# COGNITO ENDPOINTS 
 # ============================================================================
 
 @router.post("/cognito/stream")
@@ -217,8 +202,8 @@ async def cognito_chat_stream(req: CognitoChatRequest):
                 content={"error": "sb_conv_id is required for cognito mode"}
             )
 
-        # Ensure parent row exists before graph runs (FK constraint on conversation_turns)
-        ensure_conversation_exists(req.sb_conv_id, "cognito")
+        # Ensure parent row exists before graph runs 
+        await ensure_conversation_exists(req.sb_conv_id, "cognito")
 
         # Create initial state
         state = await create_initial_state(
@@ -257,7 +242,7 @@ async def cognito_chat(req: CognitoChatRequest):
             )
 
         # Ensure parent row exists before graph runs (FK constraint on conversation_turns)
-        ensure_conversation_exists(req.sb_conv_id, "cognito")
+        await ensure_conversation_exists(req.sb_conv_id, "cognito")
 
         # Create initial state
         state = await create_initial_state(
@@ -283,8 +268,9 @@ async def cognito_chat(req: CognitoChatRequest):
             content={"success": False, "error": f"Chat failed: {str(e)}"}
         )
 
+
 # ============================================================================
-# HISTORY ENDPOINTS
+# GET MESSAGE ENDPOINTS
 # ============================================================================
 
 @router.get("/conversation/{conversation_id}/messages")

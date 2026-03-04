@@ -12,6 +12,7 @@ Features:
 """
 
 import os
+import logging
 from typing import AsyncGenerator, Optional
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import (
@@ -26,6 +27,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 # ============================================================================
 # SQLAlchemy Base Models
 # ============================================================================
@@ -35,30 +38,6 @@ DataBase = declarative_base()
 
 # Base class for auth database models
 AuthBase = declarative_base()
-
-
-# ============================================================================
-# Helpers
-# ============================================================================
-
-def _clean_url(db_url: str) -> str:
-    """
-    Convert postgres:// to postgresql+asyncpg:// and strip sslmode from URL.
-    asyncpg does not accept sslmode as a query parameter — SSL is passed
-    via connect_args instead.
-    """
-    if db_url.startswith('postgres://'):
-        db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
-    elif db_url.startswith('postgresql://'):
-        db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
-
-    # Strip sslmode and channel_binding — not supported by asyncpg as URL params
-    db_url = db_url.replace('?sslmode=require', '')
-    db_url = db_url.replace('&sslmode=require', '')
-    db_url = db_url.replace('?channel_binding=require', '')
-    db_url = db_url.replace('&channel_binding=require', '')
-
-    return db_url.strip()
 
 
 # ============================================================================
@@ -86,18 +65,21 @@ class SQLAlchemyDataDB:
                 db_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
             else:
                 db_url = f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
+        else:
+            # Convert postgres:// to postgresql+asyncpg://
+            if db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
+            elif db_url.startswith('postgresql://'):
+                db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
         
-        # Clean and convert URL for asyncpg compatibility
-        self.database_url = _clean_url(db_url)
+        self.database_url = db_url
         self.engine: Optional[AsyncEngine] = None
         self.session_factory: Optional[async_sessionmaker] = None
         self.log_level = os.getenv('LOG_LEVEL', 'info')
     
     async def init_engine(self) -> AsyncEngine:
         """
-        Initialize the SQLAlchemy async engine with connection pooling.
-        SSL is passed via connect_args since asyncpg does not support
-        sslmode as a URL query parameter.
+        Initialize the SQLAlchemy async engine with connection pooling
         
         Returns:
             AsyncEngine: Configured async engine
@@ -110,7 +92,6 @@ class SQLAlchemyDataDB:
                 max_overflow=10,  # Additional connections beyond pool_size
                 pool_pre_ping=True,  # Verify connections before using
                 pool_recycle=3600,  # Recycle connections after 1 hour
-                connect_args={"ssl": "require"},  # asyncpg SSL — replaces ?sslmode=require
             )
             
             # Create session factory
@@ -120,7 +101,8 @@ class SQLAlchemyDataDB:
                 expire_on_commit=False,
             )
             
-            print(f"✅ SQLAlchemy Data DB engine initialized: {self.database_url.split('@')[1]}")
+            if self.log_level == 'debug':
+                logger.debug("✅ SQLAlchemy Data DB engine initialized: %s", self.database_url.split('@')[1])
         
         return self.engine
     
@@ -129,7 +111,7 @@ class SQLAlchemyDataDB:
         if self.engine:
             await self.engine.dispose()
             if self.log_level == 'debug':
-                print("✅ SQLAlchemy Data DB engine closed")
+                logger.debug("✅ SQLAlchemy Data DB engine closed")
             self.engine = None
             self.session_factory = None
     
@@ -204,18 +186,21 @@ class SQLAlchemyAuthDB:
                 db_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
             else:
                 db_url = f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
+        else:
+            # Convert postgres:// to postgresql+asyncpg://
+            if db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
+            elif db_url.startswith('postgresql://'):
+                db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
         
-        # Clean and convert URL for asyncpg compatibility
-        self.database_url = _clean_url(db_url)
+        self.database_url = db_url
         self.engine: Optional[AsyncEngine] = None
         self.session_factory: Optional[async_sessionmaker] = None
         self.log_level = os.getenv('LOG_LEVEL', 'info')
     
     async def init_engine(self) -> AsyncEngine:
         """
-        Initialize the SQLAlchemy async engine with connection pooling.
-        SSL is passed via connect_args since asyncpg does not support
-        sslmode as a URL query parameter.
+        Initialize the SQLAlchemy async engine with connection pooling
         
         Returns:
             AsyncEngine: Configured async engine
@@ -228,7 +213,6 @@ class SQLAlchemyAuthDB:
                 max_overflow=10,  # Additional connections beyond pool_size
                 pool_pre_ping=True,  # Verify connections before using
                 pool_recycle=3600,  # Recycle connections after 1 hour
-                connect_args={"ssl": "require"},  # asyncpg SSL — replaces ?sslmode=require
             )
             
             # Create session factory
@@ -238,7 +222,8 @@ class SQLAlchemyAuthDB:
                 expire_on_commit=False,
             )
             
-            print(f"✅ SQLAlchemy Auth DB engine initialized: {self.database_url.split('@')[1]}")
+            if self.log_level == 'debug':
+                logger.debug("✅ SQLAlchemy Auth DB engine initialized: %s", self.database_url.split('@')[1])
         
         return self.engine
     
@@ -247,7 +232,7 @@ class SQLAlchemyAuthDB:
         if self.engine:
             await self.engine.dispose()
             if self.log_level == 'debug':
-                print("✅ SQLAlchemy Auth DB engine closed")
+                logger.debug("✅ SQLAlchemy Auth DB engine closed")
             self.engine = None
             self.session_factory = None
     
@@ -309,9 +294,304 @@ class SQLAlchemyAuthDB:
 data_db_sqlalchemy: Optional[SQLAlchemyDataDB] = None
 auth_db_sqlalchemy: Optional[SQLAlchemyAuthDB] = None
 
+"""
+SQLAlchemy Database Configuration and Session Management
+
+This module provides SQLAlchemy-based database access with transaction support.
+It works alongside the asyncpg connection pools for flexibility in database operations.
+
+Features:
+- Async SQLAlchemy engine and session management
+- Context managers for automatic transaction handling
+- Support for both data and auth databases
+- Connection pooling with configurable parameters
+"""
+
+import os
+import logging
+from typing import AsyncGenerator, Optional
+from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    AsyncSession,
+    AsyncEngine,
+    async_sessionmaker,
+)
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.pool import NullPool, QueuePool
+from dotenv import load_dotenv
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# SQLAlchemy Base Models
+# ============================================================================
+
+# Base class for data database models
+DataBase = declarative_base()
+
+# Base class for auth database models
+AuthBase = declarative_base()
+
+
+# ============================================================================
+# Database Engine Configuration
+# ============================================================================
+
+class SQLAlchemyDataDB:
+    """SQLAlchemy configuration for the primary data database"""
+    
+    def __init__(self):
+        """Initialize SQLAlchemy engine from environment variables"""
+        # Get database URL from environment
+        db_url = os.getenv('DATA_DB_URL', '')
+        
+        if not db_url:
+            # Construct URL from individual parameters
+            host = os.getenv('DATA_DB_HOST', 'localhost')
+            port = os.getenv('DATA_DB_PORT', '5432')
+            database = os.getenv('DATA_DB_NAME', 'soulbuddy_data_db')
+            user = os.getenv('DATA_DB_USER', 'postgres')
+            password = os.getenv('DATA_DB_PASSWORD', '')
+            
+            # Use asyncpg driver
+            if password:
+                db_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
+            else:
+                db_url = f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
+        else:
+            # Convert postgres:// to postgresql+asyncpg://
+            if db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
+            elif db_url.startswith('postgresql://'):
+                db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        
+        self.database_url = db_url
+        self.engine: Optional[AsyncEngine] = None
+        self.session_factory: Optional[async_sessionmaker] = None
+        self.log_level = os.getenv('LOG_LEVEL', 'info')
+    
+    async def init_engine(self) -> AsyncEngine:
+        """
+        Initialize the SQLAlchemy async engine with connection pooling
+        
+        Returns:
+            AsyncEngine: Configured async engine
+        """
+        if self.engine is None:
+            self.engine = create_async_engine(
+                self.database_url,
+                echo=(self.log_level == 'debug'),  # SQL query logging
+                pool_size=20,  # Maximum number of connections
+                max_overflow=10,  # Additional connections beyond pool_size
+                pool_pre_ping=True,  # Verify connections before using
+                pool_recycle=3600,  # Recycle connections after 1 hour
+            )
+            
+            # Create session factory
+            self.session_factory = async_sessionmaker(
+                self.engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
+            )
+            
+            if self.log_level == 'debug':
+                logger.debug("✅ SQLAlchemy Data DB engine initialized: %s", self.database_url.split('@')[1])
+        
+        return self.engine
+    
+    async def close_engine(self):
+        """Gracefully close the engine and all connections"""
+        if self.engine:
+            await self.engine.dispose()
+            if self.log_level == 'debug':
+                logger.debug("✅ SQLAlchemy Data DB engine closed")
+            self.engine = None
+            self.session_factory = None
+    
+    @asynccontextmanager
+    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+        """
+        Get a database session with automatic transaction management
+        
+        Usage:
+            async with data_db_sqlalchemy.get_session() as session:
+                result = await session.execute(query)
+                await session.commit()  # Explicit commit
+        
+        Yields:
+            AsyncSession: Database session
+        """
+        if self.session_factory is None:
+            await self.init_engine()
+        
+        async with self.session_factory() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+    
+    @asynccontextmanager
+    async def get_transaction(self) -> AsyncGenerator[AsyncSession, None]:
+        """
+        Get a database session with automatic commit/rollback
+        
+        Usage:
+            async with data_db_sqlalchemy.get_transaction() as session:
+                session.add(new_object)
+                # Automatic commit on success, rollback on exception
+        
+        Yields:
+            AsyncSession: Database session with automatic transaction handling
+        """
+        if self.session_factory is None:
+            await self.init_engine()
+        
+        async with self.session_factory() as session:
+            async with session.begin():
+                try:
+                    yield session
+                except Exception:
+                    await session.rollback()
+                    raise
+
+
+class SQLAlchemyAuthDB:
+    """SQLAlchemy configuration for the authentication/RBAC database"""
+    
+    def __init__(self):
+        """Initialize SQLAlchemy engine from environment variables"""
+        # Get database URL from environment
+        db_url = os.getenv('AUTH_DB_URL', os.getenv('RBAC_DB_URL', ''))
+        
+        if not db_url:
+            # Construct URL from individual parameters
+            host = os.getenv('AUTH_DB_HOST', os.getenv('RBAC_DB_HOST', 'localhost'))
+            port = os.getenv('AUTH_DB_PORT', os.getenv('RBAC_DB_PORT', '5432'))
+            database = os.getenv('AUTH_DB_NAME', os.getenv('RBAC_DB_NAME', 'souloxy-db'))
+            user = os.getenv('AUTH_DB_USER', os.getenv('RBAC_DB_USER', 'postgres'))
+            password = os.getenv('AUTH_DB_PASSWORD', os.getenv('RBAC_DB_PASSWORD', ''))
+            
+            # Use asyncpg driver
+            if password:
+                db_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
+            else:
+                db_url = f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
+        else:
+            # Convert postgres:// to postgresql+asyncpg://
+            if db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
+            elif db_url.startswith('postgresql://'):
+                db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        
+        self.database_url = db_url
+        self.engine: Optional[AsyncEngine] = None
+        self.session_factory: Optional[async_sessionmaker] = None
+        self.log_level = os.getenv('LOG_LEVEL', 'info')
+    
+    async def init_engine(self) -> AsyncEngine:
+        """
+        Initialize the SQLAlchemy async engine with connection pooling
+        
+        Returns:
+            AsyncEngine: Configured async engine
+        """
+        if self.engine is None:
+            self.engine = create_async_engine(
+                self.database_url,
+                echo=(self.log_level == 'debug'),  # SQL query logging
+                pool_size=20,  # Maximum number of connections
+                max_overflow=10,  # Additional connections beyond pool_size
+                pool_pre_ping=True,  # Verify connections before using
+                pool_recycle=3600,  # Recycle connections after 1 hour
+            )
+            
+            # Create session factory
+            self.session_factory = async_sessionmaker(
+                self.engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
+            )
+            
+            if self.log_level == 'debug':
+                logger.debug("✅ SQLAlchemy Auth DB engine initialized: %s", self.database_url.split('@')[1])
+        
+        return self.engine
+    
+    async def close_engine(self):
+        """Gracefully close the engine and all connections"""
+        if self.engine:
+            await self.engine.dispose()
+            if self.log_level == 'debug':
+                logger.debug("✅ SQLAlchemy Auth DB engine closed")
+            self.engine = None
+            self.session_factory = None
+    
+    @asynccontextmanager
+    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+        """
+        Get a database session with automatic transaction management
+        
+        Usage:
+            async with auth_db_sqlalchemy.get_session() as session:
+                result = await session.execute(query)
+                await session.commit()  # Explicit commit
+        
+        Yields:
+            AsyncSession: Database session
+        """
+        if self.session_factory is None:
+            await self.init_engine()
+        
+        async with self.session_factory() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+    
+    @asynccontextmanager
+    async def get_transaction(self) -> AsyncGenerator[AsyncSession, None]:
+        """
+        Get a database session with automatic commit/rollback
+        
+        Usage:
+            async with auth_db_sqlalchemy.get_transaction() as session:
+                session.add(new_object)
+                # Automatic commit on success, rollback on exception
+        
+        Yields:
+            AsyncSession: Database session with automatic transaction handling
+        """
+        if self.session_factory is None:
+            await self.init_engine()
+        
+        async with self.session_factory() as session:
+            async with session.begin():
+                try:
+                    yield session
+                except Exception:
+                    await session.rollback()
+                    raise
+
+
+# ============================================================================
+# Global Instances
+# ============================================================================
+
+# Global SQLAlchemy instances (initialized in server.py)
+data_db_sqlalchemy: Optional[SQLAlchemyDataDB] = None
+auth_db_sqlalchemy: Optional[SQLAlchemyAuthDB] = None
 
 def get_data_db() -> SQLAlchemyDataDB:
-    """Return the global data DB instance, creating it if needed."""
+    """Return the global data DB singleton, creating it if needed."""
     global data_db_sqlalchemy
     if data_db_sqlalchemy is None:
         data_db_sqlalchemy = SQLAlchemyDataDB()
@@ -319,12 +599,11 @@ def get_data_db() -> SQLAlchemyDataDB:
 
 
 def get_auth_db() -> SQLAlchemyAuthDB:
-    """Return the global auth DB instance, creating it if needed."""
+    """Return the global auth DB singleton, creating it if needed."""
     global auth_db_sqlalchemy
     if auth_db_sqlalchemy is None:
         auth_db_sqlalchemy = SQLAlchemyAuthDB()
     return auth_db_sqlalchemy
-
 
 # ============================================================================
 # Utility Functions
@@ -340,7 +619,7 @@ async def init_all_engines():
     auth_db_sqlalchemy = SQLAlchemyAuthDB()
     await auth_db_sqlalchemy.init_engine()
     
-    print("✅ All SQLAlchemy engines initialized")
+    logger.debug("✅ All SQLAlchemy engines initialized")
 
 
 async def close_all_engines():
@@ -351,4 +630,4 @@ async def close_all_engines():
     if auth_db_sqlalchemy:
         await auth_db_sqlalchemy.close_engine()
     
-    print("✅ All SQLAlchemy engines closed")
+    logger.debug("✅ All SQLAlchemy engines closed")
