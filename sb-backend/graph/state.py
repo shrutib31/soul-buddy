@@ -1,14 +1,22 @@
 from typing import Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class ConversationState(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     conversation_id: str
     mode: str                    # incognito / cognito
     domain: str                  # student / employee / general
     user_message: str
-    user_id: Optional[str] = None
-    supabase_user_id: Optional[int] = None
+    supabase_uid: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("supabase_uid", "user_id"),
+    )  # Supabase auth uid
+    app_user_id: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("app_user_id", "supabase_user_id"),
+    )  # Internal app user id (public.users.id)
 
     # intent detection
     intent: Optional[str] = None

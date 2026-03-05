@@ -24,18 +24,18 @@ async def load_user_context(state: ConversationState) -> Dict[str, Any]:
         if state.mode != "cognito":
             return {}
 
-        if not state.user_id or not str(state.user_id).strip():
-            return {"error": "Missing supabase user_id for cognito mode"}
-        if state.supabase_user_id is None:
-            return {"error": "Missing supabase_user_id for cognito mode"}
+        if not state.supabase_uid or not str(state.supabase_uid).strip():
+            return {"error": "Missing supabase_uid for cognito mode"}
+        if state.app_user_id is None:
+            return {"error": "Missing app user_id for cognito mode"}
 
         updates: Dict[str, Any] = {}
 
-        detailed_profile = await fetch_user_detailed_profile(state.supabase_user_id)
+        detailed_profile = await fetch_user_detailed_profile(state.app_user_id)
         if isinstance(detailed_profile, dict):
             updates["user_profile"] = detailed_profile
 
-        personality_profile = await fetch_user_personality_profile(str(state.user_id))
+        personality_profile = await fetch_user_personality_profile(str(state.supabase_uid))
         if isinstance(personality_profile, dict):
             updates["user_personality_profile"] = personality_profile
 

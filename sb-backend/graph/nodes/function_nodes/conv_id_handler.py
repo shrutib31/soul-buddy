@@ -58,7 +58,7 @@ async def conv_id_handler_node(state: ConversationState) -> Dict[str, Any]:
     """
     conversation_id = state.conversation_id
     mode = state.mode
-    user_id = state.user_id
+    supabase_uid = state.supabase_uid
     
     try:
         async with data_db.get_session() as session:
@@ -128,16 +128,16 @@ async def conv_id_handler_node(state: ConversationState) -> Dict[str, Any]:
             
             # Handle cognito mode
             elif mode == "cognito":
-                if not user_id:
+                if not supabase_uid:
                     return {
-                        "error": "Missing user_id for cognito mode"
+                        "error": "Missing supabase_uid for cognito mode"
                     }
                 # For cognito mode, conversation must exist or we create it
                 if not existing_conversation:
                     # Create new conversation record with provided ID
                     new_conversation = SbConversation(
                         id=conversation_id,
-                        supabase_user_id=user_id,
+                        supabase_user_id=supabase_uid,
                         mode=mode,
                         started_at=datetime.utcnow()
                     )
@@ -145,13 +145,13 @@ async def conv_id_handler_node(state: ConversationState) -> Dict[str, Any]:
                     await session.commit()
                 else:
                     # Ensure conversation belongs to the authenticated user
-                    if existing_conversation.supabase_user_id and str(existing_conversation.supabase_user_id) != str(user_id):
+                    if existing_conversation.supabase_user_id and str(existing_conversation.supabase_user_id) != str(supabase_uid):
                         return {
                             "error": "Conversation does not belong to user"
                         }
                     # Backfill supabase_user_id if missing
                     if existing_conversation.supabase_user_id is None:
-                        existing_conversation.supabase_user_id = user_id
+                        existing_conversation.supabase_user_id = supabase_uid
                         await session.commit()
                 
                 # Use the provided conversation ID

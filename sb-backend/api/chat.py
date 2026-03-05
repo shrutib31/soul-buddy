@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 from graph.state import ConversationState
 from graph.graph_builder import get_compiled_flow
 from graph.streaming import stream_response_words, stream_as_sse
-from graph.nodes.function_nodes.user_context_helpers import resolve_supabase_uid_from_payload_user_id
+from graph.nodes.function_nodes.user_context_helpers import resolve_cognito_identity_from_access_token
 
 router = APIRouter(prefix="/chat")
 
@@ -44,7 +44,6 @@ class IncognitoChatRequest(ChatRequest):
 class CognitoChatRequest(ChatRequest):
     mode: str = "cognito"  # "incognito" or "cognito"
     sb_conv_id: Optional[str] = None  # conversation id for cognito mode
-    user_id: int  # user identifier for cognito mode. This is an app user ID in integer format
     domain: str # "student", "employee", "corporate"
 
 
@@ -77,8 +76,8 @@ async def create_initial_state(
     mode: str,
     domain: str,
     conversation_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    supabase_user_id: Optional[int] = None,
+    supabase_uid: Optional[str] = None,
+    app_user_id: Optional[int] = None,
     domain_config: Optional[Dict[str, Any]] = None,
     user_profile: Optional[Dict[str, Any]] = None,
     user_personality_profiles: Optional[Dict[str, Any]] = None,
@@ -101,12 +100,28 @@ async def create_initial_state(
         mode=mode,
         domain=domain,
         user_message=message,
-        user_id=user_id,
-        supabase_user_id=supabase_user_id,
+        supabase_uid=supabase_uid,
+        app_user_id=app_user_id,
         domain_config=domain_config or {},
         user_profile=user_profile or {},
         user_personality_profile=user_personality_profiles or {},
     )
+
+
+def extract_token_from_headers(access_token: Optional[str], authorization: Optional[str]) -> Optional[str]:
+    """
+    Resolve the auth token from headers.
+    Priority: access_token header, then Authorization: Bearer <token>.
+    """
+    for raw_value in (access_token, authorization):
+        value = (raw_value or "").strip()
+        if not value:
+            continue
+        if value.lower().startswith("bearer "):
+            value = value.split(" ", 1)[1].strip()
+        if value:
+            return value
+    return None
 
 
 @router.post("/incognito/stream")
@@ -170,17 +185,22 @@ async def incognito_chat(req: IncognitoChatRequest):
 
 
 @router.post("/cognito/stream")
-async def cognito_chat_stream(req: CognitoChatRequest):
+async def cognito_chat_stream(
+    req: CognitoChatRequest,
+    access_token: Optional[str] = Header(default=None, alias="access_token", convert_underscores=False),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+):
     """
     Authenticated chat with streaming response using LangGraph.
     Returns server-sent events (SSE) with real-time graph updates.
     """
     try:
-        if req.user_id is None:
-            return JSONResponse(status_code=400, content={"error": "Missing user_id for cognito mode"})
+        token = extract_token_from_headers(access_token, authorization)
+        if not token:
+            return JSONResponse(status_code=400, content={"error": "Missing access_token header for cognito mode"})
 
         try:
-            supabase_uid = await resolve_supabase_uid_from_payload_user_id(req.user_id)
+            supabase_uid, app_user_id = await resolve_cognito_identity_from_access_token(token)
         except ValueError as e:
             return JSONResponse(status_code=400, content={"error": str(e)})
 
@@ -190,8 +210,8 @@ async def cognito_chat_stream(req: CognitoChatRequest):
             mode="cognito",
             domain=req.domain,
             conversation_id=req.sb_conv_id,
-            user_id=supabase_uid,
-            supabase_user_id=req.user_id,
+            supabase_uid=supabase_uid,
+            app_user_id=app_user_id,
             domain_config=req.domain_config,
         )
         
@@ -210,17 +230,22 @@ async def cognito_chat_stream(req: CognitoChatRequest):
 
 
 @router.post("/cognito")
-async def cognito_chat(req: CognitoChatRequest):
+async def cognito_chat(
+    req: CognitoChatRequest,
+    access_token: Optional[str] = Header(default=None, alias="access_token", convert_underscores=False),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+):
     """
     Authenticated chat with complete response.
     Returns the full response at once.
     """
     try:
-        if req.user_id is None:
-            return JSONResponse(status_code=400, content={"success": False, "error": "Missing user_id for cognito mode"})
+        token = extract_token_from_headers(access_token, authorization)
+        if not token:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Missing access_token header for cognito mode"})
 
         try:
-            supabase_uid = await resolve_supabase_uid_from_payload_user_id(req.user_id)
+            supabase_uid, app_user_id = await resolve_cognito_identity_from_access_token(token)
         except ValueError as e:
             return JSONResponse(status_code=400, content={"success": False, "error": str(e)})
 
@@ -230,8 +255,8 @@ async def cognito_chat(req: CognitoChatRequest):
             mode="cognito",
             domain=req.domain,
             conversation_id=req.sb_conv_id,
-            user_id=supabase_uid,
-            supabase_user_id=req.user_id,
+            supabase_uid=supabase_uid,
+            app_user_id=app_user_id,
             domain_config=req.domain_config,
         )
         
