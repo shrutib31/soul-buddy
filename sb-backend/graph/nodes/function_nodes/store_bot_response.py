@@ -101,9 +101,12 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
         logger.info(f"Storing bot response for conversation_id: {conversation_id}")
 
         if not conversation_id or not bot_response:
+            logger.error(
+                "store_bot_response: missing required fields | conversation_id=%r has_response=%s",
+                conversation_id, bool(bot_response)
+            )
             return {
                 "error": "Missing conversation_id or bot response",
-                "response_draft": state.response_draft or ""
             }
 
         async with data_db.get_session() as session:
@@ -139,9 +142,10 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
         if state.supabase_uid:
             await _upsert_conversation_summary(state, turn_count + 1)
 
-        return {"api_response": None}
+        return {}
 
     except Exception as e:
+        logger.error("store_bot_response: failed | conversation_id=%r error=%s", state.conversation_id, e, exc_info=True)
         return {
             "error": f"Error storing bot response: {str(e)}"
         }

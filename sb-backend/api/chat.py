@@ -109,6 +109,10 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
         )
+        logging.debug(
+            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s *****",
+            state.conversation_id, state.mode, state.domain, state.user_message,
+        )
         result = await invoke_graph(state)
         return result.get("api_response", {"success": False, "error": "No response generated"})
     except Exception as e:

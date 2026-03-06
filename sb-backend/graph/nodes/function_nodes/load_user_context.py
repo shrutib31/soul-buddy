@@ -52,14 +52,17 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
     """
     updates: Dict[str, Any] = {}
 
+    mode = state.mode
     supabase_uid = state.supabase_uid
     conversation_id = state.conversation_id
     domain = state.domain
 
+    is_cognito = mode == "cognito" and bool(supabase_uid)
+
     # ------------------------------------------------------------------ #
     # 1. Personality profile  (cognito only)                              #
     # ------------------------------------------------------------------ #
-    if supabase_uid:
+    if is_cognito:
         profile = await cache_service.get_personality_profile(supabase_uid)
         if profile is None:
             profile = await _fetch_personality_profile_from_db(supabase_uid)
@@ -71,7 +74,7 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
     # ------------------------------------------------------------------ #
     # 2. User profile / preferences  (cognito only)                       #
     # ------------------------------------------------------------------ #
-    if supabase_uid:
+    if is_cognito:
         user_profile = await cache_service.get_user_profile(supabase_uid)
         if user_profile is None:
             user_profile = await _fetch_user_profile_from_db(supabase_uid)
@@ -83,7 +86,7 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
     # ------------------------------------------------------------------ #
     # 3. Conversation summary  (cognito only)                             #
     # ------------------------------------------------------------------ #
-    if supabase_uid:
+    if is_cognito:
         summary = await cache_service.get_conversation_summary(supabase_uid)
         if summary is None:
             summary = await _fetch_conversation_summary_from_db(supabase_uid)
@@ -93,7 +96,7 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
             updates["conversation_summary"] = summary
 
     # ------------------------------------------------------------------ #
-    # 4. Conversation history  (keyed by conversation_id, has DB backing) #
+    # 4. Conversation history  (both modes, keyed by conversation_id)     #
     # ------------------------------------------------------------------ #
     if conversation_id:
         history = await cache_service.get_conversation_history(conversation_id)
@@ -105,9 +108,9 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
             updates["conversation_history"] = history
 
     # ------------------------------------------------------------------ #
-    # 5. UI / navigation state  (cache-only — derived from page_context)  #
+    # 5. UI / navigation state  (cognito only — derived from page_context)#
     # ------------------------------------------------------------------ #
-    if supabase_uid:
+    if is_cognito:
         cached_ui_state = await cache_service.get_ui_state(supabase_uid)
         current_page_context = state.page_context
 
