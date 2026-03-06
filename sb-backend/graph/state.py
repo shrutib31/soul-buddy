@@ -43,8 +43,7 @@ class ConversationState(BaseModel):
     page_context: Dict[str, Any] = {}           # UI page the request originates from (e.g., dashboard, profile)
     domain_config: Dict[str, Any] = {}          # domain-specific config (student / employee / corporate)
     user_personality_profile: Dict[str, Any] = {} # personality traits; DB schema pending, cached when available
-    #user_preferences: Dict[str, Any] = {}        # user preferences; DB schema pending, cached when available
-    user_profile: Dict[str, Any] = {} # user profile info to be populated frmo db # SHOUDL CHANGE TO user_preferences
+    user_profile: Dict[str, Any] = {} # user profile; DB schema pending, cached when available
     conversation_history: List[Dict[str, Any]] = []  # last N turns [{speaker, message, turn_index}]
     conversation_summary: Optional[str] = None       # latest summarised context (written by summarisation job)
 

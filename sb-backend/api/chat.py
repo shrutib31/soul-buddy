@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Depends
 from api.supabase_auth import verify_supabase_token, optional_supabase_token
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -7,7 +7,7 @@ import logging
 
 from graph.state import ConversationState
 from graph.graph_builder import get_compiled_flow
-from graph.streaming import stream_response_words, stream_as_sse
+from graph.streaming import stream_as_sse
 from graph.nodes.function_nodes.user_context_helpers import resolve_cognito_identity_from_access_token
 
 router = APIRouter(prefix="/chat")
@@ -35,7 +35,7 @@ class ChatRequest(BaseModel):
     domain: Optional[str] = None  # "student", "employee", "corporate"
     domain_config: Optional[Dict[str, Any]] = None
     user_profile: Optional[Dict[str, Any]] = None
-    user_personality_profiles: str = None
+    user_personality_profiles: Optional[Dict[str, Any]] = None
     
 
 class IncognitoChatRequest(ChatRequest):
@@ -149,6 +149,12 @@ def extract_token_from_headers(access_token: Optional[str], authorization: Optio
     return None
 
 
+def _resolve_supabase_uid(user: Any) -> Optional[str]:
+    if isinstance(user, dict):
+        return user.get("id")
+    return getattr(user, "id", None)
+
+
 @router.post("/incognito/stream")
 async def incognito_chat_stream(req: IncognitoChatRequest):
     """
@@ -219,7 +225,7 @@ async def cognito_chat_stream(
     Authenticated chat with streaming response using LangGraph.
     Returns server-sent events (SSE) with real-time graph updates.
     """
-    supabase_uid: str = user["id"]
+    supabase_uid: str = _resolve_supabase_uid(user)
     try:
         token = extract_token_from_headers(access_token, authorization)
         if not token:
@@ -239,6 +245,8 @@ async def cognito_chat_stream(
             supabase_uid=supabase_uid,
             app_user_id=app_user_id,
             domain_config=req.domain_config,
+            user_profile=req.user_profile,
+            user_personality_profiles=req.user_personality_profiles,
         )
 
         # Stream from graph
@@ -265,7 +273,7 @@ async def cognito_chat(
     Authenticated chat with complete response.
     Returns the full response at once.
     """
-    supabase_uid: str = user["id"]
+    supabase_uid: str = _resolve_supabase_uid(user)
     try:
         token = extract_token_from_headers(access_token, authorization)
         if not token:
@@ -285,6 +293,8 @@ async def cognito_chat(
             supabase_uid=supabase_uid,
             app_user_id=app_user_id,
             domain_config=req.domain_config,
+            user_profile=req.user_profile,
+            user_personality_profiles=req.user_personality_profiles,
         )
 
         # Invoke the graph
@@ -318,7 +328,7 @@ async def chat(req: UnifiedChatRequest, user=Depends(optional_supabase_token)):
     if not req.is_incognito and user is None:
         raise HTTPException(status_code=401, detail="Authorization header required for cognito mode")
 
-    supabase_uid: Optional[str] = None if req.is_incognito else user["id"]
+    supabase_uid: Optional[str] = None if req.is_incognito else _resolve_supabase_uid(user)
     mode = "incognito" if req.is_incognito else "cognito"
     try:
         state = await create_initial_state(
@@ -346,7 +356,7 @@ async def chat_stream(req: UnifiedChatRequest, user=Depends(optional_supabase_to
     if not req.is_incognito and user is None:
         raise HTTPException(status_code=401, detail="Authorization header required for cognito mode")
 
-    supabase_uid: Optional[str] = None if req.is_incognito else user["id"]
+    supabase_uid: Optional[str] = None if req.is_incognito else _resolve_supabase_uid(user)
     mode = "incognito" if req.is_incognito else "cognito"
     try:
         state = await create_initial_state(

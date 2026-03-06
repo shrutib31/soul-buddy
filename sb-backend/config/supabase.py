@@ -113,7 +113,22 @@ async def verify_token(token: str) -> Dict[str, Any]:
         response = supabase_admin.auth.get_user(token)
 
         if hasattr(response, 'user') and response.user:
-            return response.user
+            user = response.user
+            if isinstance(user, dict):
+                return user
+
+            # Normalize to dict to keep auth helper callers consistent.
+            normalized_user = {
+                "id": getattr(user, "id", None),
+                "email": getattr(user, "email", None),
+                "phone": getattr(user, "phone", None),
+                "aud": getattr(user, "aud", None),
+                "role": getattr(user, "role", None),
+                "app_metadata": getattr(user, "app_metadata", None),
+                "user_metadata": getattr(user, "user_metadata", None),
+                "created_at": getattr(user, "created_at", None),
+            }
+            return normalized_user
         else:
             raise Exception('Invalid token')
 

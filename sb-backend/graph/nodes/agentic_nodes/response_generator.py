@@ -13,7 +13,7 @@ import logging
 import json
 
 from graph.state import ConversationState
-from graph.nodes.function_nodes.load_user_context import load_user_context
+from graph.nodes.function_nodes.load_user_context import load_user_context_node
 from graph.nodes.agentic_nodes.response_templates import get_template_response
 from graph.nodes.agentic_nodes.response_evaluator import select_best_response
 
@@ -47,7 +47,7 @@ def _append_context_line(lines: list[str], label: str, value: Any) -> None:
 def _build_additional_context(state: ConversationState) -> str:
     lines: list[str] = []
     _append_context_line(lines, "user_profile", state.user_profile)
-    _append_context_line(lines, "user_personality_profiles", state.user_personality_profile)
+    _append_context_line(lines, "user_personality_profile", state.user_personality_profile)
     return "\n".join(lines).strip()
 
 
@@ -69,7 +69,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         # Load stored user context for cognito sessions
         ctx_updates: Dict[str, Any] = {}
         if state.mode == "cognito":
-            ctx_updates = await load_user_context(state)
+            ctx_updates = await load_user_context_node(state)
             if "error" in ctx_updates:
                 return ctx_updates
             # apply updates locally for this node
@@ -199,7 +199,7 @@ Guidelines:
 - Offer practical support or resources when appropriate
 - Keep response concise (2-3 sentences)
 - Avoid being prescriptive or dismissive
-- Treat "Additional context" as trusted profile data (user_profile and user_personality_profiles)
+- Treat "Additional context" as trusted profile data (user_profile and user_personality_profile)
 - Use profile data to identify and personalize (name and other personal identifiers) when relevant
 - If user asks directly for their name or personal details and context contains it, answer directly from context
 - Do not say you don't know if the answer is present in context
@@ -299,7 +299,7 @@ Guidelines:
 - Offer practical support or resources when appropriate
 - Keep response concise (2-3 sentences)
 - Avoid being prescriptive or dismissive
-- Treat "Additional context" as trusted profile data (user_profile and user_personality_profiles)
+- Treat "Additional context" as trusted profile data (user_profile and user_personality_profile)
 - Use profile data to identify and personalize (name and other personal identifiers) when relevant
 - If user asks directly for their name or personal details and context contains it, answer directly from context
 - Do not say you don't know if the answer is present in context"""
@@ -358,4 +358,3 @@ Guidelines:
     except Exception:
         logger.exception("generate_response_gpt: failed")
         return ""
-

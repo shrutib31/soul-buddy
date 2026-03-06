@@ -69,7 +69,7 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
             updates["user_personality_profile"] = profile
 
     # ------------------------------------------------------------------ #
-    # 2. User profile / preferences  (cognito only)                       #
+    # 2. User profile (cognito only)                                      #
     # ------------------------------------------------------------------ #
     if supabase_uid:
         user_profile = await cache_service.get_user_profile(supabase_uid)
@@ -78,7 +78,7 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
             if user_profile:
                 await cache_service.set_user_profile(supabase_uid, user_profile)
         if user_profile:
-            updates["user_preferences"] = user_profile
+            updates["user_profile"] = user_profile
 
     # ------------------------------------------------------------------ #
     # 3. Conversation summary  (cognito only)                             #
@@ -189,7 +189,7 @@ async def _fetch_conversation_summary_from_db(supabase_uid: str) -> Optional[str
         async with _data_db.get_session() as session:
             stmt = select(UserConversationSummary).where(
                 UserConversationSummary.user_id == _uuid.UUID(supabase_uid)
-            )
+            ).order_by(UserConversationSummary.updated_at.desc())
             result = await session.execute(stmt)
             row = result.scalar_one_or_none()
             return row.summary if row else None
