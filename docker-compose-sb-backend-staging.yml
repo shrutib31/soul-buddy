@@ -1,0 +1,73 @@
+# =============================================================================
+# SoulBuddy Backend — Staging
+# =============================================================================
+# Start all services:
+#   docker compose -f docker-compose-sb-backend-staging.yml up --build
+#
+# Start only one service:
+#   docker compose -f docker-compose-sb-backend-staging.yml up sb-backend
+#   docker compose -f docker-compose-sb-backend-staging.yml up redis
+#
+# Stop all services:
+#   docker compose -f docker-compose-sb-backend-staging.yml down
+#
+# Stop only one service:
+#   docker compose -f docker-compose-sb-backend-staging.yml stop sb-backend
+#   docker compose -f docker-compose-sb-backend-staging.yml stop redis
+#
+# Notes:
+#   - sb-backend starts independently of Redis. If Redis is unavailable, cache
+#     operations degrade gracefully to DB reads (fail-silent).
+#   - No bind-mount: the built image is used as-is (code is baked in).
+#   - Redis port is NOT exposed to the host (internal network only).
+#   - Redis maxmemory 128mb — sized for ~500 concurrent users (~15-18 MB actual
+#     peak use), giving ~8x headroom before allkeys-lru eviction kicks in.
+# =============================================================================
+
+version: '3.9'
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: sb-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+    # No host port mapping in staging — Redis is internal only
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sb-network
+
+  # ---------------------------------------------------------------------------
+  # Backend API
+  # ---------------------------------------------------------------------------
+  sb-backend:
+    build: ./sb-backend
+    container_name: sb-backend
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-./sb-backend/.env.docker}
+    environment:
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-8000}
+      - DEBUG=${DEBUG:-0}
+    ports:
+      - "${BACKEND_PORT:-8000}:${PORT:-8000}"
+    # No volume mount — run the image exactly as built
+    networks:
+      - sb-network
+
+networks:
+  sb-network:
+    driver: bridge

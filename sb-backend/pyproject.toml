@@ -26,6 +26,7 @@ dependencies = [
     "langchain-ollama>=0.1.0",
     "openai>=1.0.0",
     "pydantic>=2.0.0",
+    "redis[asyncio]>=5.0.0",
     "transformers>=4.30.0",
     "numpy<2", #Everything including and below this is needed to run on Intel Mac. Intel mac needs older versions
     "torch==2.2.2",
@@ -40,6 +41,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=4.0.0",
     "black>=24.0.0",
     "ruff>=0.7.0",
     "mypy>=1.8.0",
@@ -53,6 +55,7 @@ build-backend = "hatchling.build"
 dev-dependencies = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=4.0.0",
     "black>=24.0.0",
     "ruff>=0.7.0",
     "mypy>=1.8.0",

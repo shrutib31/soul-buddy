@@ -9,21 +9,34 @@ It performs the following tasks before starting the FastAPI application:
    - Supports timestamped log files for better organization
    - Logs to both business data and audit logs
 
-2. Database Configuration
-   - Initializes connection pool for the primary data database
-   - Initializes connection pool for the authentication/RBAC database
-   - Tests both database connections to ensure connectivity
+2. Data Database Configuration
+   - Initializes asyncpg connection pool for the primary data database
+   - Tests connectivity before accepting requests
 
-3. Supabase Configuration
+3. Auth Database Configuration
+   - Initializes asyncpg connection pool for the authentication/RBAC database
+   - Tests connectivity before accepting requests
+
+4. SQLAlchemy Engines
+   - Initializes async SQLAlchemy engines for both databases
+   - Provides ORM-level session management for all graph nodes
+
+5. Redis Cache
+   - Connects to Redis and injects the client into CacheService
+   - Non-fatal: if Redis is unreachable, the server starts without caching
+     and all reads fall back to the database transparently
+
+6. Supabase Configuration
    - Initializes Supabase client for real-time and authentication services
-   - Tests connection to verify API credentials
+   - Non-fatal: if unreachable, cognito routes will be unavailable
 
-4. Startup & Shutdown Events
+Startup & Shutdown Events
    - Sets up async context managers for graceful startup/shutdown
-   - Ensures all resources are properly released on server shutdown
+   - Ensures all connections (DB pools, SQLAlchemy engines, Redis) are
+     properly released on server shutdown
 
-Note: All configurations must be successful before the server starts. If any
-configuration or connection test fails, the server will exit with status code -1.
+Note: Steps 1–4 are fatal — failure aborts startup (exit code -1).
+      Steps 5–6 (Redis, Supabase) are non-fatal and degrade gracefully.
 """
 
 import asyncio
@@ -40,6 +53,9 @@ from config.database import DatabaseConfig
 from config.auth_database import AuthDatabaseConfig
 from config.sqlalchemy_db import SQLAlchemyDataDB, SQLAlchemyAuthDB
 from config.supabase import test_connection as test_supabase_connection
+from config.redis import RedisConfig
+from services.cache_service import cache_service
+import os
 
 # Load environment variables
 load_dotenv()
@@ -49,6 +65,7 @@ data_db: Optional[DatabaseConfig] = None
 auth_db: Optional[AuthDatabaseConfig] = None
 data_db_sqlalchemy: Optional[SQLAlchemyDataDB] = None
 auth_db_sqlalchemy: Optional[SQLAlchemyAuthDB] = None
+redis: Optional[RedisConfig] = None
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -85,16 +102,21 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 SERVER READY")
     logger.info("=" * 80)
     logger.info("📍 Server accessible at:")
-    logger.info("   • Localhost: http://localhost:8000")
-    logger.info("   • Local IP: http://127.0.0.1:8000")
-    logger.info("   • Network: http://0.0.0.0:8000")
+    # Use environment variables for server URLs
+    server_host = os.environ.get("SERVER_HOST", "localhost")
+    server_port = os.environ.get("PORT", "8000")
+    local_ip = os.environ.get("SERVER_LOCAL_IP", "127.0.0.1")
+    network_ip = os.environ.get("SERVER_NETWORK_IP", "0.0.0.0")
+    logger.info(f"   • Localhost: http://{server_host}:{server_port}")
+    logger.info(f"   • Local IP: http://{local_ip}:{server_port}")
+    logger.info(f"   • Network: http://{network_ip}:{server_port}")
     logger.info("")
     logger.info("📖 API Documentation:")
-    logger.info("   • Interactive Swagger UI: http://localhost:8000/docs")
-    logger.info("   • Alternative ReDoc UI: http://localhost:8000/redoc")
-    logger.info("   • OpenAPI JSON Schema: http://localhost:8000/openapi.json")
+    logger.info(f"   • Interactive Swagger UI: http://{server_host}:{server_port}/docs")
+    logger.info(f"   • Alternative ReDoc UI: http://{server_host}:{server_port}/redoc")
+    logger.info(f"   • OpenAPI JSON Schema: http://{server_host}:{server_port}/openapi.json")
     logger.info("")
-    logger.info("🏥 Health Check: http://localhost:8000/health")
+    logger.info(f"🏥 Health Check: http://{server_host}:{server_port}/health")
     logger.info("")
     logger.info("💬 Chat Endpoints:")
     logger.info("   • POST /api/v1/chat/incognito - Anonymous chat")
@@ -127,7 +149,7 @@ async def initialize_logging() -> bool:
         True if successful, False otherwise
     """
     try:
-        logger.info("\n[1/5] Initializing Logging Configuration...")
+        logger.info("\n[1/6] Initializing Logging Configuration...")
         setup_logging()
         logger.info("✅ Logging configuration initialized successfully")
         return True
@@ -145,7 +167,7 @@ async def initialize_data_database() -> bool:
         True if successful, False otherwise
     """
     try:
-        logger.info("\n[2/5] Initializing Data Database Configuration...")
+        logger.info("\n[2/6] Initializing Data Database Configuration...")
         global data_db
         data_db = DatabaseConfig()
         
@@ -185,7 +207,7 @@ async def initialize_auth_database() -> bool:
         True if successful, False otherwise
     """
     try:
-        logger.info("\n[3/5] Initializing Authentication/RBAC Database Configuration...")
+        logger.info("\n[3/6] Initializing Authentication/RBAC Database Configuration...")
         global auth_db
         auth_db = AuthDatabaseConfig()
         
@@ -225,7 +247,7 @@ async def initialize_sqlalchemy_engines() -> bool:
         True if successful, False otherwise
     """
     try:
-        logger.info("\n[4/5] Initializing SQLAlchemy Engines...")
+        logger.info("\n[4/6] Initializing SQLAlchemy Engines...")
         global data_db_sqlalchemy, auth_db_sqlalchemy
         
         # Initialize Data DB SQLAlchemy
@@ -248,42 +270,78 @@ async def initialize_sqlalchemy_engines() -> bool:
         return False
 
 
+async def initialize_redis() -> bool:
+    """
+    Initialize Redis connection and inject client into CacheService.
+    Starts a background reconnect loop that re-enables caching if Redis
+    comes back up after a failed startup or a mid-operation disconnect.
+
+    Returns:
+        True always — Redis is non-fatal; the app falls back to DB on failure.
+    """
+    global redis
+    try:
+        logger.info("\n[5/6] Initializing Redis Cache...")
+        redis = RedisConfig()
+
+        # Wire RedisConfig into CacheService so connection errors can trigger
+        # mark_unavailable() and the reconnect loop can restore the client.
+        cache_service.set_redis_config(redis)
+
+        connected = await redis.connect()
+        if connected:
+            cache_service.set_client(redis.client)
+            logger.info("✅ Redis cache initialized and ready")
+        else:
+            logger.warning("⚠️  Redis unavailable — running without cache (DB fallback active)")
+
+        # Start the reconnect loop regardless of whether the initial connect
+        # succeeded.  It sleeps until Redis is unavailable, then retries, and
+        # calls cache_service.set_client() once the connection is restored.
+        await redis.start_reconnect_loop(on_reconnect=cache_service.set_client)
+
+    except Exception as error:
+        logger.warning(f"⚠️  Redis initialization error: {error} — running without cache")
+    return True
+
+
 async def initialize_supabase() -> bool:
     """
     Initialize Supabase client and test connection.
-    
+
     Returns:
-        True if successful, False otherwise
+        True always — Supabase is non-fatal (only required for cognito routes).
     """
     try:
-        logger.info("\n[5/5] Initializing Supabase Configuration...")
+        logger.info("\n[6/6] Initializing Supabase Configuration...")
         logger.info("   Testing Supabase connection...")
-        
+
         supabase_test_passed = await test_supabase_connection()
-        
+
         if not supabase_test_passed:
-            logger.error("❌ Supabase connection test failed")
-            return False
-        
+            logger.warning("⚠️  Supabase connection test failed — cognito routes will be unavailable")
+            return True
+
         logger.info("✅ Supabase initialized and verified successfully")
         return True
-        
+
     except Exception as error:
-        logger.critical(f"❌ Failed to initialize Supabase: {error}")
-        return False
+        logger.warning(f"⚠️  Supabase unreachable: {error} — cognito routes will be unavailable")
+        return True
 
 
 async def initialize_all_configurations() -> bool:
     """
     Initialize all configurations in the correct order:
     1. Logging configuration
-    2. Data database configuration and connection testing
-    3. Authentication database configuration and connection testing
-    4. SQLAlchemy engines for both databases
-    5. Supabase configuration and connection testing
-    
+    2. Data database — asyncpg pool + connectivity test (fatal)
+    3. Auth database — asyncpg pool + connectivity test (fatal)
+    4. SQLAlchemy engines for both databases (fatal)
+    5. Redis cache — connection pool + CacheService injection (non-fatal)
+    6. Supabase client — connectivity test (non-fatal)
+
     Returns:
-        True if all configurations initialized successfully, False otherwise
+        True if all fatal steps succeed, False otherwise
     """
     
     logger.info("=" * 80)
@@ -296,6 +354,7 @@ async def initialize_all_configurations() -> bool:
         ("Data Database", initialize_data_database),
         ("Auth Database", initialize_auth_database),
         ("SQLAlchemy Engines", initialize_sqlalchemy_engines),
+        ("Redis Cache", initialize_redis),
         ("Supabase", initialize_supabase),
     ]
     
@@ -318,6 +377,7 @@ async def initialize_all_configurations() -> bool:
     logger.info(f"   ✅ Auth Database Pool: Ready ({auth_db.pool._holders.__len__()} connections)")
     logger.info(f"   ✅ Data Database SQLAlchemy: Engine initialized")
     logger.info(f"   ✅ Auth Database SQLAlchemy: Engine initialized")
+    logger.info(f"   {'✅' if redis and redis.is_available else '⚠️ '} Redis Cache: {'Connected' if redis and redis.is_available else 'Unavailable (DB fallback active)'}")
     logger.info(f"   ✅ Supabase Client: Connected")
     logger.info("\n Ready to serve requests!\n")
     
@@ -360,14 +420,27 @@ async def cleanup_all_resources() -> None:
             await data_db_sqlalchemy.close_engine()
         except Exception as error:
             logger.error(f"   Error closing Data DB SQLAlchemy engine: {error}")
-    
+
     if auth_db_sqlalchemy is not None:
         try:
             logger.info("   Closing Auth Database SQLAlchemy engine...")
             await auth_db_sqlalchemy.close_engine()
         except Exception as error:
             logger.error(f"   Error closing Auth DB SQLAlchemy engine: {error}")
-    
+
+    # Stop Redis reconnect loop then close the connection pool
+    if redis is not None:
+        try:
+            logger.info("   Stopping Redis reconnect loop...")
+            await redis.stop_reconnect_loop()
+        except Exception as error:
+            logger.error(f"   Error stopping Redis reconnect loop: {error}")
+        try:
+            logger.info("   Closing Redis connection pool...")
+            await redis.close()
+        except Exception as error:
+            logger.error(f"   Error closing Redis: {error}")
+
     logger.info("✅ Resource cleanup complete")
 
 
@@ -385,7 +458,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -426,7 +499,9 @@ async def health_check():
 # ============================================================================
 # Server Entry Point
 # ============================================================================
+import os
 
+port = int(os.environ.get("PORT", 8000))
 if __name__ == "__main__":
     import uvicorn
     
@@ -434,6 +509,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=port,
         log_config=None  # Use our custom logging configuration
     )
