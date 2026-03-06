@@ -618,15 +618,10 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
         message = getattr(state, "user_message", "")
         
         if not message:
-            return {
-                **state.model_dump(),
-                "error": "No user message to classify"
-            }
-        
-        
+            return {"error": "No user message to classify"}
+
         classifications = get_classifications(message)
         return {
-            **state.model_dump(),
             "intent": classifications["intent"],
             "situation": classifications["situation"],
             "severity": classifications["severity"],
@@ -634,10 +629,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
             "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
         }
-        
+
     except Exception as e:
         logger.exception("Classification node failed")
-        return {
-            **state.model_dump(),
-            "error": f"Classification failed: {str(e)}"
-        }
+        return {"error": f"Classification failed: {str(e)}"}

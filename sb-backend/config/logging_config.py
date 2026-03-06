@@ -4,19 +4,19 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
+from config.settings import settings
+
 
 def setup_logging(config_path: str | Path | None = None) -> None:
-    # Use environment variable if provided, otherwise default to "logging.yaml"
     if config_path is None:
-        config_path = os.getenv('LOGGING_CONFIG_PATH', 'logging.yaml')
-    
+        config_path = settings.logging.config_path
+
     path = Path(config_path)
 
     with path.open("r") as f:
         config = yaml.safe_load(f)
-    
-    # Set log directory from environment variable
-    log_dir = os.getenv('LOG_DIR', 'logs')
+
+    log_dir = settings.logging.log_dir
     
     # Create log directory if it doesn't exist
     Path(log_dir).mkdir(parents=True, exist_ok=True)

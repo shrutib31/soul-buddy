@@ -1,9 +1,9 @@
 #!/bin/sh
 set -e
 
-# Initialize database (runs your init_db.py script)
+# Initialize database schema/migrations (non-fatal — server still starts if this fails)
 echo "Initializing database..."
-python scripts/init_db.py
+python scripts/init_db.py || echo "WARNING: init_db.py failed — continuing startup"
 
 # Start FastAPI server
 echo "Starting server..."

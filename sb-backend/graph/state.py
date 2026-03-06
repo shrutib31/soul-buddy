@@ -1,5 +1,10 @@
-from typing import Optional, Dict, Any, List
+from typing import Annotated, Optional, Dict, Any, List
 from pydantic import BaseModel
+
+
+def _keep_last_error(a: Optional[str], b: Optional[str]) -> Optional[str]:
+    """Reducer for the error field: keep the most recent non-None error."""
+    return b if b is not None else a
 
 
 class ConversationState(BaseModel):
@@ -39,7 +44,7 @@ class ConversationState(BaseModel):
     conversation_summary: Optional[str] = None       # latest summarised context (written by summarisation job)
 
     # metadata
-    error: Optional[str] = None
+    error: Annotated[Optional[str], _keep_last_error] = None
     
     #Guardrail Helpers
     guardrail_status: Optional[str] = None

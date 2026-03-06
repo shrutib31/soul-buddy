@@ -15,6 +15,7 @@ from api.chat import (
     invoke_graph,
     get_flow,
 )
+from api.supabase_auth import optional_supabase_token
 from graph.state import ConversationState
 
 
@@ -26,6 +27,8 @@ from graph.state import ConversationState
 def app():
     app = FastAPI()
     app.include_router(chat_router, prefix="/api/v1", tags=["Chat"])
+    # Override auth dependency so tests don't need a real Supabase token
+    app.dependency_overrides[optional_supabase_token] = lambda: None
     return app
 
 
@@ -56,14 +59,45 @@ class TestCreateInitialState:
         assert state.conversation_id == ""
 
     @pytest.mark.asyncio
-    async def test_uses_provided_conversation_id(self):
+    async def test_uses_valid_uuid_conversation_id(self):
+        valid_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        state = await create_initial_state(
+            message="Hi",
+            mode="cognito",
+            domain="general",
+            conversation_id=valid_uuid,
+        )
+        assert state.conversation_id == valid_uuid
+
+    @pytest.mark.asyncio
+    async def test_invalid_uuid_conversation_id_is_ignored(self):
+        """Non-UUID strings (e.g. 'existing-conv-123') must be silently ignored."""
         state = await create_initial_state(
             message="Hi",
             mode="cognito",
             domain="general",
             conversation_id="existing-conv-123",
         )
-        assert state.conversation_id == "existing-conv-123"
+        assert state.conversation_id == ""
+
+    @pytest.mark.asyncio
+    async def test_supabase_uid_is_stored_in_state(self):
+        state = await create_initial_state(
+            message="Hello",
+            mode="cognito",
+            domain="student",
+            supabase_uid="user-abc-123",
+        )
+        assert state.supabase_uid == "user-abc-123"
+
+    @pytest.mark.asyncio
+    async def test_incognito_mode_supabase_uid_is_none(self):
+        state = await create_initial_state(
+            message="Hello",
+            mode="incognito",
+            domain="student",
+        )
+        assert state.supabase_uid is None
 
 
 # ============================================================================
@@ -86,8 +120,8 @@ class TestChatEndpointsUnit:
             })
             mock_get_flow.return_value = mock_flow
             resp = client.post(
-                "/api/v1/chat/incognito",
-                json={"message": "I need support", "mode": "incognito", "domain": "student"},
+                "/api/v1/chat",
+                json={"message": "I need support", "is_incognito": True, "domain": "student"},
             )
         assert resp.status_code == 200
         data = resp.json()
@@ -96,13 +130,42 @@ class TestChatEndpointsUnit:
 
     def test_incognito_chat_validates_message_required(self, client):
         resp = client.post(
-            "/api/v1/chat/incognito",
-            json={"mode": "incognito", "domain": "student"},
+            "/api/v1/chat",
+            json={"is_incognito": True, "domain": "student"},
         )
         assert resp.status_code in (422, 400)
+
+    def test_cognito_mode_without_auth_returns_401(self, client):
+        """When is_incognito=False and no auth token is present, expect 401."""
+        with patch("api.chat.get_flow", new_callable=AsyncMock):
+            resp = client.post(
+                "/api/v1/chat",
+                json={"message": "Hello", "is_incognito": False, "domain": "student"},
+            )
+        assert resp.status_code == 401
 
     def test_classify_endpoint_not_on_chat_router(self, client):
         # Classify is on classify_router; this client only mounts chat_router,
         # so /api/v1/classify must always be 404.
         resp = client.post("/api/v1/classify", json={"message": "Hello"})
         assert resp.status_code == 404
+
+    def test_stream_endpoint_exists(self, client):
+        """POST /chat/stream should be a valid route (not 404/405)."""
+        with patch("api.chat.get_flow", new_callable=AsyncMock) as mock_get_flow:
+            mock_flow = AsyncMock()
+
+            async def empty_astream(state_dict):
+                return
+                yield  # make it an async generator
+
+            mock_flow.astream = empty_astream
+            mock_get_flow.return_value = mock_flow
+
+            with patch("graph.streaming.get_compiled_flow", return_value=mock_flow):
+                resp = client.post(
+                    "/api/v1/chat/stream",
+                    json={"message": "Hello", "is_incognito": True, "domain": "student"},
+                )
+        # Streaming returns 200 with text/event-stream
+        assert resp.status_code == 200

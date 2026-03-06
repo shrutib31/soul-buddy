@@ -4,20 +4,17 @@ Supabase Configuration
 Handles Supabase client initialization and authentication operations.
 """
 
-import os
 import logging
 from typing import Dict, Any, Optional
 from supabase import create_client, Client
-from dotenv import load_dotenv
 
-load_dotenv()
-
-# Validate required environment variables
-supabase_url = os.getenv('SUPABASE_URL')
-supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-supabase_anon_key = os.getenv('SUPABASE_ANON_KEY')
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+supabase_url = settings.supabase.url
+supabase_service_key = settings.supabase.service_role_key
+supabase_anon_key = settings.supabase.anon_key
 
 if not supabase_url:
     raise ValueError('SUPABASE_URL is required in environment variables')

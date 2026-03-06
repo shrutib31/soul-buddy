@@ -11,12 +11,13 @@ COPY . .
 
 RUN chmod +x /app/entrypoint.sh
 
+# Pre-create log directory so it exists before setup_logging runs
+RUN mkdir -p /app/logs
+
 # Default environment variables (overrideable at runtime via env_file / -e)
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    HOST=0.0.0.0 \
-    PORT=8000 \
-    DEBUG=0
+    PORT=8000
 
 EXPOSE 8000
 

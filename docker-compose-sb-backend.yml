@@ -6,14 +6,14 @@
 #
 # Start only one service:
 #   docker compose -f docker-compose-sb-backend.yml up sb-backend
-#   docker compose -f docker-compose-sb-backend.yml up redis
+#   docker compose -f docker-compose-sb-backend.yml up soulbuddy-redis
 #
 # Stop all services:
 #   docker compose -f docker-compose-sb-backend.yml down
 #
 # Stop only one service:
 #   docker compose -f docker-compose-sb-backend.yml stop sb-backend
-#   docker compose -f docker-compose-sb-backend.yml stop redis
+#   docker compose -f docker-compose-sb-backend.yml stop soulbuddy-redis
 #
 # Notes:
 #   - sb-backend starts independently of Redis. If Redis is unavailable, cache
@@ -30,9 +30,9 @@ services:
   # ---------------------------------------------------------------------------
   # Redis Cache
   # ---------------------------------------------------------------------------
-  redis:
+  soulbuddy-redis:
     image: redis:7-alpine
-    container_name: sb-redis
+    container_name: soulbuddy-redis
     restart: unless-stopped
     command: >
       redis-server
@@ -57,11 +57,9 @@ services:
     container_name: sb-backend
     restart: unless-stopped
     env_file:
-      - ${ENV_FILE:-./sb-backend/.env.docker}
+      - ${ENV_FILE:-./sb-backend/.env.docker.local}
     environment:
-      - HOST=${HOST:-0.0.0.0}
       - PORT=${PORT:-8000}
-      - DEBUG=${DEBUG:-0}
     ports:
       - "${BACKEND_PORT:-8000}:${PORT:-8000}"
     volumes:

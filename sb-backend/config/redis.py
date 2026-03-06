@@ -12,11 +12,12 @@ Environment variables:
 """
 
 import asyncio
-import os
 import logging
 from typing import Callable, Optional
 
 import redis.asyncio as aioredis
+
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +36,9 @@ class RedisConfig:
     """
 
     def __init__(self):
-        self.url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
-        self.max_connections: int = int(os.getenv("REDIS_MAX_CONNECTIONS", "20"))
-        self._reconnect_interval: int = int(os.getenv("REDIS_RECONNECT_INTERVAL", "30"))
+        self.url: str = settings.redis.url
+        self.max_connections: int = settings.redis.max_connections
+        self._reconnect_interval: int = settings.redis.reconnect_interval
         self._client: Optional[aioredis.Redis] = None
         self._available: bool = False
         self._reconnect_task: Optional[asyncio.Task] = None

@@ -33,23 +33,24 @@ TTLs (seconds, overrideable via env vars)
 
 import json
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
 import redis.asyncio as aioredis
 from redis.exceptions import ConnectionError as RedisConnectionError, TimeoutError as RedisTimeoutError
 
+from config.settings import settings
+
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# TTL constants (can be overridden via env vars)
+# TTL constants — sourced from centralised settings
 # ---------------------------------------------------------------------------
-_TTL_PROFILE: int = int(os.getenv("REDIS_TTL_PROFILE", "7200"))      # 2 h
-_TTL_CONFIG: int = int(os.getenv("REDIS_TTL_CONFIG", "86400"))        # 24 h
-_TTL_CONVERSATION: int = int(os.getenv("REDIS_TTL_CONVERSATION", "1800"))  # 30 min
+_TTL_PROFILE: int = settings.redis.ttl_profile
+_TTL_CONFIG: int = settings.redis.ttl_config
+_TTL_CONVERSATION: int = settings.redis.ttl_conversation
 
-CONV_HISTORY_MAX_TURNS: int = int(os.getenv("CACHE_CONV_HISTORY_MAX_TURNS", "20"))
+CONV_HISTORY_MAX_TURNS: int = settings.redis.conv_history_max_turns
 
 
 class CacheService:
