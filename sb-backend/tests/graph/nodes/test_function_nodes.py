@@ -211,7 +211,7 @@ class TestStoreBotResponseNodeUnit:
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_success_returns_api_response_key(self, state_for_store_bot_response, mock_session):
+    async def test_success_returns_empty_dict(self, state_for_store_bot_response, mock_session):
         mock_result = MagicMock()
         mock_result.scalar.return_value = 1
         mock_session.execute.return_value = mock_result
@@ -221,7 +221,7 @@ class TestStoreBotResponseNodeUnit:
             mock_db.get_session.return_value = mock_session
             result = await store_bot_response_node(state_for_store_bot_response)
         assert "error" not in result
-        assert "api_response" in result
+        assert result == {}
 
 
 # ============================================================================
