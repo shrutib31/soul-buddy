@@ -4,17 +4,17 @@ Supabase Configuration
 Handles Supabase client initialization and authentication operations.
 """
 
-import os
+import logging
 from typing import Dict, Any, Optional
 from supabase import create_client, Client
-from dotenv import load_dotenv
 
-load_dotenv()
+from config.settings import settings
 
-# Validate required environment variables
-supabase_url = os.getenv('SUPABASE_URL')
-supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-supabase_anon_key = os.getenv('SUPABASE_ANON_KEY')
+logger = logging.getLogger(__name__)
+
+supabase_url = settings.supabase.url
+supabase_service_key = settings.supabase.service_role_key
+supabase_anon_key = settings.supabase.anon_key
 
 if not supabase_url:
     raise ValueError('SUPABASE_URL is required in environment variables')
@@ -56,13 +56,13 @@ async def create_user(email: str, password: str, metadata: Optional[Dict[str, An
         })
 
         if hasattr(response, 'user') and response.user:
-            print(f'[+] Supabase user created: {response.user.id}')
+            logger.debug('[+] Supabase user created: %s', response.user.id)
             return response.user
         else:
             raise Exception('Failed to create user: No user data returned')
 
     except Exception as error:
-        print(f'Create user error: {str(error)}')
+        logger.debug('Create user error: %s', str(error))
         raise Exception(f'Failed to create user: {str(error)}')
 
 
@@ -92,7 +92,7 @@ async def sign_in_with_password(email: str, password: str) -> Dict[str, Any]:
             raise Exception('Authentication failed')
 
     except Exception as error:
-        print(f'Sign in error: {str(error)}')
+        logger.debug('Sign in error: %s', str(error))
         raise Exception(f'Authentication failed: {str(error)}')
 
 
@@ -115,7 +115,7 @@ async def verify_token(token: str) -> Dict[str, Any]:
             raise Exception('Invalid token')
 
     except Exception as error:
-        print(f'Token verification error: {str(error)}')
+        logger.debug('Token verification error: %s', str(error))
         raise Exception(f'Token verification failed: {str(error)}')
 
 
@@ -138,7 +138,7 @@ async def get_user_by_id(user_id: str) -> Dict[str, Any]:
             raise Exception('User not found')
 
     except Exception as error:
-        print(f'Get user error: {str(error)}')
+        logger.debug('Get user error: %s', str(error))
         raise Exception(f'Failed to get user: {str(error)}')
 
 
@@ -164,7 +164,7 @@ async def update_user_metadata(user_id: str, metadata: Dict[str, Any]) -> Dict[s
             raise Exception('Failed to update user metadata')
 
     except Exception as error:
-        print(f'Update user metadata error: {str(error)}')
+        logger.debug('Update user metadata error: %s', str(error))
         raise Exception(f'Failed to update user metadata: {str(error)}')
 
 
@@ -177,10 +177,10 @@ async def test_connection() -> bool:
     """
     try:
         response = supabase_admin.auth.admin.list_users(page=1, per_page=1)
-        print('[+] Supabase connection successful')
+        logger.debug('[+] Supabase connection successful')
         return True
     except Exception as error:
-        print(f'[!] Supabase connection failed: {str(error)}')
+        logger.debug('[!] Supabase connection failed: %s', str(error))
         raise error
 
 #verify account status using supabase
@@ -199,11 +199,11 @@ async def verify_account_status(user_id: str) -> bool:
         )
 
         if response.user:
-            print(f"[+] Account status verified: {response.user.id}")
+            logger.debug("[+] Account status verified: %s", response.user.id)
             return True
 
         return False
 
     except Exception as error:
-        print(f"Verify account status error: {error}")
+        logger.debug("Verify account status error: %s", error)
         raise

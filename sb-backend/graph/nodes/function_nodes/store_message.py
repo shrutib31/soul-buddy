@@ -1,17 +1,26 @@
 """
 Store Message Node for LangGraph
 
-This node stores the user message in the database for conversation history.
-It runs in parallel with intent detection.
+Persists the current user message as a ConversationTurn row (speaker="user"),
+then invalidates the Redis conversation-history cache for this conversation so
+the next load_user_context call fetches fresh data from the database.
+
+Graph position: runs in parallel with classification_node after load_user_context.
 """
 
+import logging
 from typing import Dict, Any
-from datetime import datetime
 from sqlalchemy import select, func
 
 from graph.state import ConversationState
 from orm.models import ConversationTurn
-from config.sqlalchemy_db import get_data_db
+from config.sqlalchemy_db import SQLAlchemyDataDB
+from services.cache_service import cache_service
+
+logger = logging.getLogger(__name__)
+
+# Initialize database connection
+data_db = SQLAlchemyDataDB()
 
 
 # ============================================================================
@@ -21,18 +30,13 @@ from config.sqlalchemy_db import get_data_db
 async def store_message_node(state: ConversationState) -> Dict[str, Any]:
     """
     Store user message in the database.
-    
+
     This node saves the current user message to the conversation history
-    in the ConversationTurn table. Runs in parallel with intent detection.
-    
-    - cognito mode: message is encrypted before storing using AES-256-GCM
-    - incognito mode: no DB storage (privacy preserved)
-    
-    The turn_id is auto-generated (UUID), so we don't need to set it.
-    
+    in the ConversationTurn table. Runs in parallel with classification_node in the current graph flow.
+
     Args:
         state: Current conversation state
-    
+
     Returns:
         Dict with any updates (typically empty unless error)
     """
@@ -54,11 +58,8 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
         message_to_store = await km.encrypt(conversation_id, user_message)
         # message_to_store is now "ENC:v1:<base64>" format
 
-        data_db = get_data_db()
         async with data_db.get_session() as session:
             # Get the current turn count for this conversation to set turn_index
-            from sqlalchemy import func
-            
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(
                 ConversationTurn.session_id == conversation_id
             )
@@ -75,10 +76,14 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
             )
             session.add(turn)
             await session.commit()
-            
+
+            # Invalidate cached history so the next load picks up the new turn
+            await cache_service.invalidate_conversation_history(conversation_id)
+
             return {}
-            
+
     except Exception as e:
+        logger.error("store_message: failed | conversation_id=%r error=%s", state.conversation_id, e, exc_info=True)
         return {
             "error": f"Error storing message: {str(e)}"
         }

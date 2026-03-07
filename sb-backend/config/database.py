@@ -6,14 +6,17 @@ Following principle of least privilege and database separation
 
 import os
 import sys
+import time
+import logging
 from typing import Any, Dict, List, Optional, Callable
 from contextlib import asynccontextmanager
 import asyncpg
 from dotenv import load_dotenv
-import time
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def parse_postgres_url(url: str) -> Dict[str, str]:
@@ -34,8 +37,8 @@ def parse_postgres_url(url: str) -> Dict[str, str]:
         'host': parsed.hostname or 'localhost',
         'port': str(parsed.port or 5432),
         'database': parsed.path.lstrip('/') if parsed.path else 'postgres',
-        'user': parsed.username or 'postgres',
-        'password': parsed.password or ''
+        'user': unquote(parsed.username or 'postgres'),
+        'password': unquote(parsed.password or '')  # decodes %40 → @, %23 → #, etc.
     }
 
 
@@ -94,10 +97,10 @@ class DatabaseConfig:
 
         try:
             self.pool = await asyncpg.create_pool(**pool_config)
-            print('✅ Connected to PostgreSQL database')
+            logger.debug('✅ Connected to PostgreSQL database')
             return self.pool
         except Exception as error:
-            print(f'❌ Failed to create database pool: {error}')
+            logger.debug('❌ Failed to create database pool: %s', error)
             sys.exit(-1)
 
     async def close_pool(self):
@@ -105,9 +108,9 @@ class DatabaseConfig:
         if self.pool:
             try:
                 await self.pool.close()
-                print('✅ Database pool closed gracefully')
+                logger.debug('✅ Database pool closed gracefully')
             except Exception as error:
-                print(f'❌ Error closing database pool: {error}')
+                logger.debug('❌ Error closing database pool: %s', error)
                 raise
 
     async def query(self, text: str, params: Optional[List[Any]] = None) -> List[Dict[str, Any]]:
@@ -136,13 +139,18 @@ class DatabaseConfig:
                 duration = (time.time() - start) * 1000  # Convert to milliseconds
 
                 if self.log_level == 'debug':
-                    print(f'Executed query: {text[:100]}... | Duration: {duration:.2f}ms | Rows: {len(rows)}')
+                    logger.debug(
+                        'Executed query: %s... | Duration: %.2fms | Rows: %d',
+                        text[:100],
+                        duration,
+                        len(rows),
+                    )
 
                 # Convert Record objects to dictionaries
                 return [dict(row) for row in rows]
 
         except Exception as error:
-            print(f'Database query error: {text[:100]}... | Error: {str(error)}')
+            logger.debug('Database query error: %s... | Error: %s', text[:100], str(error))
             raise
 
     async def execute(self, text: str, params: Optional[List[Any]] = None) -> str:
@@ -171,12 +179,17 @@ class DatabaseConfig:
                 duration = (time.time() - start) * 1000
 
                 if self.log_level == 'debug':
-                    print(f'Executed command: {text[:100]}... | Duration: {duration:.2f}ms | Result: {result}')
+                    logger.debug(
+                        'Executed command: %s... | Duration: %.2fms | Result: %s',
+                        text[:100],
+                        duration,
+                        result,
+                    )
 
                 return result
 
         except Exception as error:
-            print(f'Database command error: {text[:100]}... | Error: {str(error)}')
+            logger.debug('Database command error: %s... | Error: %s', text[:100], str(error))
             raise
 
     @asynccontextmanager
@@ -204,7 +217,7 @@ class DatabaseConfig:
 
             async def warn_timeout():
                 await asyncio.sleep(5)
-                print('❌ Client has been checked out for more than 5 seconds!')
+                logger.debug('❌ Client has been checked out for more than 5 seconds!')
 
             timeout_task = asyncio.create_task(warn_timeout())
             yield connection
@@ -254,12 +267,12 @@ class DatabaseConfig:
             if result:
                 row = result[0]
                 version = row['postgres_version'].split(',')[0]
-                print('✅ Database connection test successful')
-                print(f'   PostgreSQL version: {version}')
-                print(f'   Server time: {row["current_time"]}')
+                logger.debug('✅ Database connection test successful')
+                logger.debug('   PostgreSQL version: %s', version)
+                logger.debug('   Server time: %s', row["current_time"])
                 return True
         except Exception as error:
-            print(f'❌ Database connection test failed: {error}')
+            logger.debug('❌ Database connection test failed: %s', error)
             return False
 
     async def initialize_schema(self):
@@ -268,7 +281,7 @@ class DatabaseConfig:
         Includes auth tables (roles, permissions, user_roles) and business data tables
         """
         try:
-            print('🔧 Initializing database schema...')
+            logger.debug('🔧 Initializing database schema...')
 
             # ============================================
             # Business Data Tables Only
@@ -398,10 +411,10 @@ class DatabaseConfig:
                 ON intent_classifications USING GIN (reasoning)
             ''')
 
-            print('✅ Database schema initialized successfully')
+            logger.debug('✅ Database schema initialized successfully')
             return True
         except Exception as error:
-            print(f'❌ Failed to initialize database schema: {error}')
+            logger.debug('❌ Failed to initialize database schema: %s', error)
             raise
 
 

@@ -14,6 +14,7 @@ Standard LangGraph Node Pattern:
 """
 
 import uuid
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any
 from sqlalchemy import select
@@ -22,6 +23,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from graph.state import ConversationState
 from orm.models import SbConversation
 from config.sqlalchemy_db import SQLAlchemyDataDB
+
+logger = logging.getLogger(__name__)
 
 # Initialize database connection
 data_db = SQLAlchemyDataDB()
@@ -150,12 +153,12 @@ async def conv_id_handler_node(state: ConversationState) -> Dict[str, Any]:
                 }
                 
     except SQLAlchemyError as e:
-        # Database error - return error state
+        logger.error("conv_id_handler: DB error | conversation_id=%r mode=%r error=%s", conversation_id, mode, e, exc_info=True)
         return {
             "error": f"Database error in conversation ID handler: {str(e)}"
         }
     except Exception as e:
-        # General error
+        logger.error("conv_id_handler: unexpected error | conversation_id=%r mode=%r error=%s", conversation_id, mode, e, exc_info=True)
         return {
             "error": f"Error in conversation ID handler: {str(e)}"
         }

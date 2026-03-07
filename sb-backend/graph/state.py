@@ -1,5 +1,10 @@
-from typing import Optional, Dict, Any
+from typing import Annotated, Optional, Dict, Any, List
 from pydantic import BaseModel
+
+
+def _keep_last_error(a: Optional[str], b: Optional[str]) -> Optional[str]:
+    """Reducer for the error field: keep the most recent non-None error."""
+    return b if b is not None else a
 
 
 class ConversationState(BaseModel):
@@ -7,12 +12,15 @@ class ConversationState(BaseModel):
     mode: str                    # incognito / cognito
     domain: str                  # student / employee / general
     user_message: str
+    supabase_uid: Optional[str] = None  # supabase user ID (cognito only)
 
     # intent detection
     intent: Optional[str] = None
+    is_greeting: bool = False
 
     # safety
     risk_level: str = "low"
+    is_crisis_detected: bool = False
 
     # situation
     situation: Optional[str] = None
@@ -27,14 +35,16 @@ class ConversationState(BaseModel):
     readiness_score: int = 0
     tool: Optional[Dict[str, Any]] = None
 
-    # context
-    page_context: Dict[str, Any] = {} # from which UI page it is coming from (e.g., dashboard, profile, settings)
-    domain_config: Dict[str, Any] = {} # domain-specific configurations
-    user_personality_profile: Dict[str, Any] = {} # personality traits of the user to be populated from the db
-    user_preferences: Dict[str, Any] = {} # user preferences to be populated from the db
+    # context — all fields below are populated by load_user_context_node (cache-aside: Redis → DB)
+    page_context: Dict[str, Any] = {}           # UI page the request originates from (e.g., dashboard, profile)
+    domain_config: Dict[str, Any] = {}          # domain-specific config (student / employee / corporate)
+    user_personality_profile: Dict[str, Any] = {} # personality traits; DB schema pending, cached when available
+    user_preferences: Dict[str, Any] = {}        # user preferences; DB schema pending, cached when available
+    conversation_history: List[Dict[str, Any]] = []  # last N turns [{speaker, message, turn_index}]
+    conversation_summary: Optional[str] = None       # latest summarised context (written by summarisation job)
 
     # metadata
-    error: Optional[str] = None
+    error: Annotated[Optional[str], _keep_last_error] = None
     
     #Guardrail Helpers
     guardrail_status: Optional[str] = None

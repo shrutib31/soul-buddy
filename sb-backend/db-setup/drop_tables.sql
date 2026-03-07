@@ -1,6 +1,9 @@
 -- DROP TABLES SCRIPT --
 -- Drop tables in reverse order of dependencies to avoid foreign key constraint errors
 
+-- User data tables
+DROP TABLE IF EXISTS user_conversation_summaries;
+
 -- Runtime tables
 DROP TABLE IF EXISTS step_outputs;
 DROP TABLE IF EXISTS crisis_events;

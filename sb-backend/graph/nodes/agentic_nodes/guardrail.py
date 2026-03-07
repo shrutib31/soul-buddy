@@ -1,10 +1,11 @@
 import json
 from typing import Any, Dict, Callable, Optional
-import os
 import asyncio
 from langgraph.graph import StateGraph, END
 import logging
 import urllib.request
+
+from config.settings import settings
 
 # Try to import ChatOllama from langchain_community if available
 try:
@@ -17,10 +18,9 @@ except ImportError:
         logger = logging.getLogger(__name__)
         logger.warning("Ollama import not available - guardrail LLM features will be limited")
 
-# Note: Configure Ollama connection details as needed
-OLLAMA_BASE_URL = "http://72.60.99.35:11434"  # Default Ollama URL
-OLLAMA_MODEL = "llama3.2"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
+OLLAMA_BASE_URL = settings.ollama.base_url
+OLLAMA_MODEL = settings.ollama.model
+OLLAMA_TIMEOUT = settings.ollama.timeout
 
 logger = logging.getLogger(__name__)
 
@@ -107,14 +107,14 @@ GUARDRAIL_RULES: "{GUARDRAIL_RULES}"
     next_step = (state.step_index or 0) + 1
 
     try:
-        print("Guardrail checking response...")
+        logger.debug("Guardrail checking response...")
         guardrail_response = await asyncio.to_thread(guardrail_fn, prompt)
-        print("Raw guardrail LLM response:", repr(guardrail_response))
+        logger.debug("Raw guardrail LLM response: %r", guardrail_response)
         try:
             data: Dict[str, Any] = safe_json_loads(guardrail_response)
         except Exception as parse_exc:
             # Log and return a fallback error if no JSON found
-            print("Failed to parse guardrail LLM response as JSON:", parse_exc)
+            logger.debug("Failed to parse guardrail LLM response as JSON: %s", parse_exc)
             return {
                 "error": f"Error in guardrail node: Could not parse LLM response as JSON. Raw response: {guardrail_response}",
                 "guardrail_status": "ERROR",
@@ -124,10 +124,13 @@ GUARDRAIL_RULES: "{GUARDRAIL_RULES}"
             }
         status = str(data.get("status", "")).upper()
         feedback = str(data.get("feedback", "")).strip()
-        print("Current LLM Response = " + state.response_draft)
-        print("Status = " + status)
-        print("Feedback = " + feedback)
-        print("Violation = " + str(data.get("violation", "")).strip())
+        logger.debug(
+            "Guardrail check result | response=%r status=%s feedback=%s violation=%s",
+            state.response_draft,
+            status,
+            feedback,
+            str(data.get("violation", "")).strip(),
+        )
         if status not in {"OK", "REFINE"}:
             return {
                 "error": "Error in guardrail node: invalid guardrail status",
@@ -155,19 +158,22 @@ GUARDRAIL_RULES: "{GUARDRAIL_RULES}"
 
 def guardrail_router(state) -> str:
     if state.error or state.guardrail_status == "ERROR":
-        print("[router] Guardrail error → render")
+        logger.debug("[router] Guardrail error → render")
         return "render"
 
     if state.guardrail_status == "OK":
-        print("[router] Guardrail says OK → Finishing Sequences")
+        logger.debug("[router] Guardrail says OK → Finishing Sequences")
         return "store_bot_response"
 
     if (state.attempt or 0) >= 3:
-        print("[router] Guardrail still REFINE but max attempts reached → Finishing Sequences")
+        logger.debug("[router] Guardrail still REFINE but max attempts reached → Finishing Sequences")
         return "store_bot_response"
 
-    print("[router] Guardrail says REFINE → back to beginning")
-    print("[router] status=", repr(state.guardrail_status), "attempt=", state.attempt)
+    logger.debug(
+        "[router] Guardrail says REFINE → back to beginning | status=%r attempt=%s",
+        state.guardrail_status,
+        state.attempt,
+    )
     return "conv_id_handler" #RETURNS STARTING NODE OF LANG GRAPH
 
 
@@ -203,7 +209,7 @@ def call_guardrail_llm(prompt) -> str:
         parsed = json.loads(body)
         return str(parsed.get("response", "")).strip()
     except Exception as e:
-        print(f"Error calling Ollama guardrail LLM: {e}")
+        logger.debug("Error calling Ollama guardrail LLM: %s", e)
         return ""  
 
 def extract_json_str(text: str) -> str:

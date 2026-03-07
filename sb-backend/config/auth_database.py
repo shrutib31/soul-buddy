@@ -5,14 +5,17 @@ This pool connects to the authentication database (separate from business data d
 
 import os
 import sys
+import time
+import logging
 from typing import Any, Dict, List, Optional, Callable
 from contextlib import asynccontextmanager
 import asyncpg
 from dotenv import load_dotenv
-import time
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def parse_postgres_url(url: str) -> Dict[str, str]:
@@ -33,8 +36,8 @@ def parse_postgres_url(url: str) -> Dict[str, str]:
         'host': parsed.hostname or 'localhost',
         'port': str(parsed.port or 5432),
         'database': parsed.path.lstrip('/') if parsed.path else 'postgres',
-        'user': parsed.username or 'postgres',
-        'password': parsed.password or ''
+        'user': unquote(parsed.username or 'postgres'),
+        'password': unquote(parsed.password or '')  # decodes %40 → @, %23 → #, etc.
     }
 
 
@@ -93,10 +96,10 @@ class AuthDatabaseConfig:
 
         try:
             self.pool = await asyncpg.create_pool(**pool_config)
-            print(f'✅ Connected to Auth/RBAC PostgreSQL database: {self.database}')
+            logger.debug('✅ Connected to Auth/RBAC PostgreSQL database: %s', self.database)
             return self.pool
         except Exception as error:
-            print(f'❌ Failed to create auth database pool: {error}')
+            logger.debug('❌ Failed to create auth database pool: %s', error)
             sys.exit(-1)
 
     async def close_pool(self):
@@ -104,9 +107,9 @@ class AuthDatabaseConfig:
         if self.pool:
             try:
                 await self.pool.close()
-                print('✅ Auth database pool closed gracefully')
+                logger.debug('✅ Auth database pool closed gracefully')
             except Exception as error:
-                print(f'❌ Error closing auth database pool: {error}')
+                logger.debug('❌ Error closing auth database pool: %s', error)
                 raise
 
     async def query(self, text: str, params: Optional[List[Any]] = None) -> List[Dict[str, Any]]:
@@ -135,13 +138,18 @@ class AuthDatabaseConfig:
                 duration = (time.time() - start) * 1000  # Convert to milliseconds
 
                 if self.log_level == 'debug':
-                    print(f'[Auth DB] Executed query: {text[:100]}... | Duration: {duration:.2f}ms | Rows: {len(rows)}')
+                    logger.debug(
+                        '[Auth DB] Executed query: %s... | Duration: %.2fms | Rows: %d',
+                        text[:100],
+                        duration,
+                        len(rows),
+                    )
 
                 # Convert Record objects to dictionaries
                 return [dict(row) for row in rows]
 
         except Exception as error:
-            print(f'[Auth DB] Database query error: {text[:100]}... | Error: {str(error)}')
+            logger.debug('[Auth DB] Database query error: %s... | Error: %s', text[:100], str(error))
             raise
 
     async def execute(self, text: str, params: Optional[List[Any]] = None) -> str:
@@ -170,12 +178,17 @@ class AuthDatabaseConfig:
                 duration = (time.time() - start) * 1000
 
                 if self.log_level == 'debug':
-                    print(f'[Auth DB] Executed command: {text[:100]}... | Duration: {duration:.2f}ms | Result: {result}')
+                    logger.debug(
+                        '[Auth DB] Executed command: %s... | Duration: %.2fms | Result: %s',
+                        text[:100],
+                        duration,
+                        result,
+                    )
 
                 return result
 
         except Exception as error:
-            print(f'[Auth DB] Database command error: {text[:100]}... | Error: {str(error)}')
+            logger.debug('[Auth DB] Database command error: %s... | Error: %s', text[:100], str(error))
             raise
 
     @asynccontextmanager
@@ -197,7 +210,7 @@ class AuthDatabaseConfig:
 
             async def warn_timeout():
                 await asyncio.sleep(5)
-                print('❌ Auth DB client has been checked out for more than 5 seconds!')
+                logger.debug('❌ Auth DB client has been checked out for more than 5 seconds!')
 
             timeout_task = asyncio.create_task(warn_timeout())
             yield connection
@@ -240,12 +253,12 @@ class AuthDatabaseConfig:
             if result:
                 row = result[0]
                 version = row['postgres_version'].split(',')[0]
-                print('✅ Auth database connection test successful')
-                print(f'   PostgreSQL version: {version}')
-                print(f'   Server time: {row["current_time"]}')
+                logger.debug('✅ Auth database connection test successful')
+                logger.debug('   PostgreSQL version: %s', version)
+                logger.debug('   Server time: %s', row["current_time"])
                 return True
         except Exception as error:
-            print(f'❌ Auth database connection test failed: {error}')
+            logger.debug('❌ Auth database connection test failed: %s', error)
             return False
 
 # Global instance

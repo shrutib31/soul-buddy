@@ -15,6 +15,7 @@ from .models import (
     FlowState,
     StepOutput,
     CrisisEvent,
+    UserConversationSummary,
     EncryptionAuditLog,
 )
 
@@ -35,5 +36,6 @@ __all__ = [
     "FlowState",
     "StepOutput",
     "CrisisEvent",
+    "UserConversationSummary",
     "EncryptionAuditLog",
 ]
