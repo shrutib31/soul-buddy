@@ -9,6 +9,8 @@ import logging
 from graph.state import ConversationState
 from graph.graph_builder import get_compiled_flow
 from graph.streaming import stream_as_sse
+from graph.nodes.function_nodes.get_messages import get_conversation_messages
+from graph.nodes.function_nodes.get_bot_response import get_latest_bot_response
 
 router = APIRouter(prefix="/chat")
 logger = logging.getLogger(__name__)
@@ -22,6 +24,29 @@ async def get_flow():
         flow = get_compiled_flow()
     return flow
 
+async def ensure_conversation_exists(conversation_id: str, mode: str) -> None:
+    """
+    Create a row in sb_conversations if it doesn't already exist.
+    Required before any inserts into conversation_turns due to FK constraint.
+    Uses SQLAlchemy so no separate psycopg2 connection is needed.
+    """
+    from config.sqlalchemy_db import get_data_db
+    from orm.models import SbConversation
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    data_db = get_data_db()
+    async with data_db.get_session() as session:
+        stmt = pg_insert(SbConversation).values(
+            id=conversation_id,
+            mode=mode,
+        ).on_conflict_do_nothing(index_elements=["id"])
+        await session.execute(stmt)
+        await session.commit()
+
+
+# ============================================================================
+# REQUEST MODELS
+# ============================================================================
 
 class ChatRequest(BaseModel):
     """
@@ -116,7 +141,10 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
         result = await invoke_graph(state)
         return result.get("api_response", {"success": False, "error": "No response generated"})
     except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": f"Chat failed: {str(e)}"})
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Chat failed: {str(e)}"}
+        )
 
 
 @router.post("/stream")
@@ -149,3 +177,53 @@ async def chat_stream(req: ChatRequest, user=Depends(optional_supabase_token)):
         return StreamingResponse(event_stream(), media_type="text/event-stream")
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Chat stream failed: {str(e)}"})
+
+
+# ============================================================================
+# GET MESSAGE ENDPOINTS
+# ============================================================================
+
+@router.get("/conversation/{conversation_id}/messages")
+async def get_messages(conversation_id: str):
+    """
+    Retrieve and decrypt all messages for a cognito conversation.
+    Plaintext messages (legacy/incognito) are returned as-is.
+    """
+    try:
+        messages = await get_conversation_messages(conversation_id)
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "messages": messages,
+            "count": len(messages)
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@router.get("/conversation/{conversation_id}/bot-response/latest")
+async def get_latest_bot_response_endpoint(conversation_id: str):
+    """
+    Retrieve and decrypt the latest bot response for a cognito conversation.
+    Plaintext messages (legacy/incognito) are returned as-is.
+    """
+    try:
+        response = await get_latest_bot_response(conversation_id)
+        if response is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "No bot response found for this conversation"}
+            )
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "bot_response": response
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )

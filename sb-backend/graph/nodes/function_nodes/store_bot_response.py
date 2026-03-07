@@ -80,25 +80,14 @@ def _build_summary(state: ConversationState, turn_count: int) -> str:
 # ============================================================================
 
 async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
-    """
-    Store the bot's response and update the user's conversation summary.
-
-    Steps:
-      1. Count existing turns to determine turn_index.
-      2. Insert the bot ConversationTurn row.
-      3. Invalidate conversation-history cache.
-      4. If cognito (supabase_uid present): build summary, upsert to DB, refresh cache.
-
-    Args:
-        state: Current conversation state
-
-    Returns:
-        Dict with any updates or error
-    """
     try:
         conversation_id = state.conversation_id
         bot_response = state.response_draft
         logger.info(f"Storing bot response for conversation_id: {conversation_id}")
+
+        # Incognito = no persistence, return immediately
+        if state.mode == "incognito":
+            return {}
 
         if not conversation_id or not bot_response:
             logger.error(
@@ -108,6 +97,12 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
             return {
                 "error": "Missing conversation_id or bot response",
             }
+
+        # Encrypt the response for cognito mode before storing
+        from services.key_manager import get_key_manager
+        km = get_key_manager()
+        message_to_store = await km.encrypt(conversation_id, bot_response)
+        # message_to_store is now "ENC:v1:<base64>" format
 
         async with data_db.get_session() as session:
             # ----------------------------------------------------------------
@@ -126,7 +121,7 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                 session_id=conversation_id,
                 turn_index=turn_count,
                 speaker="bot",
-                message=bot_response
+                message=message_to_store  # stored encrypted as "ENC:v1:..."
             )
             session.add(turn)
             await session.commit()

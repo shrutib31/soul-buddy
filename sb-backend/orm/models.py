@@ -184,3 +184,15 @@ class UserConversationSummary(Base):
         UUID(as_uuid=True), ForeignKey("sb_conversations.id"), nullable=True
     )
     updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
+
+class EncryptionAuditLog(Base):
+    __tablename__ = "encryption_audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    operation: Mapped[str] = mapped_column(String(20), nullable=False)
+    accessed_by_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    accessed_by_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    accessed_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    vault_key_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    accessed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())

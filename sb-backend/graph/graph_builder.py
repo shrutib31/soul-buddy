@@ -33,6 +33,15 @@ def get_compiled_flow():
     graph.add_edge("load_user_context", "classification_node")
 
     graph.add_edge("classification_node", "response_generator")
+    # graph.add_edge("situation_severity_detection", "response_generator")
+
+    #Response generator to Guardrail check
+    #graph.add_edge("response_generator", "guardrail")
+
+    #Links GUARDRAIL back to starting node OR continue to "store_bot_response"
+    #graph.add_conditional_edges("guardrail", guardrail_router)
+
+    # Response generator → store bot response → render → end
     graph.add_edge("response_generator", "store_bot_response")
     graph.add_edge("store_bot_response", "render")
     graph.add_edge("render", END)

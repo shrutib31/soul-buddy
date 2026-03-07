@@ -43,10 +43,21 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
     try:
         conversation_id = state.conversation_id
         user_message = state.user_message
-        
+        mode = state.mode
+
+        # Incognito = no persistence, return immediately
+        if mode == "incognito":
+            return {}
+
         if not conversation_id or not user_message:
             return {"error": "Missing conversation_id or user_message"}
-        
+
+        # Encrypt the message for cognito mode before storing
+        from services.key_manager import get_key_manager
+        km = get_key_manager()
+        message_to_store = await km.encrypt(conversation_id, user_message)
+        # message_to_store is now "ENC:v1:<base64>" format
+
         async with data_db.get_session() as session:
             # Get the current turn count for this conversation to set turn_index
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(
@@ -61,7 +72,7 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
                 session_id=conversation_id,
                 turn_index=turn_count,  # Sequential turn number (0-indexed)
                 speaker="user",
-                message=user_message
+                message=message_to_store  # stored encrypted as "ENC:v1:..."
             )
             session.add(turn)
             await session.commit()

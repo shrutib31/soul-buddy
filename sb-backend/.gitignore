@@ -74,3 +74,5 @@ dmypy.json
 
 # OS
 Thumbs.db
+
+sb-backend/config/serviceAccountKey.json
