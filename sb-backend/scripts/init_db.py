@@ -37,6 +37,8 @@ def main():
         
         # Convert asyncpg URL to sync psycopg2 for synchronous operations
         sync_db_url = db_url.replace('postgresql+asyncpg://', 'postgresql://')
+        # asyncpg uses ?ssl=require; psycopg2 uses ?sslmode=require
+        sync_db_url = sync_db_url.replace('?ssl=require', '?sslmode=require')
         logger.info(f"✅ Using sync URL: {sync_db_url.split('@')[1] if '@' in sync_db_url else sync_db_url}")
         
         # Create sync engine

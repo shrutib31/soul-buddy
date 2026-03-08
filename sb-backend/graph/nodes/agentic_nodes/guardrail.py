@@ -1,10 +1,11 @@
 import json
 from typing import Any, Dict, Callable, Optional
-import os
 import asyncio
 from langgraph.graph import StateGraph, END
 import logging
 import urllib.request
+
+from config.settings import settings
 
 # Try to import ChatOllama from langchain_community if available
 try:
@@ -17,10 +18,9 @@ except ImportError:
         logger = logging.getLogger(__name__)
         logger.warning("Ollama import not available - guardrail LLM features will be limited")
 
-# Note: Configure Ollama connection details as needed
-OLLAMA_BASE_URL = "http://72.60.99.35:11434"  # Default Ollama URL
-OLLAMA_MODEL = "llama3.2"  # Change to your preferred small model (e.g., "neural-chat", "orca-mini")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))  # Timeout in seconds (default 120s for inference)
+OLLAMA_BASE_URL = settings.ollama.base_url
+OLLAMA_MODEL = settings.ollama.model
+OLLAMA_TIMEOUT = settings.ollama.timeout
 
 logger = logging.getLogger(__name__)
 

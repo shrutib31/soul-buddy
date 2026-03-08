@@ -1,19 +1,72 @@
+# =============================================================================
+# SoulBuddy Backend — Local Development
+# =============================================================================
+# Start all services:
+#   docker compose -f docker-compose-sb-backend.yml up --build
+#
+# Start only one service:
+#   docker compose -f docker-compose-sb-backend.yml up sb-backend
+#   docker compose -f docker-compose-sb-backend.yml up soulbuddy-redis
+#
+# Stop all services:
+#   docker compose -f docker-compose-sb-backend.yml down
+#
+# Stop only one service:
+#   docker compose -f docker-compose-sb-backend.yml stop sb-backend
+#   docker compose -f docker-compose-sb-backend.yml stop soulbuddy-redis
+#
+# Notes:
+#   - sb-backend starts independently of Redis. If Redis is unavailable, cache
+#     operations degrade gracefully to DB reads (fail-silent).
+#   - Source code is bind-mounted (/app) for hot-reload without image rebuilds.
+#   - Redis port is exposed on the host for local inspection (redis-cli, etc.).
+#   - Redis maxmemory 64mb — plenty for local dev; production target is 128mb.
+# =============================================================================
+
 version: '3.9'
 
 services:
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache
+  # ---------------------------------------------------------------------------
+  soulbuddy-redis:
+    image: redis:7-alpine
+    container_name: soulbuddy-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 64mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+    ports:
+      - "6379:6379"         # expose to host for local tooling (redis-cli, RedisInsight)
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sb-network
+
+  # ---------------------------------------------------------------------------
+  # Backend API
+  # ---------------------------------------------------------------------------
   sb-backend:
     build: ./sb-backend
     container_name: sb-backend
-    # Override .env file dynamically
+    restart: unless-stopped
     env_file:
-      - ${ENV_FILE:-./sb-backend/.env} 
-    # Override individual variables dynamically
+      - ${ENV_FILE:-./sb-backend/.env.docker.local}
     environment:
-      - HOST=${HOST:-0.0.0.0}
       - PORT=${PORT:-8000}
-      - DEBUG=${DEBUG:-0}
-    # Override port mapping dynamically
     ports:
       - "${BACKEND_PORT:-8000}:${PORT:-8000}"
     volumes:
-      - ./sb-backend:/app
+      - ./sb-backend:/app   # dev: bind-mount so code changes are live without rebuild
+    networks:
+      - sb-network
+
+networks:
+  sb-network:
+    driver: bridge

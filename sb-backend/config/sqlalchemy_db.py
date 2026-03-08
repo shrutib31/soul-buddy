@@ -11,7 +11,6 @@ Features:
 - Connection pooling with configurable parameters
 """
 
-import os
 import logging
 from typing import AsyncGenerator, Optional
 from contextlib import asynccontextmanager
@@ -23,9 +22,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool, QueuePool
-from dotenv import load_dotenv
 
-load_dotenv()
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +47,16 @@ class SQLAlchemyDataDB:
     
     def __init__(self):
         """Initialize SQLAlchemy engine from environment variables"""
-        # Get database URL from environment
-        db_url = os.getenv('DATA_DB_URL', '')
-        
+        # Get database URL from centralised settings
+        db_url = settings.data_db.url
+
         if not db_url:
             # Construct URL from individual parameters
-            host = os.getenv('DATA_DB_HOST', 'localhost')
-            port = os.getenv('DATA_DB_PORT', '5432')
-            database = os.getenv('DATA_DB_NAME', 'soulbuddy_data_db')
-            user = os.getenv('DATA_DB_USER', 'postgres')
-            password = os.getenv('DATA_DB_PASSWORD', '')
+            host = settings.data_db.host
+            port = settings.data_db.port
+            database = settings.data_db.name
+            user = settings.data_db.user
+            password = settings.data_db.password
             
             # Use asyncpg driver
             if password:
@@ -75,12 +73,12 @@ class SQLAlchemyDataDB:
         self.database_url = db_url
         self.engine: Optional[AsyncEngine] = None
         self.session_factory: Optional[async_sessionmaker] = None
-        self.log_level = os.getenv('LOG_LEVEL', 'info')
-    
+        self.log_level = settings.logging.log_level
+
     async def init_engine(self) -> AsyncEngine:
         """
         Initialize the SQLAlchemy async engine with connection pooling
-        
+
         Returns:
             AsyncEngine: Configured async engine
         """
@@ -93,19 +91,19 @@ class SQLAlchemyDataDB:
                 pool_pre_ping=True,  # Verify connections before using
                 pool_recycle=3600,  # Recycle connections after 1 hour
             )
-            
+
             # Create session factory
             self.session_factory = async_sessionmaker(
                 self.engine,
                 class_=AsyncSession,
                 expire_on_commit=False,
             )
-            
+
             if self.log_level == 'debug':
                 logger.debug("✅ SQLAlchemy Data DB engine initialized: %s", self.database_url.split('@')[1])
-        
+
         return self.engine
-    
+
     async def close_engine(self):
         """Gracefully close the engine and all connections"""
         if self.engine:
@@ -170,16 +168,16 @@ class SQLAlchemyAuthDB:
     
     def __init__(self):
         """Initialize SQLAlchemy engine from environment variables"""
-        # Get database URL from environment
-        db_url = os.getenv('AUTH_DB_URL', os.getenv('RBAC_DB_URL', ''))
-        
+        # Get database URL from centralised settings
+        db_url = settings.auth_db.url
+
         if not db_url:
             # Construct URL from individual parameters
-            host = os.getenv('AUTH_DB_HOST', os.getenv('RBAC_DB_HOST', 'localhost'))
-            port = os.getenv('AUTH_DB_PORT', os.getenv('RBAC_DB_PORT', '5432'))
-            database = os.getenv('AUTH_DB_NAME', os.getenv('RBAC_DB_NAME', 'souloxy-db'))
-            user = os.getenv('AUTH_DB_USER', os.getenv('RBAC_DB_USER', 'postgres'))
-            password = os.getenv('AUTH_DB_PASSWORD', os.getenv('RBAC_DB_PASSWORD', ''))
+            host = settings.auth_db.host
+            port = settings.auth_db.port
+            database = settings.auth_db.name
+            user = settings.auth_db.user
+            password = settings.auth_db.password
             
             # Use asyncpg driver
             if password:
@@ -196,12 +194,12 @@ class SQLAlchemyAuthDB:
         self.database_url = db_url
         self.engine: Optional[AsyncEngine] = None
         self.session_factory: Optional[async_sessionmaker] = None
-        self.log_level = os.getenv('LOG_LEVEL', 'info')
-    
+        self.log_level = settings.logging.log_level
+
     async def init_engine(self) -> AsyncEngine:
         """
         Initialize the SQLAlchemy async engine with connection pooling
-        
+
         Returns:
             AsyncEngine: Configured async engine
         """

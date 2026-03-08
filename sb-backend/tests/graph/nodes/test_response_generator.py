@@ -2,6 +2,8 @@
 Unit tests for Response Generator Node.
 
 Tests mock Ollama and GPT calls so no real API or model is used.
+LLM provider flags (COMPARE_RESULTS, OLLAMA_FLAG, OPENAI_FLAG) are patched
+per-test so behaviour is deterministic regardless of the runtime environment.
 """
 
 import pytest
@@ -13,6 +15,8 @@ from graph.nodes.agentic_nodes.response_generator import (
     generate_response_ollama,
     generate_response_gpt,
 )
+
+_MOD = "graph.nodes.agentic_nodes.response_generator"
 
 
 # ============================================================================
@@ -83,13 +87,8 @@ class TestResponseGeneratorNodeUnit:
 
     @pytest.mark.asyncio
     async def test_crisis_state_returns_template_without_calling_llm(self, crisis_state):
-        with patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
-            new_callable=AsyncMock,
-        ) as mock_ollama, patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
-            new_callable=AsyncMock,
-        ) as mock_gpt:
+        with patch(f"{_MOD}.generate_response_ollama", new_callable=AsyncMock) as mock_ollama, \
+             patch(f"{_MOD}.generate_response_gpt", new_callable=AsyncMock) as mock_gpt:
             result = await response_generator_node(crisis_state)
         # LLMs must not be called when a template applies
         mock_ollama.assert_not_called()
@@ -99,13 +98,8 @@ class TestResponseGeneratorNodeUnit:
 
     @pytest.mark.asyncio
     async def test_greeting_state_returns_template_without_calling_llm(self, greeting_state):
-        with patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
-            new_callable=AsyncMock,
-        ) as mock_ollama, patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
-            new_callable=AsyncMock,
-        ) as mock_gpt:
+        with patch(f"{_MOD}.generate_response_ollama", new_callable=AsyncMock) as mock_ollama, \
+             patch(f"{_MOD}.generate_response_gpt", new_callable=AsyncMock) as mock_gpt:
             result = await response_generator_node(greeting_state)
         mock_ollama.assert_not_called()
         mock_gpt.assert_not_called()
@@ -113,16 +107,13 @@ class TestResponseGeneratorNodeUnit:
         assert len(result["response_draft"]) > 0
 
     @pytest.mark.asyncio
-    async def test_returns_response_draft_and_api_response(self, sample_state):
-        with patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
-            new_callable=AsyncMock,
-            return_value="Ollama compassionate reply.",
-        ), patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
-            new_callable=AsyncMock,
-            return_value="GPT compassionate reply.",
-        ):
+    async def test_compare_results_calls_both_and_returns_api_response(self, sample_state):
+        """When COMPARE_RESULTS=True both LLMs are called and api_response has both outputs."""
+        with patch(f"{_MOD}.COMPARE_RESULTS", True), \
+             patch(f"{_MOD}.generate_response_ollama", new_callable=AsyncMock,
+                   return_value="Ollama compassionate reply."), \
+             patch(f"{_MOD}.generate_response_gpt", new_callable=AsyncMock,
+                   return_value="GPT compassionate reply."):
             result = await response_generator_node(sample_state)
         assert "error" not in result
         assert result["response_draft"] in ("GPT compassionate reply.", "Ollama compassionate reply.")
@@ -131,16 +122,12 @@ class TestResponseGeneratorNodeUnit:
         assert result["api_response"]["gpt"] == "GPT compassionate reply."
 
     @pytest.mark.asyncio
-    async def test_api_response_includes_score_fields(self, sample_state):
-        with patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
-            new_callable=AsyncMock,
-            return_value="Ollama reply.",
-        ), patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
-            new_callable=AsyncMock,
-            return_value="GPT reply.",
-        ):
+    async def test_compare_results_api_response_includes_score_fields(self, sample_state):
+        with patch(f"{_MOD}.COMPARE_RESULTS", True), \
+             patch(f"{_MOD}.generate_response_ollama", new_callable=AsyncMock,
+                   return_value="Ollama reply."), \
+             patch(f"{_MOD}.generate_response_gpt", new_callable=AsyncMock,
+                   return_value="GPT reply."):
             result = await response_generator_node(sample_state)
         api = result["api_response"]
         assert "selected_source" in api
@@ -151,30 +138,49 @@ class TestResponseGeneratorNodeUnit:
         assert isinstance(api["gpt_score"], float)
 
     @pytest.mark.asyncio
+    async def test_ollama_flag_only_calls_ollama(self, sample_state):
+        """When OLLAMA_FLAG=True and OPENAI_FLAG=False, only Ollama is called."""
+        with patch(f"{_MOD}.COMPARE_RESULTS", False), \
+             patch(f"{_MOD}.OLLAMA_FLAG", True), \
+             patch(f"{_MOD}.OPENAI_FLAG", False), \
+             patch(f"{_MOD}.generate_response_ollama", new_callable=AsyncMock,
+                   return_value="Ollama only response.") as mock_ollama, \
+             patch(f"{_MOD}.generate_response_gpt", new_callable=AsyncMock) as mock_gpt:
+            result = await response_generator_node(sample_state)
+        mock_ollama.assert_awaited_once()
+        mock_gpt.assert_not_called()
+        assert result["response_draft"] == "Ollama only response."
+
+    @pytest.mark.asyncio
     async def test_falls_back_to_ollama_when_gpt_empty(self, sample_state):
-        with patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
-            new_callable=AsyncMock,
-            return_value="Ollama fallback",
-        ), patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
-            new_callable=AsyncMock,
-            return_value="",
-        ):
+        """When both flags are on and GPT returns empty, Ollama response is used."""
+        with patch(f"{_MOD}.COMPARE_RESULTS", False), \
+             patch(f"{_MOD}.OLLAMA_FLAG", True), \
+             patch(f"{_MOD}.OPENAI_FLAG", True), \
+             patch(f"{_MOD}.generate_response_ollama", new_callable=AsyncMock,
+                   return_value="Ollama fallback"), \
+             patch(f"{_MOD}.generate_response_gpt", new_callable=AsyncMock,
+                   return_value=""):
             result = await response_generator_node(sample_state)
         assert result["response_draft"] == "Ollama fallback"
 
     @pytest.mark.asyncio
+    async def test_no_provider_enabled_returns_error(self, sample_state):
+        """When all flags are False, an informative error is returned."""
+        with patch(f"{_MOD}.COMPARE_RESULTS", False), \
+             patch(f"{_MOD}.OLLAMA_FLAG", False), \
+             patch(f"{_MOD}.OPENAI_FLAG", False):
+            result = await response_generator_node(sample_state)
+        assert "error" in result
+        assert "No LLM provider enabled" in result["error"]
+
+    @pytest.mark.asyncio
     async def test_exception_returns_error(self, sample_state):
-        with patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_ollama",
-            new_callable=AsyncMock,
-            side_effect=Exception("API down"),
-        ), patch(
-            "graph.nodes.agentic_nodes.response_generator.generate_response_gpt",
-            new_callable=AsyncMock,
-            return_value="",
-        ):
+        with patch(f"{_MOD}.COMPARE_RESULTS", True), \
+             patch(f"{_MOD}.generate_response_ollama", new_callable=AsyncMock,
+                   side_effect=Exception("API down")), \
+             patch(f"{_MOD}.generate_response_gpt", new_callable=AsyncMock,
+                   return_value=""):
             result = await response_generator_node(sample_state)
         assert "error" in result
         assert "Error generating response" in result["error"]
@@ -227,6 +233,6 @@ class TestGenerateResponseGptUnit:
 
     @pytest.mark.asyncio
     async def test_no_api_key_returns_empty(self):
-        with patch("graph.nodes.agentic_nodes.response_generator.OPENAI_API_KEY", ""):
+        with patch(f"{_MOD}.OPENAI_API_KEY", ""):
             result = await generate_response_gpt("Hello")
         assert result == ""

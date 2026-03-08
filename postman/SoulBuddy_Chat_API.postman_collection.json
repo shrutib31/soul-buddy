@@ -1,0 +1,256 @@
+{
+  "info": {
+    "name": "SoulBuddy Chat API",
+    "description": "Postman collection for SoulBuddy backend chat endpoints.\n\n**Setup:**\n1. Import this collection.\n2. Import `SoulBuddy.postman_environment.json` and select it as the active environment.\n3. For cognito requests, set `supabase_token` in the environment to a valid Supabase JWT.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Returns server status and connectivity of all services (data DB, auth DB, Supabase)."
+          },
+          "response": [
+            {
+              "name": "200 OK — all services healthy",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"healthy\",\n  \"server\": \"running\",\n  \"data_database\": \"connected\",\n  \"auth_database\": \"connected\",\n  \"supabase\": \"connected\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Chat — Incognito (anonymous)",
+      "description": "No Authorization header required. `is_incognito` must be `true`. Conversation history is session-scoped — pass the `sb_conv_id` returned in the first response to continue the same conversation.",
+      "item": [
+        {
+          "name": "POST /chat — new incognito session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat"]
+            },
+            "description": "Start a new anonymous conversation. No `sb_conv_id` needed — one is generated and returned in the response."
+          },
+          "response": [
+            {
+              "name": "200 OK — new session",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"conversation_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"response\": \"Hi! I'm here to help. What's on your mind?\",\n  \"intent\": \"greeting\",\n  \"domain\": \"student\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /chat — continue incognito session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat"]
+            },
+            "description": "Continue an existing anonymous conversation. Set `{{conversation_id}}` in the environment to the UUID returned in the previous response."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /chat/stream — new incognito session (SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "stream"]
+            },
+            "description": "Streaming version of the incognito chat endpoint. Returns server-sent events (SSE). Each event is a `data:` line containing a JSON chunk. The stream ends with a final `data: [DONE]` event.\n\nNote: Postman renders SSE responses in the response body as each chunk arrives."
+          },
+          "response": [
+            {
+              "name": "200 OK — SSE stream",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "text/event-stream" }],
+              "body": "data: {\"chunk\": \"Hi\"}\n\ndata: {\"chunk\": \"! I'm\"}\n\ndata: {\"chunk\": \" here to help.\"}\n\ndata: [DONE]\n\n"
+            }
+          ]
+        },
+        {
+          "name": "POST /chat/stream — continue incognito session (SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "stream"]
+            },
+            "description": "Continue an existing anonymous conversation with streaming. Set `{{conversation_id}}` in the environment."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chat — Cognito (authenticated)",
+      "description": "Requires a valid Supabase JWT in the `Authorization: Bearer` header. `is_incognito` must be `false`. The `supabase_uid` is always derived from the token — never pass it in the request body.",
+      "item": [
+        {
+          "name": "POST /chat — new cognito session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required for cognito mode" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat"]
+            },
+            "description": "Start a new authenticated conversation. The server verifies the JWT and derives `supabase_uid` from it automatically."
+          },
+          "response": [
+            {
+              "name": "401 — missing token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Authorization header required for cognito mode\"\n}"
+            },
+            {
+              "name": "200 OK — authenticated session",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"conversation_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"response\": \"Welcome back! How can I help you today?\",\n  \"intent\": \"greeting\",\n  \"domain\": \"student\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /chat — continue cognito session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat"]
+            },
+            "description": "Continue an existing authenticated conversation. Set `{{conversation_id}}` in the environment."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /chat/stream — new cognito session (SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "text/event-stream" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "stream"]
+            },
+            "description": "Streaming authenticated chat. Returns SSE. Requires a valid Supabase JWT."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /chat/stream — continue cognito session (SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "text/event-stream" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "stream"]
+            },
+            "description": "Continue an existing authenticated conversation with streaming."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
