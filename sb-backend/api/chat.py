@@ -149,17 +149,27 @@ async def get_conversation_messages(
     Retrieve all decrypted messages for a conversation.
 
     Requires a valid Authorization: Bearer <token> header.
+    Returns 404 if the conversation does not exist or belongs to another user.
     Messages stored with encryption are transparently decrypted before returning.
     """
     if not _is_valid_uuid(conversation_id):
         raise HTTPException(status_code=400, detail="Invalid conversation_id — must be a UUID")
 
+    supabase_uid = _user["id"]
     try:
         from graph.nodes.function_nodes.get_messages import get_conversation_messages as fetch_messages
-        messages = await fetch_messages(conversation_id)
+        messages = await fetch_messages(conversation_id, supabase_uid=supabase_uid)
         return {"conversation_id": conversation_id, "messages": messages}
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Conversation not found")
     except Exception as e:
-        logger.error("get_conversation_messages failed | conversation_id=%r error=%s", conversation_id, e, exc_info=True)
+        logger.error(
+            "get_conversation_messages failed | conversation_id=%r supabase_uid=%r error=%s",
+            conversation_id,
+            supabase_uid,
+            e,
+            exc_info=True,
+        )
         return JSONResponse(status_code=500, content={"error": f"Failed to retrieve messages: {str(e)}"})
 
 

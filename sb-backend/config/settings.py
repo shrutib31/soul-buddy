@@ -110,7 +110,7 @@ class ServerSettings:
 @dataclass(frozen=True)
 class EncryptionConfig:
     GCP_PROJECT_ID: str = field(default_factory=lambda: os.getenv('GCP_PROJECT_ID', 'souloxy-webapp'))
-    GCP_KMS_LOCATION: str = field(default_factory=lambda: os.getenv('GCP_KMS_LOCATION', 'in'))
+    GCP_KMS_LOCATION: str = field(default_factory=lambda: os.getenv('GCP_KMS_LOCATION', 'global'))
     GCP_KMS_KEYRING: str = field(default_factory=lambda: os.getenv('GCP_KMS_KEYRING', 'souloxy-mk-test'))
     GCP_KMS_KEY: str = field(default_factory=lambda: os.getenv('GCP_KMS_KEY', 'souloxy-mk-test'))
     SERVICE_ACCOUNT_KEY: str = field(default_factory=lambda: os.getenv('SERVICE_ACCOUNT_KEY', './config/serviceAccountKey.json'))

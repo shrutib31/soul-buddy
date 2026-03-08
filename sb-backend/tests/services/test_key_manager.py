@@ -10,6 +10,7 @@ pre-built test key.
 import os
 import pytest
 from unittest.mock import patch, MagicMock
+from cryptography.exceptions import InvalidTag
 
 
 # ============================================================================
@@ -122,7 +123,7 @@ class TestEncryptDataDecryptData:
         km, _ = _make_key_manager(encryption_enabled=False)
         encrypted = km.encrypt_data(self.TEST_KEY, "secret")
         wrong_key = os.urandom(32)
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             km.decrypt_data(wrong_key, encrypted)
 
     def test_roundtrip_with_unicode_text(self):
@@ -196,3 +197,16 @@ class TestGetMasterKey:
             result = await km.get_master_key()
 
         assert result == test_master_key
+
+    @pytest.mark.asyncio
+    async def test_master_key_is_deterministic(self):
+        """Master key must be stable across calls (no randomness in derivation)."""
+        km1, cfg = _make_key_manager(encryption_enabled=True)
+        km2, _ = _make_key_manager(encryption_enabled=True)
+
+        with patch("services.key_manager.encryption_config", cfg):
+            key1 = await km1.get_master_key()
+            key2 = await km2.get_master_key()
+
+        assert key1 == key2
+        assert len(key1) == 32
