@@ -44,3 +44,7 @@ redis[asyncio]>=5.0.0
 # Machine Learning
 transformers>=4.30.0
 torch>=2.0.0
+
+# Data Masking
+presidio-analyzer>=2.2.354
+presidio-anonymizer>=2.2.354

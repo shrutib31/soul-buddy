@@ -6,9 +6,12 @@ from graph.nodes.function_nodes.load_user_context import load_user_context_node
 from graph.nodes.function_nodes.store_message import store_message_node
 from graph.nodes.function_nodes.render import render_node
 from graph.nodes.function_nodes.store_bot_response import store_bot_response_node
+from graph.nodes.agentic_nodes.intent_detection import intent_detection_node
+# from graph.nodes.agentic_nodes.situation_severity_detection import situation_severity_detection_node
 from graph.nodes.agentic_nodes.response_generator import response_generator_node
+from graph.nodes.agentic_nodes.guardrail import guardrail_node, guardrail_router
 from graph.nodes.agentic_nodes.classification_node import classification_node
-
+from graph.nodes.function_nodes.privacy_masking import new_masking_node as privacy_masking_node
 
 def get_compiled_flow():
     graph = StateGraph(ConversationState)
@@ -21,6 +24,12 @@ def get_compiled_flow():
     graph.add_node("store_bot_response", store_bot_response_node)
     graph.add_node("render", render_node)
 
+    graph.add_node("guardrail", guardrail_node)
+    
+    # For Data Masking PII and PHI data
+    graph.add_node("privacy_shield", privacy_masking_node)
+
+    # edges
     graph.set_entry_point("conv_id_handler")
 
     # Ensure a valid conversation_id exists before loading any user data
