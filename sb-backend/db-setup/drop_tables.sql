@@ -24,3 +24,4 @@ DROP TABLE IF EXISTS conversation_phases;
 DROP TABLE IF EXISTS intents;
 DROP TABLE IF EXISTS severity_levels;
 DROP TABLE IF EXISTS situations;
+DROP TABLE IF EXISTS situations;

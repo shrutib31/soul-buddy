@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from api.supabase_auth import optional_supabase_token
+from api.supabase_auth import optional_supabase_token, verify_supabase_token
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
@@ -117,6 +117,50 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
         return result.get("api_response", {"success": False, "error": "No response generated"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "error": f"Chat failed: {str(e)}"})
+
+
+@router.get("/conversations/messages")
+async def get_all_conversations_messages(
+    user=Depends(verify_supabase_token),
+):
+    """
+    Retrieve all conversations and their decrypted messages for the authenticated user.
+
+    Requires a valid Authorization: Bearer <token> header.
+    Returns conversations ordered by start time (newest first), each with its full message list.
+    """
+    from graph.nodes.function_nodes.get_messages import get_all_user_conversations
+
+    supabase_uid = user["id"]
+    try:
+        conversations = await get_all_user_conversations(supabase_uid)
+        return {"conversations": conversations}
+    except Exception as e:
+        logger.error("get_all_conversations_messages failed | supabase_uid=%r error=%s", supabase_uid, e, exc_info=True)
+        return JSONResponse(status_code=500, content={"error": f"Failed to retrieve conversations: {str(e)}"})
+
+
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    conversation_id: str,
+    _user=Depends(verify_supabase_token),
+):
+    """
+    Retrieve all decrypted messages for a conversation.
+
+    Requires a valid Authorization: Bearer <token> header.
+    Messages stored with encryption are transparently decrypted before returning.
+    """
+    if not _is_valid_uuid(conversation_id):
+        raise HTTPException(status_code=400, detail="Invalid conversation_id — must be a UUID")
+
+    try:
+        from graph.nodes.function_nodes.get_messages import get_conversation_messages as fetch_messages
+        messages = await fetch_messages(conversation_id)
+        return {"conversation_id": conversation_id, "messages": messages}
+    except Exception as e:
+        logger.error("get_conversation_messages failed | conversation_id=%r error=%s", conversation_id, e, exc_info=True)
+        return JSONResponse(status_code=500, content={"error": f"Failed to retrieve messages: {str(e)}"})
 
 
 @router.post("/stream")

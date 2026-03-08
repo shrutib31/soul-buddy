@@ -15,8 +15,11 @@ from api.chat import (
     invoke_graph,
     get_flow,
 )
-from api.supabase_auth import optional_supabase_token
+from api.supabase_auth import optional_supabase_token, verify_supabase_token
 from graph.state import ConversationState
+
+
+FAKE_USER = {"id": "user-abc-123", "email": "test@example.com"}
 
 
 # ============================================================================
@@ -27,8 +30,9 @@ from graph.state import ConversationState
 def app():
     app = FastAPI()
     app.include_router(chat_router, prefix="/api/v1", tags=["Chat"])
-    # Override auth dependency so tests don't need a real Supabase token
+    # Override auth dependencies so tests don't need real Supabase tokens
     app.dependency_overrides[optional_supabase_token] = lambda: None
+    app.dependency_overrides[verify_supabase_token] = lambda: FAKE_USER
     return app
 
 
@@ -169,3 +173,116 @@ class TestChatEndpointsUnit:
                 )
         # Streaming returns 200 with text/event-stream
         assert resp.status_code == 200
+
+
+# ============================================================================
+# GET /conversations/{conversation_id}/messages
+# ============================================================================
+
+class TestGetConversationMessagesEndpoint:
+    """Unit tests for GET /api/v1/chat/conversations/{conversation_id}/messages."""
+
+    VALID_UUID = "550e8400-e29b-41d4-a716-446655440000"
+
+    def test_returns_messages_for_valid_conversation(self, client):
+        messages = [
+            {"id": "1", "turn_index": 0, "speaker": "user", "message": "Hello", "created_at": "2024-01-01T00:00:00"},
+            {"id": "2", "turn_index": 1, "speaker": "bot", "message": "Hi there!", "created_at": "2024-01-01T00:00:01"},
+        ]
+        with patch(
+            "graph.nodes.function_nodes.get_messages.get_conversation_messages",
+            new_callable=AsyncMock,
+            return_value=messages,
+        ):
+            resp = client.get(f"/api/v1/chat/conversations/{self.VALID_UUID}/messages")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["conversation_id"] == self.VALID_UUID
+        assert data["messages"] == messages
+
+    def test_invalid_uuid_returns_400(self, client):
+        resp = client.get("/api/v1/chat/conversations/not-a-uuid/messages")
+        assert resp.status_code == 400
+        assert "Invalid conversation_id" in resp.json()["detail"]
+
+    def test_empty_messages_list(self, client):
+        with patch(
+            "graph.nodes.function_nodes.get_messages.get_conversation_messages",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            resp = client.get(f"/api/v1/chat/conversations/{self.VALID_UUID}/messages")
+
+        assert resp.status_code == 200
+        assert resp.json()["messages"] == []
+
+    def test_requires_auth(self, app, client):
+        """Endpoint should return 401 when verify_supabase_token is not overridden."""
+        fresh_app = FastAPI()
+        fresh_app.include_router(chat_router, prefix="/api/v1", tags=["Chat"])
+        # Do NOT override verify_supabase_token
+        fresh_app.dependency_overrides[optional_supabase_token] = lambda: None
+        unauthenticated_client = TestClient(fresh_app, raise_server_exceptions=False)
+        resp = unauthenticated_client.get(f"/api/v1/chat/conversations/{self.VALID_UUID}/messages")
+        # Without a valid token the dependency raises 401/403
+        assert resp.status_code in (401, 403, 500)
+
+
+# ============================================================================
+# GET /conversations/messages
+# ============================================================================
+
+class TestGetAllConversationsMessagesEndpoint:
+    """Unit tests for GET /api/v1/chat/conversations/messages."""
+
+    def test_returns_all_conversations(self, client):
+        conversations = [
+            {
+                "conversation_id": "550e8400-e29b-41d4-a716-446655440000",
+                "mode": "cognito",
+                "started_at": "2024-01-01T00:00:00",
+                "ended_at": None,
+                "messages": [
+                    {"id": "1", "turn_index": 0, "speaker": "user", "message": "Hello", "created_at": "2024-01-01T00:00:00"},
+                ],
+            }
+        ]
+        with patch(
+            "graph.nodes.function_nodes.get_messages.get_all_user_conversations",
+            new_callable=AsyncMock,
+            return_value=conversations,
+        ):
+            resp = client.get("/api/v1/chat/conversations/messages")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "conversations" in data
+        assert data["conversations"] == conversations
+
+    def test_returns_empty_list_when_no_conversations(self, client):
+        with patch(
+            "graph.nodes.function_nodes.get_messages.get_all_user_conversations",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            resp = client.get("/api/v1/chat/conversations/messages")
+
+        assert resp.status_code == 200
+        assert resp.json()["conversations"] == []
+
+    def test_uses_authenticated_user_id(self, client):
+        """Verify that the endpoint passes the authenticated user's id to the service."""
+        captured = {}
+
+        async def capture_uid(supabase_uid):
+            captured["uid"] = supabase_uid
+            return []
+
+        with patch(
+            "graph.nodes.function_nodes.get_messages.get_all_user_conversations",
+            side_effect=capture_uid,
+        ):
+            client.get("/api/v1/chat/conversations/messages")
+
+        assert captured.get("uid") == FAKE_USER["id"]

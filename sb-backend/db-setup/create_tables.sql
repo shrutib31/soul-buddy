@@ -123,6 +123,17 @@ CREATE TABLE IF NOT EXISTS crisis_events (
   resolved BOOLEAN DEFAULT FALSE
 );
 
+CREATE TABLE IF NOT EXISTS encryption_audit_log (
+    id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(50) NOT NULL,
+    operation VARCHAR(20) NOT NULL,
+    accessed_by_type VARCHAR(20) NOT NULL,
+    accessed_by_id VARCHAR(255) NOT NULL,
+    accessed_reason TEXT,
+    vault_key_name VARCHAR(100),
+    accessed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- =========================
 -- INDEXES
 -- =========================

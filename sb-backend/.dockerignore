@@ -36,6 +36,10 @@ build/
 *.bak
 *.tmp
 
+# GCP service account key — never bake credentials into the image;
+# mount at runtime via a volume or use Workload Identity instead.
+config/serviceAccountKey.json
+
 # Git
 .git/
 .gitignore

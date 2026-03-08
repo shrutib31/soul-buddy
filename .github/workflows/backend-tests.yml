@@ -65,6 +65,10 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: "placeholder-service-key"
           SUPABASE_ANON_KEY: "placeholder-anon-key"
           DATA_DB_URL: "postgresql+asyncpg://postgres:postgres@localhost:5432/soulbuddy"
+          # Disable encryption in CI — no GCP KMS available; google.cloud.kms is
+          # stubbed in conftest.py but keeping this false prevents the KeyManager
+          # singleton from initialising with a mocked KMS client between tests.
+          ENCRYPTION_ENABLED: "false"
         run: |
           pytest tests/ -m "not integration" \
             --tb=short \

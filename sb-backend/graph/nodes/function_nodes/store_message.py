@@ -16,6 +16,7 @@ from graph.state import ConversationState
 from orm.models import ConversationTurn
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
+from services.key_manager import get_key_manager
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,9 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
         if not conversation_id or not user_message:
             return {"error": "Missing conversation_id or user_message"}
         
+        km = get_key_manager()
+        message_to_store = await km.encrypt(conversation_id, user_message) if km.is_encryption_enabled() else user_message
+
         async with data_db.get_session() as session:
             # Get the current turn count for this conversation to set turn_index
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(
@@ -54,14 +58,14 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
             )
             result = await session.execute(turn_count_stmt)
             turn_count = result.scalar() or 0
-            
+
             # Create a new conversation turn record
             # Note: id is auto-generated UUID, created_at is auto-set by DB
             turn = ConversationTurn(
                 session_id=conversation_id,
                 turn_index=turn_count,  # Sequential turn number (0-indexed)
                 speaker="user",
-                message=user_message
+                message=message_to_store
             )
             session.add(turn)
             await session.commit()

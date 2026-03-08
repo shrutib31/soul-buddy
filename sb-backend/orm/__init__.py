@@ -16,6 +16,7 @@ from .models import (
     StepOutput,
     CrisisEvent,
     UserConversationSummary,
+    EncryptionAuditLog,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "StepOutput",
     "CrisisEvent",
     "UserConversationSummary",
+    "EncryptionAuditLog"
 ]

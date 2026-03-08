@@ -110,7 +110,11 @@ async def verify_token(token: str) -> Dict[str, Any]:
         response = supabase_admin.auth.get_user(token)
 
         if hasattr(response, 'user') and response.user:
-            return response.user
+            u = response.user
+            return {
+                "id": str(u.id),
+                "email": u.email,
+            }
         else:
             raise Exception('Invalid token')
 
