@@ -41,6 +41,10 @@ pydantic>=2.0.0
 # Caching
 redis[asyncio]>=5.0.0
 
+# Encryption
+cryptography>=42.0.0
+google-cloud-kms>=2.22.0
+
 # Machine Learning
 transformers>=4.30.0
 torch>=2.0.0

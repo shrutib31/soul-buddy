@@ -16,6 +16,7 @@ DROP TABLE IF EXISTS conversation_turns;
 DROP TABLE IF EXISTS sb_conversations;
 
 -- Configuration tables
+DROP TABLE IF EXISTS encryption_audit_log;
 DROP TABLE IF EXISTS flow_situation_mapping;
 DROP TABLE IF EXISTS flow_steps;
 DROP TABLE IF EXISTS flows;

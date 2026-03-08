@@ -26,6 +26,7 @@ from graph.state import ConversationState
 from orm.models import ConversationTurn, UserConversationSummary
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
+from services.key_manager import get_key_manager
 import logging
 
 # Logger setup
@@ -109,6 +110,9 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                 "error": "Missing conversation_id or bot response",
             }
 
+        km = get_key_manager()
+        message_to_store = await km.encrypt(conversation_id, bot_response) if km.is_encryption_enabled() else bot_response
+
         async with data_db.get_session() as session:
             # ----------------------------------------------------------------
             # 1. Get current turn count to assign turn_index
@@ -126,7 +130,7 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                 session_id=conversation_id,
                 turn_index=turn_count,
                 speaker="bot",
-                message=bot_response
+                message=message_to_store
             )
             session.add(turn)
             await session.commit()

@@ -104,6 +104,18 @@ class ServerSettings:
     port: int = field(default_factory=lambda: int(os.getenv("SERVER_PORT", "8000")))
     environment: str = field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
 
+# ============================================================================
+# Encryption settings
+# ============================================================================
+@dataclass(frozen=True)
+class EncryptionConfig:
+    GCP_PROJECT_ID: str = field(default_factory=lambda: os.getenv('GCP_PROJECT_ID', 'souloxy-webapp'))
+    GCP_KMS_LOCATION: str = field(default_factory=lambda: os.getenv('GCP_KMS_LOCATION', 'global'))
+    GCP_KMS_KEYRING: str = field(default_factory=lambda: os.getenv('GCP_KMS_KEYRING', 'souloxy-mk-test'))
+    GCP_KMS_KEY: str = field(default_factory=lambda: os.getenv('GCP_KMS_KEY', 'souloxy-mk-test'))
+    SERVICE_ACCOUNT_KEY: str = field(default_factory=lambda: os.getenv('SERVICE_ACCOUNT_KEY', './config/serviceAccountKey.json'))
+    ENCRYPTION_ENABLED: bool = field(default_factory=lambda: os.getenv('ENCRYPTION_ENABLED', 'false').lower().strip() == 'true')
+
 
 # ============================================================================
 # Root settings object — import this everywhere
@@ -120,6 +132,8 @@ class AppSettings:
     openai: OpenAISettings = field(default_factory=OpenAISettings)
     llm: LLMSettings = field(default_factory=LLMSettings)
     server: ServerSettings = field(default_factory=ServerSettings)
+    encryption: EncryptionConfig = field(default_factory=EncryptionConfig)
 
 
 settings: AppSettings = AppSettings()
+

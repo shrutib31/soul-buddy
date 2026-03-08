@@ -166,14 +166,20 @@ async def _fetch_conversation_history_from_db(
             if not rows:
                 return None
 
-            turns = [
-                {
+            from services.key_manager import get_key_manager
+            km = get_key_manager()
+
+            turns = []
+            for row in reversed(rows):  # oldest first
+                try:
+                    message = await km.decrypt(conversation_id, row.message)
+                except Exception:
+                    message = row.message
+                turns.append({
                     "speaker": row.speaker,
-                    "message": row.message,
+                    "message": message,
                     "turn_index": row.turn_index,
-                }
-                for row in reversed(rows)  # oldest first
-            ]
+                })
             return turns
 
     except Exception as exc:
