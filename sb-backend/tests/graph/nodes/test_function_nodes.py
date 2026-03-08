@@ -383,7 +383,7 @@ class TestGetMessagesNodeUnit:
             user_message="Hi",
         )
         with patch("graph.nodes.function_nodes.get_messages._data_db") as mock_db, \
-             patch("services.key_manager.get_key_manager", return_value=km):
+             patch("graph.nodes.function_nodes.get_messages.get_key_manager", return_value=km):
             mock_db.get_session.return_value = mock_session
             result = await get_messages_node(state)
 
@@ -445,9 +445,9 @@ class TestGetConversationMessagesUnit:
         km = _make_km(encryption_enabled=True)
 
         with patch("graph.nodes.function_nodes.get_messages._data_db") as mock_db, \
-             patch("services.key_manager.get_key_manager", return_value=km):
+             patch("graph.nodes.function_nodes.get_messages.get_key_manager", return_value=km):
             mock_db.get_session.return_value = mock_session
-            messages = await get_conversation_messages("conv-123")
+            messages = await get_conversation_messages("3fa85f64-5717-4562-b3fc-2c963f66afa6")
 
         assert len(messages) == 2
         assert messages[0]["speaker"] == "user"
@@ -485,16 +485,32 @@ class TestGetAllUserConversationsUnit:
 
     @pytest.mark.asyncio
     async def test_returns_conversations_with_messages(self, mock_session):
+        import uuid as _uuid
         from graph.nodes.function_nodes.get_messages import get_all_user_conversations
         conv_id = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         convs = [self._make_conv(conv_id)]
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = convs
-        mock_session.execute.return_value = mock_result
 
+        # Fake turn that matches fake_messages
+        fake_turn = MagicMock()
+        fake_turn.id = "m1"
+        fake_turn.session_id = _uuid.UUID(conv_id)
+        fake_turn.turn_index = 0
+        fake_turn.speaker = "user"
+        fake_turn.message = "Hello"
+        fake_turn.created_at = None
+
+        # get_all_user_conversations makes two execute() calls in the same session:
+        # 1st → conversations, 2nd → turns
+        conv_mock_result = MagicMock()
+        conv_mock_result.scalars.return_value.all.return_value = convs
+        turns_mock_result = MagicMock()
+        turns_mock_result.scalars.return_value.all.return_value = [fake_turn]
+        mock_session.execute.side_effect = [conv_mock_result, turns_mock_result]
+
+        km = _make_km(encryption_enabled=False)
         fake_messages = [{"id": "m1", "turn_index": 0, "speaker": "user", "message": "Hello", "created_at": None}]
         with patch("graph.nodes.function_nodes.get_messages._data_db") as mock_db, \
-             patch("graph.nodes.function_nodes.get_messages.get_conversation_messages", new_callable=AsyncMock, return_value=fake_messages):
+             patch("graph.nodes.function_nodes.get_messages.get_key_manager", return_value=km):
             mock_db.get_session.return_value = mock_session
             result = await get_all_user_conversations("3fa85f64-5717-4562-b3fc-2c963f66afa7")
 

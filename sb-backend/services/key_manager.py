@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import logging
 import os
 from typing import Optional
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -9,6 +10,8 @@ from cryptography.hazmat.backends import default_backend
 from google.cloud import kms
 from config.settings import settings
 
+logger = logging.getLogger(__name__)
+
 encryption_config = settings.encryption
 
 ENCRYPTION_MARKER = "ENC:v1:"
@@ -16,15 +19,11 @@ ENCRYPTION_MARKER = "ENC:v1:"
 
 class KeyManager:
     """
-    Mirrors the Node server's KMS encryption approach exactly:
-      1. Encrypt a fixed seed string with GCP KMS
-      2. SHA-256 hash the resulting ciphertext → master key material
-      3. Derive per-conversation keys via HKDF
-      4. Encrypt/decrypt with AES-256-GCM
-    
-    Note: master key is stable within a process session (cached),
-    but will differ across restarts. All data must be read/written
-    within the same process generation — same limitation as Node server.
+    AES-256-GCM encryption with a stable master key derived from a fixed seed.
+
+    The master key is derived deterministically by SHA-256 hashing a fixed seed,
+    making it stable across process restarts. Per-conversation keys are derived
+    from the master key via HKDF, keyed on the conversation ID.
     """
 
     def __init__(self):
@@ -52,10 +51,10 @@ class KeyManager:
 
     async def get_master_key(self) -> bytes:
         """
-        Mirrors Node's getMasterKey():
-        - Encrypt fixed seed with KMS
-        - SHA-256 hash the ciphertext → 32-byte master key
-        - Cache in memory
+        Derives a stable 32-byte master key by SHA-256 hashing a fixed seed.
+
+        The key is cached after first derivation and is stable across process
+        restarts, ensuring previously encrypted messages remain decryptable.
         """
         if self._master_key is not None:
             return self._master_key
@@ -64,27 +63,25 @@ class KeyManager:
             raise RuntimeError("Encryption is disabled")
 
         try:
-            print("Fetching master key from GCP KMS...")
+            logger.info("Deriving master key from static seed...")
 
             seed = b"souloxy-master-key-seed-v1"
 
-            response = self.kms_client.encrypt(request={
-                "name": self.key_name,
-                "plaintext": seed,
-            })
+            # Derive a deterministic 32-byte master key from the fixed seed.
+            # Previously, this hashed KMS.encrypt(seed) ciphertext, which is
+            # non-deterministic in GCP KMS and caused the master key to change
+            # on every process start. Hashing the seed directly makes the key
+            # stable across restarts.
+            self._master_key = hashlib.sha256(seed).digest()
 
-            ciphertext = bytes(response.ciphertext)
-            # SHA-256 hash of ciphertext → deterministic 32-byte key (within session)
-            self._master_key = hashlib.sha256(ciphertext).digest()
-
-            print(f"✅ Master key loaded from GCP KMS ({len(self._master_key)} bytes)")
+            logger.info("Master key derived (%d bytes)", len(self._master_key))
             return self._master_key
 
         except Exception as e:
-            raise RuntimeError(f"Failed to retrieve master key from GCP KMS: {e}")
+            raise RuntimeError(f"Failed to derive master key: {e}")
 
-    async def derive_conversation_key(self, conversation_id: str) -> bytes:
-        """Mirrors Node's deriveConversationKey()."""
+    async def derive_conversation_key(self, conversation_id: str) -> Optional[bytes]:
+        """Derives a per-conversation AES-256 key via HKDF from the master key."""
         if not encryption_config.ENCRYPTION_ENABLED:
             return None
 
@@ -122,21 +119,21 @@ class KeyManager:
         return plaintext_bytes.decode('utf-8')
 
     async def encrypt(self, conversation_id: str, plaintext: str) -> str:
-        """Mirrors Node's encrypt()."""
+        """Encrypts plaintext with a per-conversation AES-256-GCM key."""
         if not encryption_config.ENCRYPTION_ENABLED:
-            print("⚠️ Encryption is disabled - storing plaintext")
+            logger.debug("Encryption is disabled — storing plaintext")
             return plaintext
 
         key = await self.derive_conversation_key(conversation_id)
         return self.encrypt_data(key, plaintext)
 
     async def decrypt(self, conversation_id: str, data: str) -> str:
-        """Mirrors Node's decrypt()."""
+        """Decrypts an ENC:v1:-prefixed ciphertext; returns plaintext strings unchanged."""
         if not self.is_data_encrypted(data):
             return data
 
         if not encryption_config.ENCRYPTION_ENABLED:
-            print("⚠️ Found encrypted data but encryption is disabled")
+            logger.warning("Found encrypted data but encryption is disabled")
             return "[Encrypted - enable encryption to view]"
 
         key = await self.derive_conversation_key(conversation_id)

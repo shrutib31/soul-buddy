@@ -217,6 +217,18 @@ class TestGetConversationMessagesEndpoint:
         assert resp.status_code == 200
         assert resp.json()["messages"] == []
 
+    def test_returns_404_when_conversation_not_owned(self, client):
+        """Endpoint must return 404 when the conversation belongs to a different user."""
+        with patch(
+            "graph.nodes.function_nodes.get_messages.get_conversation_messages",
+            new_callable=AsyncMock,
+            side_effect=PermissionError("not owned"),
+        ):
+            resp = client.get(f"/api/v1/chat/conversations/{self.VALID_UUID}/messages")
+
+        assert resp.status_code == 404
+        assert "not found" in resp.json()["detail"].lower()
+
     def test_requires_auth(self, app, client):
         """Endpoint should return 401 when verify_supabase_token is not overridden."""
         fresh_app = FastAPI()
@@ -226,7 +238,7 @@ class TestGetConversationMessagesEndpoint:
         unauthenticated_client = TestClient(fresh_app, raise_server_exceptions=False)
         resp = unauthenticated_client.get(f"/api/v1/chat/conversations/{self.VALID_UUID}/messages")
         # Without a valid token the dependency raises 401/403
-        assert resp.status_code in (401, 403, 500)
+        assert resp.status_code in (401, 403)
 
 
 # ============================================================================

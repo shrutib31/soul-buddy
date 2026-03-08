@@ -6,12 +6,14 @@ If messages are plaintext (incognito legacy), they are returned as-is.
 """
 
 import uuid
-from typing import Dict, Any, List
+from collections import defaultdict
+from typing import Dict, Any, List, Optional
 from sqlalchemy import select
 
 from graph.state import ConversationState
 from orm.models import ConversationTurn, SbConversation
 from config.sqlalchemy_db import SQLAlchemyDataDB
+from services.key_manager import get_key_manager
 
 _data_db = SQLAlchemyDataDB()
 
@@ -45,7 +47,6 @@ async def get_messages_node(state: ConversationState) -> Dict[str, Any]:
         if not conversation_id:
             return {"conversation_history": [], "error": "Missing conversation_id"}
 
-        from services.key_manager import get_key_manager
         km = get_key_manager()
 
         data_db = _data_db
@@ -85,25 +86,41 @@ async def get_messages_node(state: ConversationState) -> Dict[str, Any]:
 # STANDALONE UTILITY (used directly by chat.py endpoint)
 # ============================================================================
 
-async def get_conversation_messages(conversation_id: str) -> List[Dict[str, Any]]:
+async def get_conversation_messages(
+    conversation_id: str,
+    supabase_uid: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
     Standalone function to retrieve and decrypt all messages for a conversation.
     Used directly by the chat API endpoint without going through the graph.
 
     Args:
         conversation_id: UUID of the conversation
+        supabase_uid: When provided, ownership is verified against this Supabase user ID.
+                      Raises PermissionError if the conversation does not belong to the user.
 
     Returns:
         List of decrypted message dicts
     """
     try:
-        from services.key_manager import get_key_manager
         km = get_key_manager()
+        conv_uuid = uuid.UUID(conversation_id)
 
         data_db = _data_db
         async with data_db.get_session() as session:
+            if supabase_uid is not None:
+                ownership_stmt = select(SbConversation).where(
+                    SbConversation.id == conv_uuid,
+                    SbConversation.supabase_user_id == uuid.UUID(supabase_uid),
+                )
+                ownership_result = await session.execute(ownership_stmt)
+                if ownership_result.scalar_one_or_none() is None:
+                    raise PermissionError(
+                        f"Conversation {conversation_id} not found or not owned by user"
+                    )
+
             stmt = select(ConversationTurn).where(
-                ConversationTurn.session_id == conversation_id
+                ConversationTurn.session_id == conv_uuid
             ).order_by(ConversationTurn.turn_index)
             result = await session.execute(stmt)
             turns = result.scalars().all()
@@ -126,13 +143,16 @@ async def get_conversation_messages(conversation_id: str) -> List[Dict[str, Any]
 
         return messages
 
-    except Exception as e:
+    except PermissionError:
+        raise
+    except Exception:
         return []
 
 
 async def get_all_user_conversations(supabase_uid: str) -> List[Dict[str, Any]]:
     """
     Retrieve all conversations and their decrypted messages for a user.
+    Uses a single batched query for conversation turns to avoid N+1 DB calls.
     Used directly by the chat API endpoint.
 
     Args:
@@ -143,18 +163,52 @@ async def get_all_user_conversations(supabase_uid: str) -> List[Dict[str, Any]]:
     """
     try:
         async with _data_db.get_session() as session:
-            stmt = (
+            conv_stmt = (
                 select(SbConversation)
                 .where(SbConversation.supabase_user_id == uuid.UUID(supabase_uid))
                 .order_by(SbConversation.started_at.desc())
             )
-            result = await session.execute(stmt)
-            conversations = result.scalars().all()
+            conv_result = await session.execute(conv_stmt)
+            conversations = conv_result.scalars().all()
+
+            if not conversations:
+                return []
+
+            # Batch-fetch all turns for all conversations in a single query
+            conv_ids = [conv.id for conv in conversations]
+            turns_stmt = (
+                select(ConversationTurn)
+                .where(ConversationTurn.session_id.in_(conv_ids))
+                .order_by(ConversationTurn.session_id, ConversationTurn.turn_index)
+            )
+            turns_result = await session.execute(turns_stmt)
+            all_turns = turns_result.scalars().all()
+
+        # Group turns by conversation ID in Python
+        turns_by_conv: Dict[str, list] = defaultdict(list)
+        for turn in all_turns:
+            turns_by_conv[str(turn.session_id)].append(turn)
+
+        km = get_key_manager()
 
         all_conversations = []
         for conv in conversations:
             conv_id = str(conv.id)
-            messages = await get_conversation_messages(conv_id)
+            messages = []
+            for turn in turns_by_conv[conv_id]:
+                try:
+                    plaintext = await km.decrypt(conv_id, turn.message)
+                except Exception:
+                    plaintext = "[Decryption failed]"
+
+                messages.append({
+                    "id": str(turn.id),
+                    "turn_index": turn.turn_index,
+                    "speaker": turn.speaker,
+                    "message": plaintext,
+                    "created_at": turn.created_at.isoformat() if turn.created_at else None,
+                })
+
             all_conversations.append({
                 "conversation_id": conv_id,
                 "mode": conv.mode,
@@ -165,5 +219,5 @@ async def get_all_user_conversations(supabase_uid: str) -> List[Dict[str, Any]]:
 
         return all_conversations
 
-    except Exception as e:
+    except Exception:
         return []

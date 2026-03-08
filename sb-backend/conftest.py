@@ -27,4 +27,7 @@ def _stub_google_cloud_kms():
     sys.modules.setdefault("google.cloud.kms", kms_mock)
 
 
-_stub_google_cloud_kms()
+try:
+    import google.cloud.kms  # type: ignore[import-not-found]
+except ImportError:
+    _stub_google_cloud_kms()
