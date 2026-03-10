@@ -4,17 +4,19 @@ Supabase Configuration
 Handles Supabase client initialization and authentication operations.
 """
 
+import os
 import logging
 from typing import Dict, Any, Optional
 from supabase import create_client, Client
+from dotenv import load_dotenv
 
-from config.settings import settings
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-supabase_url = settings.supabase.url
-supabase_service_key = settings.supabase.service_role_key
-supabase_anon_key = settings.supabase.anon_key
+supabase_url = os.getenv('SUPABASE_URL')
+supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+supabase_anon_key = os.getenv('SUPABASE_ANON_KEY')
 
 if not supabase_url:
     raise ValueError('SUPABASE_URL is required in environment variables')
@@ -110,11 +112,22 @@ async def verify_token(token: str) -> Dict[str, Any]:
         response = supabase_admin.auth.get_user(token)
 
         if hasattr(response, 'user') and response.user:
-            u = response.user
-            return {
-                "id": str(u.id),
-                "email": u.email,
+            user = response.user
+            if isinstance(user, dict):
+                return user
+
+            # Normalize to dict to keep auth helper callers consistent.
+            normalized_user = {
+                "id": getattr(user, "id", None),
+                "email": getattr(user, "email", None),
+                "phone": getattr(user, "phone", None),
+                "aud": getattr(user, "aud", None),
+                "role": getattr(user, "role", None),
+                "app_metadata": getattr(user, "app_metadata", None),
+                "user_metadata": getattr(user, "user_metadata", None),
+                "created_at": getattr(user, "created_at", None),
             }
+            return normalized_user
         else:
             raise Exception('Invalid token')
 

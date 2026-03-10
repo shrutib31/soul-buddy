@@ -52,17 +52,14 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
     """
     updates: Dict[str, Any] = {}
 
-    mode = state.mode
     supabase_uid = state.supabase_uid
     conversation_id = state.conversation_id
     domain = state.domain
 
-    is_cognito = mode == "cognito" and bool(supabase_uid)
-
     # ------------------------------------------------------------------ #
     # 1. Personality profile  (cognito only)                              #
     # ------------------------------------------------------------------ #
-    if is_cognito:
+    if supabase_uid:
         profile = await cache_service.get_personality_profile(supabase_uid)
         if profile is None:
             profile = await _fetch_personality_profile_from_db(supabase_uid)
@@ -72,21 +69,21 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
             updates["user_personality_profile"] = profile
 
     # ------------------------------------------------------------------ #
-    # 2. User profile / preferences  (cognito only)                       #
+    # 2. User profile  (cognito only)                                     #
     # ------------------------------------------------------------------ #
-    if is_cognito:
+    if supabase_uid:
         user_profile = await cache_service.get_user_profile(supabase_uid)
         if user_profile is None:
             user_profile = await _fetch_user_profile_from_db(supabase_uid)
             if user_profile:
                 await cache_service.set_user_profile(supabase_uid, user_profile)
         if user_profile:
-            updates["user_preferences"] = user_profile
+            updates["user_profile"] = user_profile
 
     # ------------------------------------------------------------------ #
     # 3. Conversation summary  (cognito only)                             #
     # ------------------------------------------------------------------ #
-    if is_cognito:
+    if supabase_uid:
         summary = await cache_service.get_conversation_summary(supabase_uid)
         if summary is None:
             summary = await _fetch_conversation_summary_from_db(supabase_uid)
@@ -96,7 +93,7 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
             updates["conversation_summary"] = summary
 
     # ------------------------------------------------------------------ #
-    # 4. Conversation history  (both modes, keyed by conversation_id)     #
+    # 4. Conversation history  (keyed by conversation_id, has DB backing) #
     # ------------------------------------------------------------------ #
     if conversation_id:
         history = await cache_service.get_conversation_history(conversation_id)
@@ -108,9 +105,9 @@ async def load_user_context_node(state: ConversationState) -> Dict[str, Any]:
             updates["conversation_history"] = history
 
     # ------------------------------------------------------------------ #
-    # 5. UI / navigation state  (cognito only — derived from page_context)#
+    # 5. UI / navigation state  (cache-only — derived from page_context)  #
     # ------------------------------------------------------------------ #
-    if is_cognito:
+    if supabase_uid:
         cached_ui_state = await cache_service.get_ui_state(supabase_uid)
         current_page_context = state.page_context
 
@@ -166,20 +163,14 @@ async def _fetch_conversation_history_from_db(
             if not rows:
                 return None
 
-            from services.key_manager import get_key_manager
-            km = get_key_manager()
-
-            turns = []
-            for row in reversed(rows):  # oldest first
-                try:
-                    message = await km.decrypt(conversation_id, row.message)
-                except Exception:
-                    message = row.message
-                turns.append({
+            turns = [
+                {
                     "speaker": row.speaker,
-                    "message": message,
+                    "message": row.message,
                     "turn_index": row.turn_index,
-                })
+                }
+                for row in reversed(rows)  # oldest first
+            ]
             return turns
 
     except Exception as exc:
@@ -198,7 +189,7 @@ async def _fetch_conversation_summary_from_db(supabase_uid: str) -> Optional[str
         async with _data_db.get_session() as session:
             stmt = select(UserConversationSummary).where(
                 UserConversationSummary.user_id == _uuid.UUID(supabase_uid)
-            )
+            ).order_by(UserConversationSummary.updated_at.desc())
             result = await session.execute(stmt)
             row = result.scalar_one_or_none()
             return row.summary if row else None

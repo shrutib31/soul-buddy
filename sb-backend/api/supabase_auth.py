@@ -9,11 +9,17 @@ security = HTTPBearer()
 optional_security = HTTPBearer(auto_error=False)
 
 
+def _get_user_id(user):
+    if isinstance(user, dict):
+        return user.get("id")
+    return getattr(user, "id", None)
+
+
 async def verify_supabase_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
         user = await verify_token(token)
-        logging.debug(f"Supabase token verified successfully for user_id: {user['id']}")
+        logging.debug(f"Supabase token verified successfully for user_id: {_get_user_id(user)}")
         return user
     except Exception as e:
         logging.error(f"Supabase token verification failed: {str(e)}")
@@ -35,7 +41,7 @@ async def optional_supabase_token(
     token = credentials.credentials
     try:
         user = await verify_token(token)
-        logging.debug(f"Supabase token verified successfully for user_id: {user['id']}")
+        logging.debug(f"Supabase token verified successfully for user_id: {_get_user_id(user)}")
         return user
     except Exception as e:
         logging.error(f"Supabase token verification failed: {str(e)}")
