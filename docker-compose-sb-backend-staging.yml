@@ -56,6 +56,9 @@ services:
     build: ./sb-backend
     container_name: sb-backend
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     env_file:
       - ${ENV_FILE:-./sb-backend/.env.docker}
     environment:
@@ -64,6 +67,11 @@ services:
       - DEBUG=${DEBUG:-0}
     ports:
       - "${BACKEND_PORT:-8000}:${PORT:-8000}"
+    # Enforce 512 MB memory cap — matches production deployment target.
+    # memswap_limit == mem_limit disables swap so OOM is raised immediately
+    # rather than silently swapping (which masks memory leaks).
+    mem_limit: 512m
+    memswap_limit: 512m
     # No volume mount — run the image exactly as built
     networks:
       - sb-network

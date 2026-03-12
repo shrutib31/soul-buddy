@@ -40,6 +40,11 @@ build/
 # mount at runtime via a volume or use Workload Identity instead.
 config/serviceAccountKey.json
 
+# Dead ML model directory — PyTorch/transformer model removed in favour of
+# rule-based classification; directory kept in repo for history but excluded
+# from Docker image to keep it clean.
+transformer_models/
+
 # Git
 .git/
 .gitignore
