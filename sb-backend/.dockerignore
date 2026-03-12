@@ -14,6 +14,7 @@ venv/
 .env
 .env.*
 !.env.example
+.env.demo
 
 # Logs (written at runtime, not baked into the image)
 logs/
