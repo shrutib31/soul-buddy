@@ -33,6 +33,7 @@ Never commit real credentials. The compose files load env vars from a file on yo
 |---|---|---|
 | `docker-compose-sb-backend.yml` | `sb-backend/.env.docker.local` | Local dev |
 | `docker-compose-sb-backend-staging.yml` | `sb-backend/.env.docker` | Staging |
+| `docker-compose-sb-backend-staging.yml` | `sb-backend/.env.docker.local.staging` | Staging with local overrides — pass via `ENV_FILE` |
 
 Create your file from the template:
 
@@ -69,6 +70,8 @@ These can be set in your shell before any `docker compose` command to override d
 | `ENV_FILE` | `./sb-backend/.env.docker.local` | Path to the env file loaded into `sb-backend` |
 | `PORT` | `8000` | Port uvicorn binds to **inside** the container |
 | `BACKEND_PORT` | `8000` | Host port mapped to the container's `PORT` |
+| `BACKEND_MEM_LIMIT` | `512m` | Container memory cap (staging compose only) |
+| `BACKEND_MEMSWAP_LIMIT` | `512m` | Swap cap — set equal to `BACKEND_MEM_LIMIT` to disable swap (staging only) |
 
 ```bash
 # Use a different env file
@@ -129,6 +132,10 @@ docker compose -f docker-compose-sb-backend.yml stop
 docker compose -f docker-compose-sb-backend.yml down
 ```
 
+### Startup order
+
+Both compose files use `depends_on: condition: service_healthy` so the backend waits for Redis to pass its `redis-cli ping` healthcheck before starting. The server still degrades gracefully if Redis goes down after startup.
+
 ### How the bind-mount works
 
 The entire `./sb-backend` directory is mounted to `/app` inside the container. Code changes on your host are instantly visible — no rebuild needed. The entrypoint runs `init_db.py` on each start, then launches the server.
@@ -140,6 +147,12 @@ The entire `./sb-backend` directory is mounted to `/app` inside the container. C
 The staging compose file (`docker-compose-sb-backend-staging.yml`) starts:
 - `sb-backend` — the FastAPI server using the **built image** (no bind-mount)
 - `redis` — Redis 7 (not exposed to the host, internal network only)
+
+**Key differences from dev:**
+- No bind-mount — code is baked into the image at build time
+- Memory limit enforced: `mem_limit` and `memswap_limit` default to `512m` (configurable via `BACKEND_MEM_LIMIT` / `BACKEND_MEMSWAP_LIMIT` in your env file)
+- Redis not exposed to the host — internal compose network only
+- Startup order: backend waits for Redis to pass its `redis-cli ping` healthcheck before starting
 
 ### Start all services
 
@@ -167,6 +180,22 @@ docker compose -f docker-compose-sb-backend-staging.yml stop
 
 ```bash
 docker compose -f docker-compose-sb-backend-staging.yml down
+```
+
+### Override memory limit
+
+To run staging with more (or less) memory than the 512 MB default, set the vars in your env file or inline:
+
+```bash
+BACKEND_MEM_LIMIT=768m BACKEND_MEMSWAP_LIMIT=768m \
+  docker compose -f docker-compose-sb-backend-staging.yml up --build -d
+```
+
+Or set them in `sb-backend/.env.docker` / `sb-backend/.env.docker.local.staging`:
+
+```env
+BACKEND_MEM_LIMIT=768m
+BACKEND_MEMSWAP_LIMIT=768m
 ```
 
 ---

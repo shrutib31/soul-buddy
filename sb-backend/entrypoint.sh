@@ -7,4 +7,10 @@ python scripts/init_db.py || echo "WARNING: init_db.py failed — continuing sta
 
 # Start FastAPI server
 echo "Starting server..."
-exec python server.py
+exec uvicorn server:app \
+    --host 0.0.0.0 \
+    --port "${PORT:-8000}" \
+    --workers 1 \
+    --limit-concurrency 20 \
+    --limit-max-requests 500 \
+    --no-access-log

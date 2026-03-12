@@ -4,8 +4,9 @@ Response Templates
 Pre-defined responses for high-confidence, time-sensitive situations where a
 readymade response is safer, faster, and more consistent than LLM generation:
 
-  - Greetings : is_greeting == True
-  - Crisis    : is_crisis_detected == True
+  - Greetings     : is_greeting == True
+  - Crisis        : is_crisis_detected == True
+  - Out-of-scope  : is_out_of_scope == True
 """
 
 import random
@@ -73,6 +74,20 @@ _HIGH_RISK_TEMPLATES = [
 
 
 # ============================================================================
+# OUT-OF-SCOPE TEMPLATES
+# ============================================================================
+# Shown when is_out_of_scope == True.
+# Warm redirect — acknowledge the request, explain the focus, invite a wellness topic.
+
+_OUT_OF_SCOPE_TEMPLATES = [
+    "That's a bit outside my area! I'm SoulBuddy, a mental wellness companion, so I'm best equipped to help with things like stress, emotions, relationships, or just being a listening ear. Is there something on that front I can support you with today?",
+    "I appreciate you reaching out! I'm focused on mental wellness support, so I might not be the best resource for that particular request. But if you'd like to talk about how you're feeling, what's been on your mind, or anything you're going through — I'm all ears.",
+    "That one's a little out of my lane — I'm here specifically to support your emotional wellbeing and mental health. If there's anything you're feeling or going through that you'd like to talk about, I'm here for that conversation.",
+    "I'm SoulBuddy, your mental wellness companion, so I'm not the best fit for that kind of request. That said, I'm always here if you want to talk about how you're doing, what's been stressing you out, or anything you'd like to work through together.",
+]
+
+
+# ============================================================================
 # PUBLIC API
 # ============================================================================
 
@@ -80,6 +95,7 @@ def get_template_response(
     is_crisis_detected: bool,
     is_greeting: bool,
     domain: Optional[str] = "general",
+    is_out_of_scope: bool = False,
 ) -> Optional[str]:
     """
     Return a readymade template response if one applies, otherwise None.
@@ -87,11 +103,13 @@ def get_template_response(
     Priority order:
       1. is_crisis_detected → crisis template  (safety-critical, must come first)
       2. is_greeting        → greeting template
+      3. is_out_of_scope    → out-of-scope redirect template
 
     Args:
         is_crisis_detected: True when classification_node detected a crisis.
         is_greeting:        True when classification_node detected a greeting.
         domain:             Conversation domain ("student", "employee", "corporate", "general").
+        is_out_of_scope:    True when the request is outside the wellness domain.
 
     Returns:
         A template string, or None if no template applies (LLM should be used).
@@ -102,5 +120,8 @@ def get_template_response(
     if is_greeting:
         domain_key = domain if domain in _GREETING_TEMPLATES else "general"
         return random.choice(_GREETING_TEMPLATES[domain_key])
+
+    if is_out_of_scope:
+        return random.choice(_OUT_OF_SCOPE_TEMPLATES)
 
     return None

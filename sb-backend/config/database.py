@@ -68,8 +68,8 @@ class DatabaseConfig:
             self.user = os.getenv('DATA_DB_USER', 'fetch_user')
             self.password = os.getenv('DATA_DB_PASSWORD', '')
         
-        self.max_connections = 20
-        self.min_connections = 5
+        self.max_connections = int(os.getenv('DATA_DB_MAX_CONNECTIONS', '5'))
+        self.min_connections = int(os.getenv('DATA_DB_MIN_CONNECTIONS', '1'))
         self.command_timeout = 30.0
         self.pool: Optional[asyncpg.Pool] = None
         self.log_level = os.getenv('LOG_LEVEL', 'info')

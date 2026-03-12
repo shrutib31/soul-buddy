@@ -64,6 +64,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         response_draft = state.response_draft
         is_crisis_detected = state.is_crisis_detected
         is_greeting = state.is_greeting
+        is_out_of_scope = state.is_out_of_scope
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
@@ -71,15 +72,17 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         logger.info(
             "response_generator: starting",
             extra={"intent": intent, "situation": situation, "severity": severity,
-                   "is_crisis_detected": is_crisis_detected, "is_greeting": is_greeting}
+                   "is_crisis_detected": is_crisis_detected, "is_greeting": is_greeting,
+                   "is_out_of_scope": is_out_of_scope}
         )
 
-        # Use a readymade template when crisis or greeting is explicitly detected.
-        template = get_template_response(is_crisis_detected, is_greeting, domain)
+        # Use a readymade template when crisis, greeting, or out-of-scope is detected.
+        template = get_template_response(is_crisis_detected, is_greeting, domain, is_out_of_scope)
         if template:
             logger.info(
                 "response_generator: using template response",
-                extra={"is_crisis_detected": is_crisis_detected, "is_greeting": is_greeting, "domain": domain}
+                extra={"is_crisis_detected": is_crisis_detected, "is_greeting": is_greeting,
+                       "is_out_of_scope": is_out_of_scope, "domain": domain}
             )
             return {"response_draft": template}
 
