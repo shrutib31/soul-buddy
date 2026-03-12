@@ -468,6 +468,85 @@ def classify_severity(message: str) -> str:
 
 
 # ============================================================================
+# OUT-OF-SCOPE DETECTION
+# ============================================================================
+# Flags messages where the user is explicitly requesting the bot to do something
+# outside the mental wellness domain (cooking, coding, legal, financial advice, etc.).
+#
+# KEY DESIGN RULE: patterns must combine a REQUEST VERB directed at the bot
+# AND an off-domain topic in a single phrase.  Bare topic words (recipe, code, law)
+# must NOT appear as standalone patterns — that would incorrectly flag personal
+# narratives like "I told my friend about a recipe" or "I was coding all night".
+
+_OUT_OF_SCOPE_PATTERNS = [
+    # ── Cooking / Food ────────────────────────────────────────────────────────
+    r"\b(give|tell|share|send|show|write|suggest|recommend)\s+(me\s+)?(a\s+|an\s+|some\s+)?(recipe|recipes|ingredients?|cooking instructions?|how to cook|how to make|how to bake|dish|meal plan)\b",
+    r"\b(how\s+(do|can|should)\s+i\s+(cook|bake|prepare|make)\b)",
+    r"\bwhat\s+(should\s+i\s+(cook|bake|eat|make)|can\s+i\s+cook|can\s+i\s+make)\b",
+
+    # ── Programming / Tech ────────────────────────────────────────────────────
+    r"\b(write|create|build|generate|make|fix|debug|code|implement)\s+(me\s+)?(a\s+|an\s+|some\s+)?(code|function|script|program|app|application|algorithm|class|module|snippet)\b",
+    r"\b(write|create|build|fix|debug)\s+me\s+.{0,20}(code|function|script|program|app)\b",
+    r"\bhelp\s+me\s+(write|build|create|fix|debug).{0,30}(code|function|script|program|app|bug)\b",
+    r"\bhelp\s+me\s+debug\b",
+    r"\bhow\s+(do|can|should)\s+i\s+(code|program|write\s+(a\s+)?function|build\s+(a\s+)?app|fix\s+(a\s+)?bug)\b",
+    r"\bwrite\s+(me\s+)?(a\s+)?(python|javascript|java|sql|html|css|typescript|react|node)\b",
+    r"\b(what\s+is|explain)\s+the\s+(syntax|code|algorithm|data structure|design pattern)\s+(for|of|in)\b",
+
+    # ── Legal ─────────────────────────────────────────────────────────────────
+    r"\b(give|provide|tell|explain)\s+(me\s+)?(legal\s+(advice|guidance|opinion|help)|your\s+legal\s+opinion)\b",
+    r"\bwhat\s+(is\s+the\s+law|are\s+my\s+legal\s+rights|should\s+i\s+do\s+legally)\b",
+    r"\b(draft|write|prepare)\s+(me\s+)?(a\s+|an\s+)?(legal\s+document|contract|will|lawsuit|legal\s+letter)\b",
+    r"\bam\s+i\s+(legally|liable|entitled\s+to)\b",
+
+    # ── Financial / Investment ────────────────────────────────────────────────
+    r"\b(give|provide|tell)\s+(me\s+)?(financial\s+(advice|tips|planning|guidance)|investment\s+(advice|tips|recommendations?))\b",
+    r"\b(should\s+i\s+invest|how\s+(do|should)\s+i\s+invest|where\s+to\s+invest)\b",
+    r"\b(best\s+)?(stocks?|crypto|mutual\s+funds?|etf)\s+to\s+(buy|invest|pick)\b",
+    r"\bwhat\s+stocks?\s+should\s+i\s+(buy|invest|pick)\b",
+    r"\bshould\s+i\s+(buy|invest\s+in|pick)\s+(stocks?|crypto|shares?|etf|mutual\s+funds?)\b",
+    r"\b(help\s+me\s+)?(file\s+(my\s+)?tax(es)?|do\s+(my\s+)?taxes|calculate\s+(my\s+)?tax)\b",
+
+    # ── Entertainment recommendations ─────────────────────────────────────────
+    r"\b(recommend|suggest|tell\s+me)\s+(a\s+|an\s+|some\s+)?(good\s+)?(movie|film|show|series|anime|book|novel|song|playlist|game)\s+to\s+(watch|read|play|listen)\b",
+    r"\b(what\s+(movies?|shows?|books?|games?|songs?|anime)\s+should\s+i\s+(watch|read|play|listen))\b",
+
+    # ── Travel / Logistics ────────────────────────────────────────────────────
+    r"\b(plan|book|suggest|help\s+me\s+plan)\s+(my\s+|a\s+|an\s+)?(trip|vacation|holiday|travel|itinerary|flight|hotel)\b",
+    r"\b(best\s+places?\s+to\s+visit|where\s+should\s+i\s+(travel|go\s+for\s+vacation))\b",
+
+    # ── Academic / Homework (non-wellness) ────────────────────────────────────
+    r"\b(solve|answer|do|complete|help\s+me\s+(with|solve|do|answer))\s+(my\s+|this\s+|the\s+)?(homework|assignment|math\s+problem|physics\s+problem|chemistry\s+problem|essay)\b",
+    r"\b(write\s+(my|the|an?)\s+(essay|report|thesis|assignment|homework))\b",
+    r"\b(solve\s+this\s+(equation|problem|question|sum))\b",
+
+    # ── Weather / News / Sports ───────────────────────────────────────────────
+    r"\b(what'?s\s+the\s+weather|weather\s+(today|tomorrow|this\s+week|forecast))\b",
+    r"\b(latest\s+news|breaking\s+news|what'?s\s+happening\s+in\s+the\s+news)\b",
+    r"\b(cricket|football|soccer|basketball|nfl|nba|ipl)\s+(score|match|result|schedule|live)\b",
+]
+
+
+def classify_out_of_scope(message: str) -> bool:
+    """
+    Return True only when the user is explicitly requesting the bot to perform
+    an off-domain task (cooking, coding, legal/financial advice, etc.).
+
+    Personal narratives that merely *mention* off-domain topics are NOT flagged:
+      ✗ out-of-scope  →  "Can you give me a recipe for pasta?"
+      ✓ in-scope      →  "I spoke to my friend about a recipe today"
+      ✓ in-scope      →  "I was coding all night and I'm stressed"
+    """
+    if not message or not isinstance(message, str):
+        return False
+    msg = message.lower().strip()
+    for pattern in _OUT_OF_SCOPE_PATTERNS:
+        if re.search(pattern, msg):
+            return True
+    return False
+
+
+# ============================================================================
 # MAIN CLASSIFICATION ENTRY POINT
 # ============================================================================
 
@@ -495,6 +574,15 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "intent": "greeting", "situation": "NO_SITUATION",
             "severity": "low", "risk_score": 0.0, "risk_level": "low",
             "is_greeting": True,
+            "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 1.0, "risk": 0.0}
+        }
+
+    if classify_out_of_scope(message):
+        logger.info("Message classified as out-of-scope")
+        return {
+            "intent": "out_of_scope", "situation": "NO_SITUATION",
+            "severity": "low", "risk_score": 0.0, "risk_level": "low",
+            "is_out_of_scope": True,
             "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 1.0, "risk": 0.0}
         }
 
@@ -557,6 +645,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "severity": classifications["severity"],
             "is_greeting": classifications.get("is_greeting", False),
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
+            "is_out_of_scope": classifications.get("is_out_of_scope", False),
             "risk_level": "high" if classifications["risk_score"] > 0.7
                           else "medium" if classifications["risk_score"] > 0.3
                           else "low",

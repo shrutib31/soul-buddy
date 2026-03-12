@@ -18,6 +18,7 @@ from graph.nodes.agentic_nodes.classification_node import (
     classify_intent,
     classify_situation,
     classify_severity,
+    classify_out_of_scope,
 )
 
 
@@ -465,3 +466,75 @@ class TestDetectGreetingNewPatterns:
 
     def test_good_night(self):
         assert detect_greeting("good night") is True
+
+
+# ============================================================================
+# classify_out_of_scope
+# ============================================================================
+
+class TestClassifyOutOfScope:
+    """Tests for classify_out_of_scope — must flag explicit bot requests for
+    off-domain tasks while leaving personal narratives untouched."""
+
+    # ── Should be flagged (direct request to the bot) ────────────────────────
+
+    def test_recipe_request_flagged(self):
+        assert classify_out_of_scope("Can you give me a recipe for pasta?") is True
+
+    def test_code_write_flagged(self):
+        assert classify_out_of_scope("Write me a Python function to sort a list") is True
+
+    def test_code_debug_flagged(self):
+        assert classify_out_of_scope("Help me debug this script") is True
+
+    def test_legal_advice_flagged(self):
+        assert classify_out_of_scope("Give me legal advice on my contract") is True
+
+    def test_investment_advice_flagged(self):
+        assert classify_out_of_scope("What stocks should I buy?") is True
+
+    def test_movie_recommendation_flagged(self):
+        assert classify_out_of_scope("Recommend a good movie to watch") is True
+
+    def test_trip_planning_flagged(self):
+        assert classify_out_of_scope("Plan a trip to Goa for me") is True
+
+    def test_homework_flagged(self):
+        assert classify_out_of_scope("Solve this math problem for me") is True
+
+    def test_weather_flagged(self):
+        assert classify_out_of_scope("What's the weather today?") is True
+
+    def test_tax_filing_flagged(self):
+        assert classify_out_of_scope("Help me file my taxes") is True
+
+    # ── Should NOT be flagged (personal narrative / wellness context) ─────────
+
+    def test_personal_recipe_mention_not_flagged(self):
+        """Mentioning a recipe in personal context is NOT out-of-scope."""
+        assert classify_out_of_scope("I spoke to my friend about a recipe today") is False
+
+    def test_cooking_narrative_not_flagged(self):
+        """Planning to cook shared as personal update is NOT out-of-scope."""
+        assert classify_out_of_scope("Today I am going to prepare food for my family") is False
+
+    def test_coding_stress_not_flagged(self):
+        """Mentioning coding as a source of stress is NOT out-of-scope."""
+        assert classify_out_of_scope("I was coding all night and I'm exhausted") is False
+
+    def test_money_stress_not_flagged(self):
+        """Talking about financial stress is a wellness topic, not investment advice."""
+        assert classify_out_of_scope("I'm really stressed about money") is False
+
+    def test_exam_mention_not_flagged(self):
+        """Exam anxiety is squarely within the wellness domain."""
+        assert classify_out_of_scope("I have a big exam tomorrow and I'm anxious") is False
+
+    def test_wellness_message_not_flagged(self):
+        assert classify_out_of_scope("I've been feeling really overwhelmed lately") is False
+
+    def test_empty_not_flagged(self):
+        assert classify_out_of_scope("") is False
+
+    def test_none_not_flagged(self):
+        assert classify_out_of_scope(None) is False
