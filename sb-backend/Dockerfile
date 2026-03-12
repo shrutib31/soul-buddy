@@ -17,7 +17,8 @@ RUN mkdir -p /app/logs
 # Default environment variables (overrideable at runtime via env_file / -e)
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000
+    PORT=8000 \
+    MALLOC_TRIM_THRESHOLD_=100000
 
 EXPOSE 8000
 

@@ -6,7 +6,7 @@ logic are tested directly; get_classifications/classification_node are tested wi
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from graph.state import ConversationState
 from graph.nodes.agentic_nodes.classification_node import (
@@ -15,8 +15,9 @@ from graph.nodes.agentic_nodes.classification_node import (
     detect_crisis,
     detect_greeting,
     is_true_negation,
-    INTENT_LABELS,
-    SITUATION_LABELS,
+    classify_intent,
+    classify_situation,
+    classify_severity,
 )
 
 
@@ -166,7 +167,7 @@ class TestGetClassificationsUnit:
     def test_empty_message_returns_unclear(self):
         out = get_classifications("")
         assert out["intent"] == "unclear"
-        assert out["situation"] == "unclear"
+        assert out["situation"] == "NO_SITUATION"
         assert out["severity"] == "low"
         assert out["risk_score"] == 0.0
         assert out["risk_level"] == "low"
@@ -188,23 +189,16 @@ class TestGetClassificationsUnit:
         assert out["severity"] == "high"
         assert out["risk_level"] in ("high", "critical")
 
-    def test_model_path_requires_loaded_model(self):
-        """Without model loaded, get_classifications for non-greeting non-crisis raises RuntimeError."""
-        import graph.nodes.agentic_nodes.classification_node as mod
-        orig_loaded, orig_model, orig_tok = mod._model_loaded, mod._model, mod._tokenizer
-        mod._model_loaded = False
-        mod._model = None
-        mod._tokenizer = None
-        try:
-            with patch.object(mod, "load_model"):  # no-op so _model stays None
-                with patch.object(mod, "detect_greeting", return_value=False):
-                    with patch.object(mod, "detect_crisis", return_value={"is_crisis": False}):
-                        with pytest.raises(RuntimeError, match="Classification model failed to load"):
-                            get_classifications("Some random message that is not greeting or crisis")
-        finally:
-            mod._model_loaded = orig_loaded
-            mod._model = orig_model
-            mod._tokenizer = orig_tok
+    def test_non_crisis_non_greeting_returns_rule_based_result(self):
+        """Non-greeting, non-crisis messages are classified by keyword rules."""
+        out = get_classifications("I've been feeling really stressed about my exams")
+        assert out["intent"] in ("venting", "seek_support", "seek_information", "seek_understanding",
+                                  "open_to_solution", "try_tool", "unclear")
+        assert out["situation"] in ("EXAM_ANXIETY", "GENERAL_OVERWHELM", "NO_SITUATION",
+                                     "ACADEMIC_COMPARISON", "LOW_MOTIVATION", "FUTURE_UNCERTAINTY",
+                                     "RELATIONSHIP_ISSUES", "FINANCIAL_STRESS", "HEALTH_CONCERNS",
+                                     "BELONGING_DOUBT")
+        assert out["severity"] in ("low", "medium", "high")
 
 
 # ============================================================================
@@ -287,21 +281,44 @@ class TestClassificationNodeUnit:
 
 
 # ============================================================================
-# Label constants
+# Rule-based classify_* functions
 # ============================================================================
 
 class TestClassificationLabels:
-    """Sanity check for label dicts used by the model."""
+    """Sanity checks for the rule-based classify_* functions."""
 
-    def test_intent_labels_contain_expected_keys(self):
-        assert "greeting" in INTENT_LABELS.values()
-        assert "crisis_disclosure" in INTENT_LABELS.values()
-        assert "unclear" in INTENT_LABELS.values()
+    def test_intent_venting(self):
+        assert classify_intent("I'm so stressed and overwhelmed") == "venting"
 
-    def test_situation_labels_contain_crisis_types(self):
-        assert "SUICIDAL" in SITUATION_LABELS.values()
-        assert "SELF_HARM" in SITUATION_LABELS.values()
-        assert "NO_SITUATION" in SITUATION_LABELS.values()
+    def test_intent_seek_information(self):
+        assert classify_intent("What causes anxiety?") == "seek_information"
+
+    def test_intent_open_to_solution(self):
+        assert classify_intent("What should I do about this situation?") == "open_to_solution"
+
+    def test_intent_fallback_unclear(self):
+        assert classify_intent("okay") == "unclear"
+
+    def test_situation_exam_anxiety(self):
+        assert classify_situation("I have a big exam tomorrow") == "EXAM_ANXIETY"
+
+    def test_situation_relationship(self):
+        assert classify_situation("My girlfriend and I broke up") == "RELATIONSHIP_ISSUES"
+
+    def test_situation_financial(self):
+        assert classify_situation("I can't afford rent this month") == "FINANCIAL_STRESS"
+
+    def test_situation_fallback_no_situation(self):
+        assert classify_situation("I just feel off today") == "NO_SITUATION"
+
+    def test_severity_high(self):
+        assert classify_severity("I feel completely hopeless and desperate") == "high"
+
+    def test_severity_medium(self):
+        assert classify_severity("I've been feeling stressed and anxious") == "medium"
+
+    def test_severity_low(self):
+        assert classify_severity("I'm a bit worried sometimes") == "low"
 
 
 # ============================================================================
