@@ -1,231 +1,164 @@
-# SoulBuddy Backend - Testing Guide
+# SoulBuddy Backend — Testing Guide
+
+## Overview
+
+Tests run without any live DB, Redis, LLM, or GCP connection — all external dependencies are mocked or stubbed via `conftest.py`.
+
+CI runs on every push via GitHub Actions (`.github/workflows/backend-tests.yml`).
+
+---
 
 ## Test Structure
 
-A **test gaps analysis** is in [tests/TEST_GAPS.md](TEST_GAPS.md). It lists what is covered vs missing and suggested priorities.
-
 ```
 tests/
-├── __init__.py
+├── conftest.py                        # Root stubs (google.cloud.kms, etc.)
+├── api/
+│   └── test_chat.py                   # Chat endpoint tests
+├── config/
+│   └── test_settings.py
 ├── graph/
-│   ├── __init__.py
 │   └── nodes/
-│       ├── __init__.py
-│       └── test_intent_detection.py
+│       ├── test_classification_node.py  # 85 tests — greeting/crisis/out-of-scope/intent/situation/severity
+│       └── test_auth_node.py
+└── services/
+    └── test_cache_service.py
 ```
 
-## Test Types
-
-### 1. Unit Tests (Fast, Mocked)
-Tests with mocked external dependencies (Ollama API calls). Run frequently during development.
-
-**Run unit tests:**
-```bash
-pytest tests/ -m "not integration" -v
-```
-
-Or use the test runner:
-```bash
-./run_tests.sh unit
-```
-
-### 2. Integration Tests (Slower, Real API)
-Tests that make actual Ollama API calls. Requires Ollama running.
-
-**Run integration tests:**
-```bash
-pytest tests/ -m integration -v
-```
-
-Or use the test runner:
-```bash
-./run_tests.sh integration
-```
+---
 
 ## Running Tests
 
-### Quick Start
-
-**Run all unit tests (recommended for development):**
 ```bash
-pytest tests/ -v -m "not integration"
+# All unit tests (recommended)
+pytest tests/ -m "not integration" -v
+
+# Specific file
+pytest tests/graph/nodes/test_classification_node.py -v
+
+# With coverage
+pytest tests/ --cov=. --cov-report=term-missing
+
+# Integration tests (require live external services)
+pytest tests/ -m integration -v
 ```
 
-**Run all tests including integration:**
-```bash
-pytest tests/ -v
-```
+---
 
-**Run specific test file:**
-```bash
-pytest tests/graph/nodes/test_intent_detection.py -v
-```
+## Classification Node Tests (`test_classification_node.py`)
 
-**Run specific test function:**
-```bash
-pytest tests/graph/nodes/test_intent_detection.py::TestIntentDetectionNodeUnit::test_empty_message_returns_error -v
-```
+The most comprehensive test file — 85 tests covering the fully rule-based classification pipeline.
 
-### Using Test Runner Script
+### `TestDetectGreeting` / `TestDetectGreetingNewPatterns`
+- Common words: hi, hello, hey, namaste, hola, yo, sup, hiya
+- Enthusiastic variants: hiii, heyyy (repeated char normalisation)
+- Time-based: good morning/afternoon/evening/night, gm, gn
+- Check-in openers: how are you, how r u, nice to meet you
+- Negative cases: long messages containing greeting words
 
-```bash
-# Make script executable (first time only)
-chmod +x run_tests.sh
+### `TestIsTrueNegation`
+- Explicit denials: "I am not suicidal", "not going to kill myself"
+- Negative cases: genuine crisis phrases
 
-# Run unit tests only (fast)
-./run_tests.sh unit
+### `TestDetectCrisis` / `TestDetectCrisisNewPatterns`
+- Suicidal plan patterns (highest priority)
+- Suicidal ideation: want to die, feel like dying, wish I could die
+- Self-harm patterns
+- Passive death wish: tired of living, don't want to be here, wish I could disappear
+- True negation suppression: "I'm not suicidal, I don't want to die" → not crisis
+- Fallback scoring: accumulated high-risk word weights
 
-# Run all tests including integration
-./run_tests.sh integration
+### `TestGetClassificationsUnit`
+- Empty / whitespace → `unclear` / `NO_SITUATION` / `low`
+- Greeting fast-path
+- Crisis fast-path
+- Rule-based fallback for normal messages
 
-# Run with coverage report
-./run_tests.sh coverage
+### `TestClassificationNodeUnit`
+- Empty message → error dict
+- Successful classification → correct state field updates
+- High risk → `is_crisis_detected = True`
+- Greeting → `is_greeting = True`
+- Exception handling → error dict
 
-# Run specific test file
-./run_tests.sh specific tests/graph/nodes/test_intent_detection.py
-```
+### `TestClassificationLabels`
+- `classify_intent()`: venting, seek_information, open_to_solution, fallback
+- `classify_situation()`: EXAM_ANXIETY, RELATIONSHIP_ISSUES, FINANCIAL_STRESS, fallback
+- `classify_severity()`: high, medium, low
 
-## Test Coverage
+### `TestClassifyOutOfScope`
+Out-of-scope detection must distinguish explicit bot requests from personal narratives.
 
-**Generate coverage report:**
-```bash
-pytest tests/ --cov=graph --cov=api --cov=config --cov-report=term-missing --cov-report=html
-```
+| Message | Expected |
+|---------|----------|
+| "Give me a recipe for pasta" | `True` |
+| "Write me a Python function" | `True` |
+| "Help me debug this script" | `True` |
+| "What stocks should I buy?" | `True` |
+| "Plan a trip to Goa" | `True` |
+| "Solve this math problem" | `True` |
+| "I spoke to my friend about a recipe" | `False` |
+| "I was coding all night and I'm exhausted" | `False` |
+| "I'm really stressed about money" | `False` |
+| "I have a big exam tomorrow" | `False` |
 
-View HTML report:
-```bash
-open htmlcov/index.html
-```
-
-## Intent Detection Tests
-
-### Unit Tests (`test_intent_detection.py`)
-
-**TestIntentDetectionNodeUnit:**
-- `test_empty_message_returns_error` - Validates error handling for empty messages
-- `test_successful_intent_detection` - Tests successful intent detection with mocked Ollama
-- `test_intent_detection_with_exception` - Tests exception handling
-- `test_valid_intents_returned` - Validates all 8 intent categories
-
-**TestDetectIntentWithOllamaUnit:**
-- `test_successful_ollama_call` - Mocked successful API call
-- `test_non_200_response_returns_unclear` - HTTP error handling
-- `test_invalid_intent_returns_unclear` - Invalid intent validation
-- `test_timeout_exception_returns_unclear` - Timeout handling
-- `test_multiline_response_takes_first_line` - Response parsing
-
-**TestGetIntentDescription:**
-- `test_all_intents_have_descriptions` - Validates utility function
-- `test_unknown_intent_returns_default` - Default case handling
-
-### Integration Tests
-
-**TestIntentDetectionIntegration:**
-- `test_real_ollama_greeting_detection` - Real API call with greeting
-- `test_real_ollama_venting_detection` - Real API call with venting
-- `test_real_ollama_seek_information_detection` - Real API call for info seeking
-- `test_real_ollama_seek_support_detection` - Real API call for support seeking
-- `test_real_ollama_with_full_node` - End-to-end node test
-- `test_real_ollama_timeout_handling` - Timeout behavior validation
-
-**Requirements for Integration Tests:**
-- Ollama must be running at `http://194.164.151.158:11434`
-- Model `phi3:latest` must be available
-- Network connectivity to Ollama server
-
-## Test Configuration
-
-### pytest.ini
-Configuration for pytest behavior, markers, and coverage options.
-
-### Environment Variables
-```bash
-# Override Ollama configuration for testing
-export OLLAMA_BASE_URL="http://localhost:11434"
-export OLLAMA_MODEL="phi3:latest"
-export OLLAMA_TIMEOUT="120"
-```
+---
 
 ## Writing New Tests
 
-### Unit Test Template
+### Unit test pattern
+
 ```python
-@pytest.mark.asyncio
-async def test_my_feature(sample_state):
-    """Test description."""
-    with patch('module.function') as mock_func:
-        mock_func.return_value = "expected_value"
-        
-        result = await my_node(sample_state)
-        
-        assert result["key"] == "expected_value"
+from unittest.mock import patch
+from graph.state import ConversationState
+
+def test_my_node():
+    state = ConversationState(
+        conversation_id="test-123",
+        mode="incognito",
+        domain="general",
+        user_message="I'm feeling overwhelmed",
+    )
+    mock_result = {"intent": "venting", ...}
+    with patch("graph.nodes.agentic_nodes.my_node.some_fn", return_value=mock_result):
+        result = my_node(state)
+    assert result["intent"] == "venting"
 ```
 
-### Integration Test Template
+### Integration test pattern
+
 ```python
+import pytest
+
 @pytest.mark.integration
-@pytest.mark.asyncio
-async def test_my_real_api_call():
-    """Test description."""
+async def test_real_api_call():
     result = await real_api_function("input")
-    
     assert result in ["valid", "values"]
 ```
 
-## Continuous Integration
+---
 
-**GitHub Actions example:**
-```yaml
-- name: Run unit tests
-  run: pytest tests/ -v -m "not integration"
+## CI Environment Variables
 
-- name: Run integration tests
-  run: pytest tests/ -v -m integration
-  if: github.event_name == 'push'
+The following dummy values are injected in CI so imports don't fail at startup:
+
+```
+OPENAI_API_KEY=dummy-key-ci
+OLLAMA_BASE_URL=http://localhost:11434
+SUPABASE_URL=https://placeholder.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=placeholder-service-key
+SUPABASE_ANON_KEY=placeholder-anon-key
+DATA_DB_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/soulbuddy
+ENCRYPTION_ENABLED=false
 ```
 
-## Troubleshooting
-
-**ImportError: No module named 'graph'**
-```bash
-# Make sure to run from project root
-cd /path/to/sb-backend
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-pytest tests/
-```
-
-**Integration tests fail:**
-- Verify Ollama is running: `curl http://194.164.151.158:11434/api/tags`
-- Check model is available: `ollama list | grep phi3`
-- Verify network connectivity
-
-**Async warnings:**
-```bash
-# Install pytest-asyncio
-pip install pytest-asyncio
-```
+---
 
 ## Best Practices
 
-1. **Write unit tests first** - Fast feedback loop during development
-2. **Mock external dependencies** - Keep unit tests isolated and fast
-3. **Use fixtures** - Share common test data and setup
-4. **Parametrize tests** - Test multiple cases efficiently
-5. **Run integration tests before deployment** - Validate real API behavior
-6. **Aim for >80% coverage** - Ensure code quality
-7. **Test edge cases** - Empty inputs, timeouts, errors
-8. **Keep tests independent** - Tests should not depend on each other
-
-## Next Steps
-
-- Add tests for **classification_node** (the node actually used in the graph): `classification_node`, `get_classifications`, `detect_crisis`, `detect_greeting`
-- Add tests for **response_generator.py**
-- Add tests for **situation_severity_detection.py** (when re-enabled)
-- Add tests for function nodes: **conv_id_handler**, **store_message**, **store_bot_response**, **render**
-- Add a **graph structure test** for `get_compiled_flow()` (nodes and edges)
-- Add tests for **api/chat.py** and **api/classify.py**
-- Add integration tests for full graph execution
-- Add performance/load tests
-- Set up CI/CD pipeline with automated testing
-
-See [TEST_GAPS.md](TEST_GAPS.md) for full gap analysis and priorities.
+1. **Mock at the boundary** — mock the function that calls the external service, not the service itself
+2. **Use `ConversationState` fixtures** — keeps test setup consistent
+3. **Test both the happy path and error/fallback paths**
+4. **Out-of-scope patterns** — when adding new patterns, add both a positive (should flag) and a negative (personal narrative) test case
+5. **Crisis patterns** — always pair a new crisis pattern with a negation test ("I'm not suicidal")
+6. **No live services in unit tests** — if a test requires Redis, DB, or an LLM, mark it `@pytest.mark.integration`
