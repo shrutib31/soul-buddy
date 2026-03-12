@@ -19,7 +19,7 @@ tests/
 │   └── test_settings.py
 ├── graph/
 │   └── nodes/
-│       ├── test_classification_node.py  # 85 tests — greeting/crisis/out-of-scope/intent/situation/severity
+│       ├── test_classification_node.py  # 93 tests — greeting/crisis/out-of-scope/intent/situation/severity/math
 │       └── test_auth_node.py
 └── services/
     └── test_cache_service.py
@@ -97,10 +97,18 @@ Out-of-scope detection must distinguish explicit bot requests from personal narr
 | "What stocks should I buy?" | `True` |
 | "Plan a trip to Goa" | `True` |
 | "Solve this math problem" | `True` |
+| "What is the average of 4,5,7,9?" | `True` |
+| "Calculate the mean of these numbers" | `True` |
+| "What is 15 + 27?" | `True` |
+| "What is 20 percent of 500?" | `True` |
+| "Convert 100 km to miles" | `True` |
+| "Calculate my GPA from these grades" | `True` |
 | "I spoke to my friend about a recipe" | `False` |
 | "I was coding all night and I'm exhausted" | `False` |
 | "I'm really stressed about money" | `False` |
 | "I have a big exam tomorrow" | `False` |
+| "I feel average today" | `False` |
+| "I stayed up studying for my math exam" | `False` |
 
 ---
 

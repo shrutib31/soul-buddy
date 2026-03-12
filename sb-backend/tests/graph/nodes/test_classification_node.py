@@ -538,3 +538,30 @@ class TestClassifyOutOfScope:
 
     def test_none_not_flagged(self):
         assert classify_out_of_scope(None) is False
+
+    # ── Math / Calculations ───────────────────────────────────────────────
+    def test_average_calculation_flagged(self):
+        assert classify_out_of_scope("What is the average of 4,5,7,9?") is True
+
+    def test_mean_calculation_flagged(self):
+        assert classify_out_of_scope("Calculate the mean of these numbers: 10, 20, 30") is True
+
+    def test_arithmetic_flagged(self):
+        assert classify_out_of_scope("What is 15 + 27?") is True
+
+    def test_percentage_flagged(self):
+        assert classify_out_of_scope("What is 20 percent of 500?") is True
+
+    def test_unit_conversion_flagged(self):
+        assert classify_out_of_scope("Convert 100 km to miles") is True
+
+    def test_gpa_calculation_flagged(self):
+        assert classify_out_of_scope("Calculate my GPA from these grades") is True
+
+    def test_feeling_average_not_flagged(self):
+        """'average' as emotional adjective must not be flagged"""
+        assert classify_out_of_scope("I feel average today, not great not terrible") is False
+
+    def test_math_stress_not_flagged(self):
+        """Mentioning math in a personal context must not be flagged"""
+        assert classify_out_of_scope("I stayed up all night studying for my math exam") is False

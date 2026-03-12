@@ -411,7 +411,7 @@ sb-backend/
 │   ├── init_db.py               # Create tables + seed data
 │   └── cleanup_db.py            # Drop all tables
 │
-├── tests/                       # Unit tests — 300 tests, no live DB/LLM/GCP needed
+├── tests/                       # Unit tests — no live DB/LLM/GCP needed
 │   ├── api/
 │   ├── config/
 │   ├── graph/

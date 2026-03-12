@@ -520,6 +520,13 @@ _OUT_OF_SCOPE_PATTERNS = [
     r"\b(write\s+(my|the|an?)\s+(essay|report|thesis|assignment|homework))\b",
     r"\b(solve\s+this\s+(equation|problem|question|sum))\b",
 
+    # ── Math / Calculations ───────────────────────────────────────────────────
+    r"\bwhat\s+is\s+(the\s+)?(average|mean|median|mode|sum|total|product|difference|quotient|square\s+root|percentage)\s+of\b",
+    r"\b(calculate|compute|find|evaluate)\s+(the\s+|my\s+)?(average|mean|median|mode|sum|total|percentage|interest|profit|loss|gpa|cgpa|discount|tax\s+amount)\b",
+    r"\bwhat\s+is\s+\d+\s*[\+\-\*\/\^]\s*\d+\b",    # "what is 5 + 3", "what is 10 / 2"
+    r"\bwhat\s+is\s+\d+\s*percent\s+of\b",           # "what is 20 percent of 150"
+    r"\b(convert|how\s+many)\s+.{0,20}\s+to\s+(km|miles|kg|pounds|celsius|fahrenheit|dollars|rupees|euros)\b",
+
     # ── Weather / News / Sports ───────────────────────────────────────────────
     r"\b(what'?s\s+the\s+weather|weather\s+(today|tomorrow|this\s+week|forecast))\b",
     r"\b(latest\s+news|breaking\s+news|what'?s\s+happening\s+in\s+the\s+news)\b",
@@ -557,8 +564,9 @@ def get_classifications(message: str) -> Dict[str, Any]:
     Evaluation order:
     1. Empty message  → unclear / NO_SITUATION / low
     2. Greeting       → greeting intent, no situation, low risk
-    3. Crisis         → crisis_disclosure, specific situation, high risk
-    4. Rule-based     → intent / situation / severity via keyword patterns
+    3. Out-of-scope   → redirect template, no LLM call
+    4. Crisis         → crisis_disclosure, specific situation, high risk
+    5. Rule-based     → intent / situation / severity via keyword patterns
     """
     if not message or message.strip() == "":
         logger.warning("Received empty message for classification")
@@ -646,9 +654,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "is_greeting": classifications.get("is_greeting", False),
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
             "is_out_of_scope": classifications.get("is_out_of_scope", False),
-            "risk_level": "high" if classifications["risk_score"] > 0.7
-                          else "medium" if classifications["risk_score"] > 0.3
-                          else "low",
+            "risk_level": classifications["risk_level"],
         }
 
     except Exception as e:
