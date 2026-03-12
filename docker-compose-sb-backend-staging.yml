@@ -67,11 +67,12 @@ services:
       - DEBUG=${DEBUG:-0}
     ports:
       - "${BACKEND_PORT:-8000}:${PORT:-8000}"
-    # Enforce 512 MB memory cap — matches production deployment target.
+    # Memory cap — set BACKEND_MEM_LIMIT / BACKEND_MEMSWAP_LIMIT in your env file.
     # memswap_limit == mem_limit disables swap so OOM is raised immediately
     # rather than silently swapping (which masks memory leaks).
-    mem_limit: 512m
-    memswap_limit: 512m
+    # Defaults to 512m to match the production deployment target.
+    mem_limit: ${BACKEND_MEM_LIMIT:-512m}
+    memswap_limit: ${BACKEND_MEMSWAP_LIMIT:-512m}
     # No volume mount — run the image exactly as built
     networks:
       - sb-network
