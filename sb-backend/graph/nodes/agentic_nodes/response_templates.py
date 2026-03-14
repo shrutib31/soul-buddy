@@ -6,6 +6,7 @@ readymade response is safer, faster, and more consistent than LLM generation:
 
   - Greetings : is_greeting == True
   - Crisis    : is_crisis_detected == True
+  - Out of scope : is_out_of_scope == True
 """
 
 import random
@@ -73,6 +74,34 @@ _HIGH_RISK_TEMPLATES = [
 
 
 # ============================================================================
+# OUT-OF-SCOPE TEMPLATES
+# ============================================================================
+
+_OUT_OF_SCOPE_TEMPLATES = {
+    "student": (
+        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
+        "planning your SoulGym, or talking through stress, motivation, or how you are feeling. "
+        "Would you like help with one of those instead?"
+    ),
+    "employee": (
+        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
+        "planning your SoulGym, or talking through work stress, burnout, or how you are feeling. "
+        "Would you like help with one of those instead?"
+    ),
+    "corporate": (
+        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
+        "planning your SoulGym, or helping you reflect on stress, pressure, or how you are feeling. "
+        "Would you like help with one of those instead?"
+    ),
+    "general": (
+        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
+        "planning your SoulGym, or talking through what you are feeling. "
+        "Would you like help with one of those instead?"
+    ),
+}
+
+
+# ============================================================================
 # PUBLIC API
 # ============================================================================
 
@@ -80,18 +109,21 @@ def get_template_response(
     is_crisis_detected: bool,
     is_greeting: bool,
     domain: Optional[str] = "general",
+    is_out_of_scope: bool = False,
 ) -> Optional[str]:
     """
     Return a readymade template response if one applies, otherwise None.
 
     Priority order:
       1. is_crisis_detected → crisis template  (safety-critical, must come first)
-      2. is_greeting        → greeting template
+      2. is_out_of_scope    → out-of-scope template
+      3. is_greeting        → greeting template
 
     Args:
         is_crisis_detected: True when classification_node detected a crisis.
         is_greeting:        True when classification_node detected a greeting.
         domain:             Conversation domain ("student", "employee", "corporate", "general").
+        is_out_of_scope:    True when classification_node detected an out-of-scope message.
 
     Returns:
         A template string, or None if no template applies (LLM should be used).
@@ -99,8 +131,16 @@ def get_template_response(
     if is_crisis_detected:
         return random.choice(_HIGH_RISK_TEMPLATES)
 
+    if is_out_of_scope:
+        return get_out_of_scope_response(domain)
+
     if is_greeting:
         domain_key = domain if domain in _GREETING_TEMPLATES else "general"
         return random.choice(_GREETING_TEMPLATES[domain_key])
 
     return None
+
+
+def get_out_of_scope_response(domain: Optional[str] = "general") -> str:
+    domain_key = domain if domain in _OUT_OF_SCOPE_TEMPLATES else "general"
+    return _OUT_OF_SCOPE_TEMPLATES[domain_key]

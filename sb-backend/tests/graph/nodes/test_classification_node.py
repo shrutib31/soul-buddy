@@ -188,6 +188,14 @@ class TestGetClassificationsUnit:
         assert out["severity"] == "high"
         assert out["risk_level"] in ("high", "critical")
 
+    def test_out_of_scope_message_returns_out_of_scope_classification(self):
+        out = get_classifications("What is the capital of France?")
+        assert out["intent"] == "out_of_scope"
+        assert out["situation"] == "NO_SITUATION"
+        assert out["severity"] == "low"
+        assert out["risk_level"] == "low"
+        assert out["is_out_of_scope"] is True
+
     def test_model_path_requires_loaded_model(self):
         """Without model loaded, get_classifications for non-greeting non-crisis raises RuntimeError."""
         import graph.nodes.agentic_nodes.classification_node as mod
@@ -199,8 +207,9 @@ class TestGetClassificationsUnit:
             with patch.object(mod, "load_model"):  # no-op so _model stays None
                 with patch.object(mod, "detect_greeting", return_value=False):
                     with patch.object(mod, "detect_crisis", return_value={"is_crisis": False}):
-                        with pytest.raises(RuntimeError, match="Classification model failed to load"):
-                            get_classifications("Some random message that is not greeting or crisis")
+                        with patch.object(mod, "detect_out_of_scope", return_value={"is_out_of_scope": False}):
+                            with pytest.raises(RuntimeError, match="Classification model failed to load"):
+                                get_classifications("Some random message that is not greeting or crisis")
         finally:
             mod._model_loaded = orig_loaded
             mod._model = orig_model
@@ -275,6 +284,25 @@ class TestClassificationNodeUnit:
         ):
             result = classification_node(greeting_state)
         assert result["is_greeting"] is True
+
+    def test_out_of_scope_sets_is_out_of_scope(self, sample_state):
+        mock_classifications = {
+            "intent": "out_of_scope",
+            "situation": "NO_SITUATION",
+            "severity": "low",
+            "risk_score": 0.0,
+            "risk_level": "low",
+            "is_out_of_scope": True,
+            "raw_scores": {},
+        }
+        with patch(
+            "graph.nodes.agentic_nodes.classification_node.get_classifications",
+            return_value=mock_classifications,
+        ):
+            result = classification_node(sample_state)
+        assert result["intent"] == "out_of_scope"
+        assert result["is_out_of_scope"] is True
+        assert result["risk_level"] == "low"
 
     def test_get_classifications_exception_returns_error(self, sample_state):
         with patch(
