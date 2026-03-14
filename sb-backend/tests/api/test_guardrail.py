@@ -53,6 +53,16 @@ class TestGuardrailEndpointUnit:
         assert data["guardrail"]["is_out_of_scope"] is True
         assert data["guardrail"]["reason"] == "nonsense"
 
+    def test_guardrail_flags_mixed_alphanumeric_gibberish_as_out_of_scope(self, client):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": "infwbu94f873ucn39uq8f sad jfn9c2893fh83fh", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is True
+        assert data["guardrail"]["reason"] == "nonsense"
+
     def test_guardrail_keeps_wellbeing_message_in_scope(self, client):
         resp = client.post(
             "/api/v1/guardrail",

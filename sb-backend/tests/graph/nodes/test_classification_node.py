@@ -196,6 +196,14 @@ class TestGetClassificationsUnit:
         assert out["risk_level"] == "low"
         assert out["is_out_of_scope"] is True
 
+    def test_mixed_alphanumeric_gibberish_returns_out_of_scope_classification(self):
+        out = get_classifications("infwbu94f873ucn39uq8f sad jfn9c2893fh83fh")
+        assert out["intent"] == "out_of_scope"
+        assert out["situation"] == "NO_SITUATION"
+        assert out["severity"] == "low"
+        assert out["risk_level"] == "low"
+        assert out["is_out_of_scope"] is True
+
     def test_model_path_requires_loaded_model(self):
         """Without model loaded, get_classifications for non-greeting non-crisis raises RuntimeError."""
         import graph.nodes.agentic_nodes.classification_node as mod

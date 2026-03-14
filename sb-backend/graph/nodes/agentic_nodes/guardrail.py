@@ -150,21 +150,37 @@ def looks_like_general_knowledge(message_lower: str) -> bool:
 
 
 def looks_like_nonsense(message_lower: str) -> bool:
-    tokens = re.findall(r"[a-zA-Z]+", message_lower)
-    if len(tokens) < 2:
+    alnum_tokens = re.findall(r"[a-zA-Z0-9]+", message_lower)
+    if len(alnum_tokens) < 2:
         return False
 
-    long_tokens = [token for token in tokens if len(token) >= 4]
-    if len(long_tokens) < 2:
+    suspicious_mixed_tokens = 0
+    for token in alnum_tokens:
+        if len(token) < 6:
+            continue
+        if not any(char.isalpha() for char in token) or not any(char.isdigit() for char in token):
+            continue
+        if (sum(char.isdigit() for char in token) / len(token)) >= 0.2:
+            suspicious_mixed_tokens += 1
+
+    if suspicious_mixed_tokens >= 2:
+        return True
+
+    alpha_tokens = re.findall(r"[a-zA-Z]+", message_lower)
+    if len(alpha_tokens) < 2:
+        return False
+
+    long_alpha_tokens = [token for token in alpha_tokens if len(token) >= 4]
+    if len(long_alpha_tokens) < 2:
         return False
 
     consonant_heavy = 0
-    for token in long_tokens:
+    for token in long_alpha_tokens:
         vowel_count = sum(1 for char in token if char in "aeiou")
         if vowel_count == 0 or (vowel_count / len(token)) < 0.25 or re.search(r"[bcdfghjklmnpqrstvwxyz]{5,}", token):
             consonant_heavy += 1
 
-    return consonant_heavy >= max(2, len(long_tokens) - 1)
+    return consonant_heavy >= max(2, len(long_alpha_tokens) - 1)
 
 
 def looks_like_in_scope_support(message: str) -> bool:
