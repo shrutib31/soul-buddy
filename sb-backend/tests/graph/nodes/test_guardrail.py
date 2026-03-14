@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from graph.state import ConversationState
 from graph.nodes.agentic_nodes.guardrail import (
+    detect_out_of_scope,
     guardrail_node,
     guardrail_router,
     call_guardrail_llm,
@@ -102,6 +103,23 @@ GUARDRAIL_RULES: "{GUARDRAIL_RULES}"
 # ============================================================================
 # UNIT TESTS - MOCKED (Fast, No External Dependencies)
 # ============================================================================
+
+
+class TestOutOfScopeDetectionUnit:
+    """Unit tests for direct out-of-scope detection."""
+
+    def test_blank_message_is_marked_out_of_scope(self):
+        result = detect_out_of_scope("   ")
+
+        assert result["is_out_of_scope"] is True
+        assert result["reason"] == "other_out_of_scope"
+
+    def test_non_string_message_is_marked_out_of_scope(self):
+        result = detect_out_of_scope(None)
+
+        assert result["is_out_of_scope"] is True
+        assert result["reason"] == "other_out_of_scope"
+
 
 class TestGuardrailNodeUnit:
     """Unit tests for guardrail_node with mocked dependencies."""
