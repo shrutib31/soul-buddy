@@ -17,6 +17,7 @@ from orm.models import ConversationTurn
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
 from services.key_manager import get_key_manager
+from utils.lang_classifier import classify_language_format, ROMANISED, CANONICAL, MIXED
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +60,21 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
             result = await session.execute(turn_count_stmt)
             turn_count = result.scalar() or 0
 
+            # Language Format Classification
+            # format = classify_language_format(user_message)
+            # logger.info(f"Language format classified for user message: {format}")
+            
             # Create a new conversation turn record
             # Note: id is auto-generated UUID, created_at is auto-set by DB
             turn = ConversationTurn(
                 session_id=conversation_id,
                 turn_index=turn_count,  # Sequential turn number (0-indexed)
                 speaker="user",
-                message=message_to_store
+                message=message_to_store,
+                language=state.language,
+                # romanised_content=user_message if format == ROMANISED else None,
+                # canonical_content=user_message if format == CANONICAL else None,
+                # mixed_content=user_message if format == MIXED else None
             )
             session.add(turn)
             await session.commit()
