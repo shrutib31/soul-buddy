@@ -12,6 +12,7 @@ class ConversationState(BaseModel):
     mode: str                    # incognito / cognito
     domain: str                  # student / employee / general
     user_message: str
+    language: str = "en-IN"
     supabase_uid: Optional[str] = None  # supabase user ID (cognito only)
 
     # intent detection

@@ -27,6 +27,7 @@ from orm.models import ConversationTurn, UserConversationSummary
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
 from services.key_manager import get_key_manager
+from utils.lang_classifier import classify_language_format, ROMANISED, CANONICAL, MIXED
 import logging
 
 # Logger setup
@@ -123,6 +124,10 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
             result = await session.execute(turn_count_stmt)
             turn_count = result.scalar() or 0
 
+            # Language Format Classification
+            # format = classify_language_format(bot_response)
+            # logger.info(f"Language format classified for bot response: {format}")
+
             # ----------------------------------------------------------------
             # 2. Persist bot response as a ConversationTurn row
             # ----------------------------------------------------------------
@@ -130,7 +135,11 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                 session_id=conversation_id,
                 turn_index=turn_count,
                 speaker="bot",
-                message=message_to_store
+                message=message_to_store,
+                language=state.language,
+                # romanised_content=bot_response if format == ROMANISED else None,
+                # canonical_content=bot_response if format == CANONICAL else None,
+                # mixed_content=bot_response if format == MIXED else None
             )
             session.add(turn)
             await session.commit()

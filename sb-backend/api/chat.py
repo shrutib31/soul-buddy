@@ -35,6 +35,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User input message")
     is_incognito: bool = Field(True, description="True for anonymous session, False for authenticated session")
     sb_conv_id: Optional[str] = None
+    language: str = Field("en-IN", description="Language code for the session")
     domain: str = "student"
     metadata: Optional[Dict[str, Any]] = None
 
@@ -63,6 +64,7 @@ async def create_initial_state(
     message: str,
     mode: str,
     domain: str,
+    language: str = "en-IN",
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
 ) -> ConversationState:
@@ -80,6 +82,7 @@ async def create_initial_state(
         mode=mode,
         domain=domain,
         user_message=message,
+        language=language,
         supabase_uid=supabase_uid,
     )
 
@@ -106,6 +109,7 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
             message=req.message,
             mode=mode,
             domain=req.domain,
+            language=req.language,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
         )
@@ -192,6 +196,7 @@ async def chat_stream(req: ChatRequest, user=Depends(optional_supabase_token)):
             message=req.message,
             mode=mode,
             domain=req.domain,
+            language=req.language,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
         )

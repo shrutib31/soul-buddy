@@ -103,6 +103,10 @@ class ConversationTurn(Base):
     turn_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     speaker: Mapped[str | None] = mapped_column(Text, nullable=True)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True, server_default=text("'en-IN'"))
+    # romanised_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # canonical_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # mixed_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[DateTime | None] = mapped_column(DateTime, server_default=func.now())
 
     __table_args__ = (
