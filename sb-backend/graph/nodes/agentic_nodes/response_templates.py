@@ -76,15 +76,29 @@ _HIGH_RISK_TEMPLATES = [
 # ============================================================================
 # OUT-OF-SCOPE TEMPLATES
 # ============================================================================
-# Shown when is_out_of_scope == True.
-# Warm redirect — acknowledge the request, explain the focus, invite a wellness topic.
 
-_OUT_OF_SCOPE_TEMPLATES = [
-    "That's a bit outside my area! I'm SoulBuddy, a mental wellness companion, so I'm best equipped to help with things like stress, emotions, relationships, or just being a listening ear. Is there something on that front I can support you with today?",
-    "I appreciate you reaching out! I'm focused on mental wellness support, so I might not be the best resource for that particular request. But if you'd like to talk about how you're feeling, what's been on your mind, or anything you're going through — I'm all ears.",
-    "That one's a little out of my lane — I'm here specifically to support your emotional wellbeing and mental health. If there's anything you're feeling or going through that you'd like to talk about, I'm here for that conversation.",
-    "I'm SoulBuddy, your mental wellness companion, so I'm not the best fit for that kind of request. That said, I'm always here if you want to talk about how you're doing, what's been stressing you out, or anything you'd like to work through together.",
-]
+_OUT_OF_SCOPE_TEMPLATES = {
+    "student": (
+        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
+        "planning your SoulGym, or talking through stress, motivation, or how you are feeling. "
+        "Would you like help with one of those instead?"
+    ),
+    "employee": (
+        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
+        "planning your SoulGym, or talking through work stress, burnout, or how you are feeling. "
+        "Would you like help with one of those instead?"
+    ),
+    "corporate": (
+        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
+        "planning your SoulGym, or helping you reflect on stress, pressure, or how you are feeling. "
+        "Would you like help with one of those instead?"
+    ),
+    "general": (
+        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
+        "planning your SoulGym, or talking through what you are feeling. "
+        "Would you like help with one of those instead?"
+    ),
+}
 
 
 # ============================================================================
@@ -102,14 +116,14 @@ def get_template_response(
 
     Priority order:
       1. is_crisis_detected → crisis template  (safety-critical, must come first)
-      2. is_greeting        → greeting template
-      3. is_out_of_scope    → out-of-scope redirect template
+      2. is_out_of_scope    → out-of-scope template
+      3. is_greeting        → greeting template
 
     Args:
         is_crisis_detected: True when classification_node detected a crisis.
         is_greeting:        True when classification_node detected a greeting.
         domain:             Conversation domain ("student", "employee", "corporate", "general").
-        is_out_of_scope:    True when the request is outside the wellness domain.
+        is_out_of_scope:    True when classification_node detected an out-of-scope message.
 
     Returns:
         A template string, or None if no template applies (LLM should be used).
@@ -117,11 +131,16 @@ def get_template_response(
     if is_crisis_detected:
         return random.choice(_HIGH_RISK_TEMPLATES)
 
+    if is_out_of_scope:
+        return get_out_of_scope_response(domain)
+
     if is_greeting:
         domain_key = domain if domain in _GREETING_TEMPLATES else "general"
         return random.choice(_GREETING_TEMPLATES[domain_key])
 
-    if is_out_of_scope:
-        return random.choice(_OUT_OF_SCOPE_TEMPLATES)
-
     return None
+
+
+def get_out_of_scope_response(domain: Optional[str] = "general") -> str:
+    domain_key = domain if domain in _OUT_OF_SCOPE_TEMPLATES else "general"
+    return _OUT_OF_SCOPE_TEMPLATES[domain_key]

@@ -4,10 +4,24 @@ Unit tests for Chat API: create_initial_state, invoke_graph, and chat endpoints.
 Endpoints are tested with mocked graph so no DB or LLM is used.
 """
 
+import sys
+import types
 import pytest
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
+
+redis_module = types.ModuleType("redis")
+redis_asyncio_module = types.ModuleType("redis.asyncio")
+redis_exceptions_module = types.ModuleType("redis.exceptions")
+redis_asyncio_module.Redis = object
+redis_exceptions_module.ConnectionError = RuntimeError
+redis_exceptions_module.TimeoutError = RuntimeError
+redis_module.asyncio = redis_asyncio_module
+redis_module.exceptions = redis_exceptions_module
+sys.modules.setdefault("redis", redis_module)
+sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
+sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from api.chat import (
     router as chat_router,
@@ -173,7 +187,6 @@ class TestChatEndpointsUnit:
                 )
         # Streaming returns 200 with text/event-stream
         assert resp.status_code == 200
-
 
 # ============================================================================
 # GET /conversations/{conversation_id}/messages
