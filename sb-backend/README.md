@@ -43,7 +43,7 @@ HTTP Request
 | FastAPI app & startup | `server.py` | Lifespan manages all connections |
 | LangGraph pipeline | `graph/graph_builder.py` | Compiled once at startup |
 | Graph state | `graph/state.py` | `ConversationState` Pydantic model |
-| Classification | `graph/nodes/agentic_nodes/classification_node.py` | Rule-based (no ML model) — greeting / crisis / out-of-scope / intent / situation / severity |
+| Classification | `graph/nodes/agentic_nodes/classification_node.py` | Rule-based fast path (greeting / crisis / out-of-scope) then ML model (SoulBuddyClassifier — BERT-base) for intent / situation / severity |
 | Response templates | `graph/nodes/agentic_nodes/response_templates.py` | Pre-built responses for greeting, crisis, out-of-scope — bypasses LLM |
 | ORM models (data DB) | `orm/models.py` | Conversations, turns, summaries |
 | ORM models (auth DB) | `orm/auth_models.py` | Users, personality profiles |
@@ -54,14 +54,16 @@ HTTP Request
 
 ### Classification Pipeline
 
-The classification node is **fully rule-based** (regex + keyword patterns). No ML model or GPU required.
+The classification node uses a **fast rule-based path** for high-confidence cases, then falls back to the **ML model** for everything else.
 
-| Check | Output | Routed to |
-|-------|--------|-----------|
-| Greeting detected | `is_greeting = True` | Greeting template (no LLM call) |
-| Out-of-scope request | `is_out_of_scope = True` | Out-of-scope template (no LLM call) |
-| Crisis detected | `is_crisis_detected = True` | Crisis template + hotline numbers (no LLM call) |
-| Everything else | `intent` / `situation` / `severity` | LLM response generator |
+| Check | Method | Output | Routed to |
+|-------|--------|--------|-----------|
+| Greeting detected | Rule-based (regex) | `is_greeting = True` | Greeting template (no LLM call) |
+| Out-of-scope request | Rule-based (regex + guardrail) | `is_out_of_scope = True` | Out-of-scope template (no LLM call) |
+| Crisis detected | Rule-based (keyword patterns) | `is_crisis_detected = True` | Crisis template + hotline numbers (no LLM call) |
+| Everything else | **ML model** (SoulBuddyClassifier) | `intent` / `situation` / `severity` | LLM response generator |
+
+**ML model**: `SoulBuddyClassifier` — a fine-tuned BERT-base (`bhadresh-savani/bert-base-uncased-emotion`) with four classification heads (intent, situation, severity, risk score). Weights loaded from `model_weights.pt` at startup. CPU-only — no GPU required.
 
 **Out-of-scope detection** flags explicit bot requests for off-domain tasks (cooking, coding, legal/financial advice, travel, entertainment). Personal narratives that *mention* off-domain topics ("I was coding all night and I'm stressed") are intentionally **not** flagged — they're valid wellness context.
 
@@ -79,6 +81,7 @@ The classification node is **fully rule-based** (regex + keyword patterns). No M
 - Redis (optional — server degrades gracefully without it)
 - Docker + Docker Compose (for containerised deployments)
 - [UV](https://github.com/astral-sh/uv) (recommended) or pip
+- `model_weights.pt` — trained SoulBuddyClassifier weights (place in `sb-backend/`). Without this file the server starts but the ML classifier runs with untrained weights, producing meaningless classifications.
 
 ---
 
@@ -98,7 +101,7 @@ The script detects UV and uses it if available, otherwise falls back to pip.
 ```bash
 uv venv venv
 source venv/bin/activate
-uv pip install -r requirements.txt
+uv pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 mkdir -p logs
 ```
 
@@ -107,7 +110,7 @@ mkdir -p logs
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 mkdir -p logs
 ```
 
@@ -249,12 +252,18 @@ cp .env.example .env
 
 Redis is non-fatal — if unreachable, all reads fall back to the database transparently.
 
+### ML Classification Model
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MODEL_WEIGHTS_PATH` | `model_weights.pt` | Path to trained SoulBuddyClassifier weights. In Docker resolves to `/app/model_weights.pt`. |
+
 ### Docker Resource Limits (staging compose only)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BACKEND_MEM_LIMIT` | `512m` | Container memory cap |
-| `BACKEND_MEMSWAP_LIMIT` | `512m` | Swap cap — set equal to `BACKEND_MEM_LIMIT` to disable swap |
+| `BACKEND_MEM_LIMIT` | `1.5g` | Container memory cap — do not set below `1g` (BERT model needs ~650-700 MB RSS) |
+| `BACKEND_MEMSWAP_LIMIT` | `1.5g` | Swap cap — set equal to `BACKEND_MEM_LIMIT` to disable swap |
 
 ### Encryption (opt-in, disabled by default)
 

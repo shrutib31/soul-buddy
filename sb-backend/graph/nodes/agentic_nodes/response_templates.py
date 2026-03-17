@@ -138,9 +138,6 @@ def get_template_response(
         domain_key = domain if domain in _GREETING_TEMPLATES else "general"
         return random.choice(_GREETING_TEMPLATES[domain_key])
 
-    if is_out_of_scope:
-        return random.choice(_OUT_OF_SCOPE_TEMPLATES)
-
     return None
 
 

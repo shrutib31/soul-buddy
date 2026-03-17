@@ -2,11 +2,10 @@ from typing import Dict, Any
 import os
 import logging
 import re
-import logging
-from typing import Dict, Any
 
 from graph.state import ConversationState
-from graph.nodes.agentic_nodes.guardrail import detect_out_of_scope
+from graph.nodes.agentic_nodes.guardrail import looks_like_general_knowledge, looks_like_nonsense
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +84,7 @@ def load_model():
         _torch = torch
         
         # Load model weights if file exists
-        model_path = "model_weights.pt"
+        model_path = settings.model.weights_path
         if os.path.exists(model_path):
             _model.load_state_dict(torch.load(model_path, map_location="cpu"))
             logger.info("Classification model weights loaded successfully")
@@ -159,155 +158,6 @@ def detect_greeting(message: str) -> bool:
 
     return False
 
-
-
-def get_classifications(message: str, domain: str = "general") -> Dict[str, Any]:
-    """
-    Classify a message using the SoulBuddyClassifier model.
-    
-    Args:
-        message: The user message to classify
-    
-    Returns:
-        Dictionary with classification results
-    
-    Raises:
-        RuntimeError: If model is not loaded
-    """
-    # Check if the message is empty or only whitespace
-    if not message or message.strip() == "":
-        logger.warning("Received empty message for classification")
-        return {
-            "intent": "unclear",
-            "situation": "unclear",
-            "severity": "low",
-            "risk_score": 0.0,
-            "risk_level": "low",
-            "raw_scores": {
-                "situation": 0.0,
-                "severity": 0.0,
-                "intent": 0.0,
-                "risk": 0.0
-            }
-        }
-    
-    if detect_greeting(message):
-        logger.info("Message classified as greeting based on keyword matching")
-        return {
-            "intent": "greeting",
-            "situation": "no situation",
-            "severity": "low",
-            "risk_score": 0.0,
-            "risk_level": "low",
-            "is_greeting": True,
-            "raw_scores": {
-                "situation": 0.0,
-                "severity": 0.0,
-                "intent": 1.0, # Set intent score to 1 for greetings
-                "risk": 0.0
-            }
-        }
-    
-    # detect_crisis already handles the high-risk keyword override path
-    # for phrases like "die", "kill myself", "end it all", "can't go on",
-    # and "no reason to live" before any model inference happens.
-    crisis_detect_result = detect_crisis(message)
-    #  log crisis detection result for debugging
-    logger.info(f"Crisis detection result: {crisis_detect_result}")
-    if crisis_detect_result["is_crisis"]:
-        logger.info("Message classified as high crisis based on keyword matching")
-        return {
-            "intent": crisis_detect_result["intent"],
-            "situation": crisis_detect_result["situation"],
-            "severity": crisis_detect_result["severity"],
-            "risk_score": crisis_detect_result["risk_score"],
-            "risk_level": crisis_detect_result["risk_level"],
-            "is_crisis_detected": True,
-            "raw_scores": {
-                "situation": 0.0,
-                "severity": crisis_detect_result["severity"] == "high" and 1.0 or 0.0, # Set severity score to 1 for high severity cases
-                "intent": crisis_detect_result["intent"] == "crisis_disclosure" and 1.0 or 0.0, # Set intent score to 1 for crisis disclosures
-                "risk": crisis_detect_result["risk_score"]
-            }
-        }
-
-    out_of_scope_result = detect_out_of_scope(message, domain=domain)
-    if out_of_scope_result["is_out_of_scope"]:
-        logger.info("Message classified as out_of_scope")
-        return {
-            "intent": "out_of_scope",
-            "situation": "NO_SITUATION",
-            "severity": "low",
-            "risk_score": 0.0,
-            "risk_level": "low",
-            "is_out_of_scope": True,
-            "raw_scores": {
-                "situation": 0.0,
-                "severity": 0.0,
-                "intent": 1.0,
-                "risk": 0.0
-            }
-        }
-
-    logger.info(f"Classifying message: '{message}'")
-    global _tokenizer, _model, _model_loaded, _torch
-
-    if not _model_loaded:
-        load_model()
-
-    if _tokenizer is None or _model is None or _torch is None:
-        raise RuntimeError("Classification model failed to load")
-
-    try:
-        inputs = _tokenizer(message, return_tensors="pt", truncation=True, padding=True)
-
-        model_inputs = {
-            "input_ids": inputs.get("input_ids"),
-            "attention_mask": inputs.get("attention_mask"),
-        }
-
-        # Get predictions
-        with _torch.no_grad():
-            s_logits, sev_logits, i_logits, r_logits = _model(**model_inputs)
-
-        # Extract predictions
-        situation_idx = _torch.argmax(s_logits, dim=1).item()
-        severity_idx = _torch.argmax(sev_logits, dim=1).item()
-        intent_idx = _torch.argmax(i_logits, dim=1).item()
-        risk_score = float(_torch.sigmoid(r_logits).item())
-
-        if risk_score < 0.3:
-            risk_level = "low"
-        elif risk_score < 0.7:
-            risk_level = "medium"
-        else:
-            risk_level = "high"
-
-        classifications = {
-            "intent": INTENT_LABELS.get(intent_idx, "unknown"),
-            "situation": SITUATION_LABELS.get(situation_idx, "unknown"),
-            "severity": SEVERITY_LABELS.get(severity_idx, "unknown"),
-            "risk_score": round(risk_score, 3),
-            "risk_level": risk_level,
-            "raw_scores": {
-                "situation": float(s_logits.max().item()),
-                "severity": float(sev_logits.max().item()),
-                "intent": float(i_logits.max().item()),
-                "risk": risk_score
-            }
-        }
-        if float(i_logits.max().item()) < 0.5:
-            classifications["intent"] = "unclear"
-        if float(s_logits.max().item()) < 0.5:
-            classifications["situation"] = "unclear"
-            classifications["severity"] = "low"
-
-        logger.info(f"Classified message: intent={classifications['intent']}, severity={classifications['severity']}")
-        return classifications
-
-    except Exception as e:
-        logger.exception(f"Error during classification: {str(e)}")
-        raise
 
 def is_true_negation(msg_lower: str) -> bool:
     """Returns True only if the message clearly negates suicidal action."""
@@ -763,7 +613,8 @@ _OUT_OF_SCOPE_PATTERNS = [
 def classify_out_of_scope(message: str) -> bool:
     """
     Return True only when the user is explicitly requesting the bot to perform
-    an off-domain task (cooking, coding, legal/financial advice, etc.).
+    an off-domain task (cooking, coding, legal/financial advice, etc.) or sends
+    a general-knowledge query / nonsensical input.
 
     Personal narratives that merely *mention* off-domain topics are NOT flagged:
       ✗ out-of-scope  →  "Can you give me a recipe for pasta?"
@@ -773,6 +624,8 @@ def classify_out_of_scope(message: str) -> bool:
     if not message or not isinstance(message, str):
         return False
     msg = message.lower().strip()
+    if looks_like_general_knowledge(msg) or looks_like_nonsense(msg):
+        return True
     for pattern in _OUT_OF_SCOPE_PATTERNS:
         if re.search(pattern, msg):
             return True
@@ -785,14 +638,14 @@ def classify_out_of_scope(message: str) -> bool:
 
 def get_classifications(message: str) -> Dict[str, Any]:
     """
-    Classify a message using rule-based detection.
+    Classify a message.
 
     Evaluation order:
     1. Empty message  → unclear / NO_SITUATION / low
     2. Greeting       → greeting intent, no situation, low risk
-    3. Out-of-scope   → redirect template, no LLM call
+    3. Out-of-scope   → redirect template, no model call
     4. Crisis         → crisis_disclosure, specific situation, high risk
-    5. Rule-based     → intent / situation / severity via keyword patterns
+    5. ML model       → SoulBuddyClassifier for intent / situation / severity
     """
     if not message or message.strip() == "":
         logger.warning("Received empty message for classification")
@@ -839,26 +692,66 @@ def get_classifications(message: str) -> Dict[str, Any]:
             }
         }
 
-    intent = classify_intent(message)
-    situation = classify_situation(message)
-    severity = classify_severity(message)
+    # ── ML model inference ────────────────────────────────────────────────────
+    logger.info("Classifying message with ML model: '%s'", message)
+    global _tokenizer, _model, _model_loaded, _torch
 
-    risk_score_map = {"high": 0.75, "medium": 0.35, "low": 0.1}
-    risk_score = risk_score_map[severity]
-    risk_level = "high" if risk_score > 0.7 else "medium" if risk_score > 0.3 else "low"
+    if not _model_loaded:
+        load_model()
 
-    logger.info(
-        "Rule-based classification: intent=%s situation=%s severity=%s",
-        intent, situation, severity
-    )
-    return {
-        "intent": intent,
-        "situation": situation,
-        "severity": severity,
-        "risk_score": risk_score,
-        "risk_level": risk_level,
-        "raw_scores": {"situation": 1.0, "severity": 1.0, "intent": 1.0, "risk": risk_score}
-    }
+    if _tokenizer is None or _model is None or _torch is None:
+        raise RuntimeError("Classification model failed to load")
+
+    try:
+        inputs = _tokenizer(message, return_tensors="pt", truncation=True, padding=True)
+        model_inputs = {
+            "input_ids": inputs.get("input_ids"),
+            "attention_mask": inputs.get("attention_mask"),
+        }
+
+        with _torch.no_grad():
+            s_logits, sev_logits, i_logits, r_logits = _model(**model_inputs)
+
+        situation_idx = _torch.argmax(s_logits, dim=1).item()
+        severity_idx = _torch.argmax(sev_logits, dim=1).item()
+        intent_idx = _torch.argmax(i_logits, dim=1).item()
+        risk_score = float(_torch.sigmoid(r_logits).item())
+
+        if risk_score < 0.3:
+            risk_level = "low"
+        elif risk_score < 0.7:
+            risk_level = "medium"
+        else:
+            risk_level = "high"
+
+        classifications = {
+            "intent": INTENT_LABELS.get(intent_idx, "unknown"),
+            "situation": SITUATION_LABELS.get(situation_idx, "unknown"),
+            "severity": SEVERITY_LABELS.get(severity_idx, "unknown"),
+            "risk_score": round(risk_score, 3),
+            "risk_level": risk_level,
+            "raw_scores": {
+                "situation": float(s_logits.max().item()),
+                "severity": float(sev_logits.max().item()),
+                "intent": float(i_logits.max().item()),
+                "risk": risk_score
+            }
+        }
+        if float(i_logits.max().item()) < 0.5:
+            classifications["intent"] = "unclear"
+        if float(s_logits.max().item()) < 0.5:
+            classifications["situation"] = "unclear"
+            classifications["severity"] = "low"
+
+        logger.info(
+            "ML model classification: intent=%s severity=%s",
+            classifications["intent"], classifications["severity"]
+        )
+        return classifications
+
+    except Exception as e:
+        logger.exception("Error during ML model classification: %s", str(e))
+        raise
 
 
 # ============================================================================
@@ -872,7 +765,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
         if not message:
             return {"error": "No user message to classify"}
 
-        classifications = get_classifications(message, domain=getattr(state, "domain", "general"))
+        classifications = get_classifications(message)
         return {
             "intent": classifications["intent"],
             "situation": classifications["situation"],
