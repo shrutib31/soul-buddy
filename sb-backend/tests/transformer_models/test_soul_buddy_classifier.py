@@ -4,10 +4,13 @@ Unit tests for SoulBuddyClassifier.
 AutoModel.from_pretrained is fully mocked — no model download required.
 Tests cover: architecture (head dimensions), forward pass output shapes,
 CLS token pooling, and the output tuple contract.
+
+Skipped automatically when torch is not installed (e.g. in CI environments
+that don't include the ML dependencies).
 """
 
 import pytest
-import torch
+torch = pytest.importorskip("torch", reason="torch not installed — skipping ML model tests")
 import torch.nn as nn
 from unittest.mock import MagicMock, patch
 
