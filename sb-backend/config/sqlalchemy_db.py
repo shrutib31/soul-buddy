@@ -86,8 +86,8 @@ class SQLAlchemyDataDB:
             self.engine = create_async_engine(
                 self.database_url,
                 echo=(self.log_level == 'debug'),  # SQL query logging
-                pool_size=20,  # Maximum number of connections
-                max_overflow=10,  # Additional connections beyond pool_size
+                pool_size=3,  # Keep small for memory-constrained deployments
+                max_overflow=2,  # Additional connections beyond pool_size
                 pool_pre_ping=True,  # Verify connections before using
                 pool_recycle=3600,  # Recycle connections after 1 hour
             )
@@ -207,19 +207,19 @@ class SQLAlchemyAuthDB:
             self.engine = create_async_engine(
                 self.database_url,
                 echo=(self.log_level == 'debug'),  # SQL query logging
-                pool_size=20,  # Maximum number of connections
-                max_overflow=10,  # Additional connections beyond pool_size
+                pool_size=3,  # Keep small for memory-constrained deployments
+                max_overflow=2,  # Additional connections beyond pool_size
                 pool_pre_ping=True,  # Verify connections before using
                 pool_recycle=3600,  # Recycle connections after 1 hour
             )
-            
+
             # Create session factory
             self.session_factory = async_sessionmaker(
                 self.engine,
                 class_=AsyncSession,
                 expire_on_commit=False,
             )
-            
+
             if self.log_level == 'debug':
                 logger.debug("✅ SQLAlchemy Auth DB engine initialized: %s", self.database_url.split('@')[1])
         

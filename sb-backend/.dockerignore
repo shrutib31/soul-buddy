@@ -14,6 +14,7 @@ venv/
 .env
 .env.*
 !.env.example
+.env.demo
 
 # Logs (written at runtime, not baked into the image)
 logs/
@@ -39,6 +40,11 @@ build/
 # GCP service account key — never bake credentials into the image;
 # mount at runtime via a volume or use Workload Identity instead.
 config/serviceAccountKey.json
+
+# Dead ML model directory — PyTorch/transformer model removed in favour of
+# rule-based classification; directory kept in repo for history but excluded
+# from Docker image to keep it clean.
+transformer_models/
 
 # Git
 .git/

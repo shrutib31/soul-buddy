@@ -46,11 +46,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
-      # Install CPU-only PyTorch first (saves ~1.3 GB vs default CUDA build)
-      - name: Install PyTorch (CPU-only)
-        run: |
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
       # Install all project + dev dependencies
       - name: Install project dependencies
         run: |

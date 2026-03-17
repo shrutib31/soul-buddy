@@ -6,7 +6,7 @@ logic are tested directly; get_classifications/classification_node are tested wi
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from graph.state import ConversationState
 from graph.nodes.agentic_nodes.classification_node import (
@@ -15,8 +15,10 @@ from graph.nodes.agentic_nodes.classification_node import (
     detect_crisis,
     detect_greeting,
     is_true_negation,
-    INTENT_LABELS,
-    SITUATION_LABELS,
+    classify_intent,
+    classify_situation,
+    classify_severity,
+    classify_out_of_scope,
 )
 
 
@@ -166,7 +168,7 @@ class TestGetClassificationsUnit:
     def test_empty_message_returns_unclear(self):
         out = get_classifications("")
         assert out["intent"] == "unclear"
-        assert out["situation"] == "unclear"
+        assert out["situation"] == "NO_SITUATION"
         assert out["severity"] == "low"
         assert out["risk_score"] == 0.0
         assert out["risk_level"] == "low"
@@ -323,21 +325,44 @@ class TestClassificationNodeUnit:
 
 
 # ============================================================================
-# Label constants
+# Rule-based classify_* functions
 # ============================================================================
 
 class TestClassificationLabels:
-    """Sanity check for label dicts used by the model."""
+    """Sanity checks for the rule-based classify_* functions."""
 
-    def test_intent_labels_contain_expected_keys(self):
-        assert "greeting" in INTENT_LABELS.values()
-        assert "crisis_disclosure" in INTENT_LABELS.values()
-        assert "unclear" in INTENT_LABELS.values()
+    def test_intent_venting(self):
+        assert classify_intent("I'm so stressed and overwhelmed") == "venting"
 
-    def test_situation_labels_contain_crisis_types(self):
-        assert "SUICIDAL" in SITUATION_LABELS.values()
-        assert "SELF_HARM" in SITUATION_LABELS.values()
-        assert "NO_SITUATION" in SITUATION_LABELS.values()
+    def test_intent_seek_information(self):
+        assert classify_intent("What causes anxiety?") == "seek_information"
+
+    def test_intent_open_to_solution(self):
+        assert classify_intent("What should I do about this situation?") == "open_to_solution"
+
+    def test_intent_fallback_unclear(self):
+        assert classify_intent("okay") == "unclear"
+
+    def test_situation_exam_anxiety(self):
+        assert classify_situation("I have a big exam tomorrow") == "EXAM_ANXIETY"
+
+    def test_situation_relationship(self):
+        assert classify_situation("My girlfriend and I broke up") == "RELATIONSHIP_ISSUES"
+
+    def test_situation_financial(self):
+        assert classify_situation("I can't afford rent this month") == "FINANCIAL_STRESS"
+
+    def test_situation_fallback_no_situation(self):
+        assert classify_situation("I just feel off today") == "NO_SITUATION"
+
+    def test_severity_high(self):
+        assert classify_severity("I feel completely hopeless and desperate") == "high"
+
+    def test_severity_medium(self):
+        assert classify_severity("I've been feeling stressed and anxious") == "medium"
+
+    def test_severity_low(self):
+        assert classify_severity("I'm a bit worried sometimes") == "low"
 
 
 # ============================================================================
@@ -484,3 +509,102 @@ class TestDetectGreetingNewPatterns:
 
     def test_good_night(self):
         assert detect_greeting("good night") is True
+
+
+# ============================================================================
+# classify_out_of_scope
+# ============================================================================
+
+class TestClassifyOutOfScope:
+    """Tests for classify_out_of_scope — must flag explicit bot requests for
+    off-domain tasks while leaving personal narratives untouched."""
+
+    # ── Should be flagged (direct request to the bot) ────────────────────────
+
+    def test_recipe_request_flagged(self):
+        assert classify_out_of_scope("Can you give me a recipe for pasta?") is True
+
+    def test_code_write_flagged(self):
+        assert classify_out_of_scope("Write me a Python function to sort a list") is True
+
+    def test_code_debug_flagged(self):
+        assert classify_out_of_scope("Help me debug this script") is True
+
+    def test_legal_advice_flagged(self):
+        assert classify_out_of_scope("Give me legal advice on my contract") is True
+
+    def test_investment_advice_flagged(self):
+        assert classify_out_of_scope("What stocks should I buy?") is True
+
+    def test_movie_recommendation_flagged(self):
+        assert classify_out_of_scope("Recommend a good movie to watch") is True
+
+    def test_trip_planning_flagged(self):
+        assert classify_out_of_scope("Plan a trip to Goa for me") is True
+
+    def test_homework_flagged(self):
+        assert classify_out_of_scope("Solve this math problem for me") is True
+
+    def test_weather_flagged(self):
+        assert classify_out_of_scope("What's the weather today?") is True
+
+    def test_tax_filing_flagged(self):
+        assert classify_out_of_scope("Help me file my taxes") is True
+
+    # ── Should NOT be flagged (personal narrative / wellness context) ─────────
+
+    def test_personal_recipe_mention_not_flagged(self):
+        """Mentioning a recipe in personal context is NOT out-of-scope."""
+        assert classify_out_of_scope("I spoke to my friend about a recipe today") is False
+
+    def test_cooking_narrative_not_flagged(self):
+        """Planning to cook shared as personal update is NOT out-of-scope."""
+        assert classify_out_of_scope("Today I am going to prepare food for my family") is False
+
+    def test_coding_stress_not_flagged(self):
+        """Mentioning coding as a source of stress is NOT out-of-scope."""
+        assert classify_out_of_scope("I was coding all night and I'm exhausted") is False
+
+    def test_money_stress_not_flagged(self):
+        """Talking about financial stress is a wellness topic, not investment advice."""
+        assert classify_out_of_scope("I'm really stressed about money") is False
+
+    def test_exam_mention_not_flagged(self):
+        """Exam anxiety is squarely within the wellness domain."""
+        assert classify_out_of_scope("I have a big exam tomorrow and I'm anxious") is False
+
+    def test_wellness_message_not_flagged(self):
+        assert classify_out_of_scope("I've been feeling really overwhelmed lately") is False
+
+    def test_empty_not_flagged(self):
+        assert classify_out_of_scope("") is False
+
+    def test_none_not_flagged(self):
+        assert classify_out_of_scope(None) is False
+
+    # ── Math / Calculations ───────────────────────────────────────────────
+    def test_average_calculation_flagged(self):
+        assert classify_out_of_scope("What is the average of 4,5,7,9?") is True
+
+    def test_mean_calculation_flagged(self):
+        assert classify_out_of_scope("Calculate the mean of these numbers: 10, 20, 30") is True
+
+    def test_arithmetic_flagged(self):
+        assert classify_out_of_scope("What is 15 + 27?") is True
+
+    def test_percentage_flagged(self):
+        assert classify_out_of_scope("What is 20 percent of 500?") is True
+
+    def test_unit_conversion_flagged(self):
+        assert classify_out_of_scope("Convert 100 km to miles") is True
+
+    def test_gpa_calculation_flagged(self):
+        assert classify_out_of_scope("Calculate my GPA from these grades") is True
+
+    def test_feeling_average_not_flagged(self):
+        """'average' as emotional adjective must not be flagged"""
+        assert classify_out_of_scope("I feel average today, not great not terrible") is False
+
+    def test_math_stress_not_flagged(self):
+        """Mentioning math in a personal context must not be flagged"""
+        assert classify_out_of_scope("I stayed up all night studying for my math exam") is False

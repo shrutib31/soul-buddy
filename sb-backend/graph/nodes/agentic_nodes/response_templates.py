@@ -4,9 +4,9 @@ Response Templates
 Pre-defined responses for high-confidence, time-sensitive situations where a
 readymade response is safer, faster, and more consistent than LLM generation:
 
-  - Greetings : is_greeting == True
-  - Crisis    : is_crisis_detected == True
-  - Out of scope : is_out_of_scope == True
+  - Greetings     : is_greeting == True
+  - Crisis        : is_crisis_detected == True
+  - Out-of-scope  : is_out_of_scope == True
 """
 
 import random
@@ -137,6 +137,9 @@ def get_template_response(
     if is_greeting:
         domain_key = domain if domain in _GREETING_TEMPLATES else "general"
         return random.choice(_GREETING_TEMPLATES[domain_key])
+
+    if is_out_of_scope:
+        return random.choice(_OUT_OF_SCOPE_TEMPLATES)
 
     return None
 

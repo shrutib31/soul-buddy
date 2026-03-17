@@ -56,6 +56,9 @@ services:
     build: ./sb-backend
     container_name: sb-backend
     restart: unless-stopped
+    depends_on:
+      soulbuddy-redis:
+        condition: service_healthy
     env_file:
       - ${ENV_FILE:-./sb-backend/.env.docker.local}
     environment:
