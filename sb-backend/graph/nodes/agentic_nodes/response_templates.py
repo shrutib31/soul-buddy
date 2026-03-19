@@ -100,6 +100,22 @@ _OUT_OF_SCOPE_TEMPLATES = {
     ),
 }
 
+# ============================================================================
+# CHAT PREFERENCES TEMPLATES
+# ============================================================================
+_CHAT_PREFERENCES= { 
+    "gentle_reflective": (
+        "Generate more empathetic response, with thoughtful and nurturing tone,"
+        "Goal of quality emotional processing and deep reflection with user"
+    ), 
+    "direct_practical": (
+        "Generate clear, actionable advice and concrete strategies, "
+        "Goal of problem-solving and giving practical advice to user"
+    ), 
+    "general": (
+        "Generate helpful, warm response that helps user feel seen"
+    )
+}
 
 # ============================================================================
 # PUBLIC API
@@ -144,3 +160,11 @@ def get_template_response(
 def get_out_of_scope_response(domain: Optional[str] = "general") -> str:
     domain_key = domain if domain in _OUT_OF_SCOPE_TEMPLATES else "general"
     return _OUT_OF_SCOPE_TEMPLATES[domain_key]
+
+def get_chat_preference_style(selected_preference):
+    if (selected_preference == "gentle_reflective"):
+        return _CHAT_PREFERENCES["gentle_reflective"]
+    elif (selected_preference == "direct_practical"):
+        return _CHAT_PREFERENCES["direct_practical"]
+    else:
+        return _CHAT_PREFERENCES["general"] #BASE CASE

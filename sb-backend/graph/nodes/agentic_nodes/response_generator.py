@@ -11,7 +11,7 @@ import asyncio
 import logging
 
 from graph.state import ConversationState
-from graph.nodes.agentic_nodes.response_templates import get_template_response
+from graph.nodes.agentic_nodes.response_templates import get_template_response, get_chat_preference_style
 from graph.nodes.agentic_nodes.response_evaluator import select_best_response
 from config.settings import settings
 
@@ -49,12 +49,16 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
     to compare their quality. Both responses are generated concurrently to minimize
     total latency. Both responses are stored in the state for evaluation/selection.
     
+    Tailor your response style according to chat_preference.
+    
     Args:
         state: Current conversation state
     
     Returns:
         Dict with ollama_response, gpt_response, and selected_response
     """
+    selected_chat_preference = state.chat_preference
+    preference_style = get_chat_preference_style(selected_chat_preference)
     try:
         user_message = state.user_message
         situation = state.situation
@@ -65,15 +69,23 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         is_crisis_detected = state.is_crisis_detected
         is_greeting = state.is_greeting
         is_out_of_scope = getattr(state, "is_out_of_scope", False)
+        chat_preference = preference_style
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
 
         logger.info(
             "response_generator: starting",
-            extra={"intent": intent, "situation": situation, "severity": severity,
-                   "is_crisis_detected": is_crisis_detected, "is_out_of_scope": is_out_of_scope,
-                   "is_greeting": is_greeting}
+            extra={
+                "intent": intent,
+                "situation": situation,
+                "severity": severity,
+                "is_crisis_detected": is_crisis_detected,
+                "is_out_of_scope": is_out_of_scope,
+                "is_greeting": is_greeting,
+                "chat_preference": selected_chat_preference,
+                "chat_preference_style": chat_preference,
+            }
         )
 
         # Use a readymade template when crisis, out-of-scope, or greeting is explicitly detected.
@@ -96,7 +108,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             return {"response_draft": template}
 
         # No template — route to LLM(s) based on provider flags.
-        args = (user_message, situation, severity, intent, response_draft)
+        args = (user_message, chat_preference, situation, severity, intent, response_draft)
 
         if COMPARE_RESULTS:
             # Call both in parallel and pick the best response.
@@ -165,16 +177,18 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
 
 async def generate_response_ollama(
     user_message: str,
+    chat_preference: str,
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
-    context: Optional[str] = None
+    context: Optional[str] = None,
 ) -> str:
     """
     Generate a compassionate response using Ollama.
     
     Args:
         user_message: The user's message
+        chat_preference: Selected style of response
         situation: The identified situation/issue
         severity: Severity level (low, medium, high)
         intent: User's intent
@@ -194,6 +208,8 @@ async def generate_response_ollama(
             context_info += f"\nSeverity: {severity}"
         if intent:
             context_info += f"\nUser intent: {intent}"
+        if chat_preference:
+            context_info += f"\nChat Preference: {chat_preference}"
         
         prompt = f"""You are a compassionate mental health support chatbot. 
 Your role is to provide empathetic, supportive responses that validate the user's feelings.
@@ -207,6 +223,7 @@ Guidelines:
 - Offer practical support or resources when appropriate
 - Keep response concise (2-3 sentences)
 - Avoid being prescriptive or dismissive
+-Tailor your response according to Chat Preference 
 
 Compassionate response:"""
         
@@ -254,6 +271,7 @@ Compassionate response:"""
 
 async def generate_response_gpt(
     user_message: str,
+    chat_preference: str,
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
@@ -264,6 +282,7 @@ async def generate_response_gpt(
     
     Args:
         user_message: The user's message
+        chat_preference: Selected style of response
         situation: The identified situation/issue
         severity: Severity level (low, medium, high)
         intent: User's intent
@@ -287,6 +306,8 @@ async def generate_response_gpt(
             context_info += f"\nSeverity: {severity}"
         if intent:
             context_info += f"\nUser intent: {intent}"
+        if chat_preference:
+            context_info += f"\nChat Preference: {chat_preference}"
         
         messages = [
             {
@@ -300,7 +321,8 @@ Guidelines:
 - Ask clarifying questions if needed
 - Offer practical support or resources when appropriate
 - Keep response concise (2-3 sentences)
-- Avoid being prescriptive or dismissive"""
+- Avoid being prescriptive or dismissive
+-Tailor your response according to Chat Preference """
             },
             {
                 "role": "user",
@@ -356,4 +378,3 @@ Guidelines:
     except Exception:
         logger.exception("generate_response_gpt: failed")
         return ""
-
