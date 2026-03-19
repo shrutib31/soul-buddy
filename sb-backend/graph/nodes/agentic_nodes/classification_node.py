@@ -106,6 +106,7 @@ def detect_greeting(message: str) -> bool:
     - Phrases:           hi there, hello there, nice to meet you …
     - Informal:          what's up, wassup, howdy, hola …
     - Check-in openers:  how are you, how r u, how have you been …
+    - Casual variants:   what is up baby, what's up bro, whats up buddy …
     """
     message_lower = message.lower().strip()
     if not message_lower:
@@ -125,7 +126,7 @@ def detect_greeting(message: str) -> bool:
     EXACT_GREETINGS = {
         "hi", "hii", "hello", "hey", "heyy", "greetings", "howdy",
         "hi there", "hey there", "hello there", "howdy there",
-        "hiya", "hola", "yo", "sup", "wassup", "watsup", "whats up",
+        "hiya", "hola", "yo", "sup", "wassup", "watsup", "whats up", "what is up",
         "namaste", "namaskar",
         "good morning", "good afternoon", "good evening",
         "good night", "good day", "gm", "gn",
@@ -155,6 +156,23 @@ def detect_greeting(message: str) -> bool:
     }
     if len(words) >= 2 and " ".join(words[:2]) in TIME_GREETING_PAIRS:
         return True
+
+    # ── Rule 4: "what is/what's up" with optional term of address ──────────
+    INFORMAL_GREETING_PREFIXES = {"whats up", "what is up"}
+    VOCATIVE_WORDS = {
+        "baby", "babe", "bro", "bruh", "buddy", "dude", "fam", "friend",
+        "girl", "guys", "homie", "king", "love", "man", "mate", "pal",
+        "queen", "sir", "sis", "soulbuddy", "team", "there", "yall",
+    }
+    if len(words) >= 2:
+        for prefix in INFORMAL_GREETING_PREFIXES:
+            prefix_words = prefix.split()
+            if words[:len(prefix_words)] == prefix_words:
+                trailing_words = words[len(prefix_words):]
+                if not trailing_words:
+                    return True
+                if len(trailing_words) <= 2 and all(word in VOCATIVE_WORDS for word in trailing_words):
+                    return True
 
     return False
 

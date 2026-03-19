@@ -181,6 +181,13 @@ class TestGetClassificationsUnit:
         assert out["severity"] == "low"
         assert out["risk_level"] == "low"
 
+    def test_what_is_up_baby_returns_greeting_intent(self):
+        out = get_classifications("what is up baby?")
+        assert out["intent"] == "greeting"
+        assert out["severity"] == "low"
+        assert out["risk_level"] == "low"
+        assert out["is_greeting"] is True
+
     def test_crisis_message_returns_crisis_classification(self):
         out = get_classifications("I want to kill myself")
         assert out["intent"] == "crisis_disclosure"
@@ -471,6 +478,12 @@ class TestDetectGreetingNewPatterns:
 
     def test_how_r_u(self):
         assert detect_greeting("how r u") is True
+
+    def test_what_is_up_baby(self):
+        assert detect_greeting("what is up baby?") is True
+
+    def test_what_is_up_with_me_is_not_greeting(self):
+        assert detect_greeting("what is up with me?") is False
 
     def test_nice_to_meet_you(self):
         assert detect_greeting("nice to meet you") is True
