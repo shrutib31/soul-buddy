@@ -52,7 +52,7 @@ class RedisConfig:
             True if Redis is reachable, False otherwise (fail-silent).
         """
         try:
-            self._client = aioredis.from_url(
+            self._client = aioredis.Redis.from_url(
                 self.url,
                 max_connections=self.max_connections,
                 decode_responses=True,

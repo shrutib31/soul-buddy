@@ -150,7 +150,7 @@ The staging compose file (`docker-compose-sb-backend-staging.yml`) starts:
 
 **Key differences from dev:**
 - No bind-mount — code is baked into the image at build time
-- Memory limit enforced: `mem_limit` and `memswap_limit` default to `512m` (configurable via `BACKEND_MEM_LIMIT` / `BACKEND_MEMSWAP_LIMIT` in your env file)
+- Memory limit enforced: `mem_limit` and `memswap_limit` default to `1.5g` (configurable via `BACKEND_MEM_LIMIT` / `BACKEND_MEMSWAP_LIMIT` in your env file). The BERT-base ML model requires ~650-700 MB at runtime — do not set this below `1g`.
 - Redis not exposed to the host — internal compose network only
 - Startup order: backend waits for Redis to pass its `redis-cli ping` healthcheck before starting
 
@@ -184,19 +184,21 @@ docker compose -f docker-compose-sb-backend-staging.yml down
 
 ### Override memory limit
 
-To run staging with more (or less) memory than the 512 MB default, set the vars in your env file or inline:
+The default is `1.5g` to accommodate the BERT-base ML model (~650-700 MB RSS). To adjust:
 
 ```bash
-BACKEND_MEM_LIMIT=768m BACKEND_MEMSWAP_LIMIT=768m \
+BACKEND_MEM_LIMIT=2g BACKEND_MEMSWAP_LIMIT=2g \
   docker compose -f docker-compose-sb-backend-staging.yml up --build -d
 ```
 
 Or set them in `sb-backend/.env.docker` / `sb-backend/.env.docker.local.staging`:
 
 ```env
-BACKEND_MEM_LIMIT=768m
-BACKEND_MEMSWAP_LIMIT=768m
+BACKEND_MEM_LIMIT=2g
+BACKEND_MEMSWAP_LIMIT=2g
 ```
+
+> Do not set `BACKEND_MEM_LIMIT` below `1g` — the container will OOM-kill when the ML model loads on the first non-greeting/non-crisis message.
 
 ---
 
@@ -323,4 +325,11 @@ Redis will reconnect automatically once it comes back up.
 After editing `requirements.txt` or `pyproject.toml`, rebuild the image:
 ```bash
 docker compose -f docker-compose-sb-backend.yml build --no-cache
+```
+
+**Container OOM-killed (exit code 137)**
+The BERT-base ML model requires ~650-700 MB RSS. If the staging container exits with code 137, increase the memory limit:
+```env
+BACKEND_MEM_LIMIT=2g
+BACKEND_MEMSWAP_LIMIT=2g
 ```

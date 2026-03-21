@@ -4,7 +4,8 @@ WORKDIR /app
 
 # Copy requirements and install dependencies first (layer-cached separately from source)
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Copy the rest of the backend source
 COPY . .

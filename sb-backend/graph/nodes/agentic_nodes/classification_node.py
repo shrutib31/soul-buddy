@@ -1,23 +1,103 @@
-"""
-Classification Node for LangGraph
-
-Rule-based classification for intent, situation, and severity.
-Crisis and greeting detection use regex patterns (unchanged).
-Intent/situation/severity use keyword matching — no ML model required.
-"""
-
-import re
-import logging
 from typing import Dict, Any
+import os
+import logging
+import re
 
 from graph.state import ConversationState
+from graph.nodes.agentic_nodes.guardrail import looks_like_general_knowledge, looks_like_nonsense
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+MODEL_NAME = "bhadresh-savani/bert-base-uncased-emotion"
 
-# ============================================================================
-# GREETING DETECTION
-# ============================================================================
+# Label mappings
+
+# Expanded intent labels to match detect_crisis
+INTENT_LABELS = {
+    0: "greeting",
+    1: "venting",
+    2: "seek_information",
+    3: "seek_understanding",
+    4: "open_to_solution",
+    5: "try_tool",
+    6: "seek_support",
+    7: "unclear",
+    8: "crisis_disclosure",  # Used in detect_crisis
+    9: "seek_help",           # Possible future intent
+    10: "self_harm_disclosure" # For self-harm cases
+}
+
+
+# Expanded situation labels to match detect_crisis
+SITUATION_LABELS = {
+    0: "ACADEMIC_COMPARISON",
+    1: "EXAM_ANXIETY",
+    2: "GENERAL_OVERWHELM",
+    3: "LOW_MOTIVATION",
+    4: "BELONGING_DOUBT",
+    5: "UNLABELED_DISTRESS",
+    6: "PASSIVE_DEATH_WISH",
+    7: "HEALTH_CONCERNS",
+    8: "RELATIONSHIP_ISSUES",
+    9: "FINANCIAL_STRESS",
+    10: "FUTURE_UNCERTAINTY",
+    11: "OTHER",
+    12: "NO_SITUATION",
+    13: "UNCLEAR",
+    14: "SUICIDAL",
+    15: "SELF_HARM",           # Used in detect_crisis
+    16: "SEVERE_HOPELESSNESS", # Used in detect_crisis
+    17: "SEVERE_BURDEN",      # Used in detect_crisis
+    18: "SEVERE_DISTRESS",    # Used in detect_crisis
+    19: "GIVING_AWAY",        # Used in detect_crisis
+    20: "SAYING_GOODBYE"      # Used in detect_crisis
+}
+
+SEVERITY_LABELS = {
+    0: "low",
+    1: "medium",
+    2: "high"
+}
+
+# Global model instance
+_tokenizer = None
+_model = None
+_model_loaded = False
+_torch = None
+
+
+def load_model():
+    """Load the classification model and tokenizer."""
+    global _tokenizer, _model, _model_loaded, _torch
+    
+    if _model_loaded:
+        return
+    
+    try:
+        import torch
+        from transformers import AutoTokenizer
+        from transformer_models.SoulBuddyClassifier import SoulBuddyClassifier
+
+        _tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        _model = SoulBuddyClassifier(MODEL_NAME)
+        _torch = torch
+        
+        # Load model weights if file exists
+        model_path = settings.model.weights_path
+        if os.path.exists(model_path):
+            _model.load_state_dict(torch.load(model_path, map_location="cpu"))
+            logger.info("Classification model weights loaded successfully")
+        else:
+            logger.warning(f"Model weights file not found at {model_path}, using untrained model")
+        
+        _model.eval()
+        _model_loaded = True
+        logger.info("Classification model initialized")
+        
+    except Exception as e:
+        logger.error(f"Failed to load classification model: {str(e)}")
+        raise
 
 def detect_greeting(message: str) -> bool:
     """
@@ -78,10 +158,6 @@ def detect_greeting(message: str) -> bool:
 
     return False
 
-
-# ============================================================================
-# CRISIS DETECTION
-# ============================================================================
 
 def is_true_negation(msg_lower: str) -> bool:
     """Returns True only if the message clearly negates suicidal action."""
@@ -537,7 +613,8 @@ _OUT_OF_SCOPE_PATTERNS = [
 def classify_out_of_scope(message: str) -> bool:
     """
     Return True only when the user is explicitly requesting the bot to perform
-    an off-domain task (cooking, coding, legal/financial advice, etc.).
+    an off-domain task (cooking, coding, legal/financial advice, etc.) or sends
+    a general-knowledge query / nonsensical input.
 
     Personal narratives that merely *mention* off-domain topics are NOT flagged:
       ✗ out-of-scope  →  "Can you give me a recipe for pasta?"
@@ -547,6 +624,8 @@ def classify_out_of_scope(message: str) -> bool:
     if not message or not isinstance(message, str):
         return False
     msg = message.lower().strip()
+    if looks_like_general_knowledge(msg) or looks_like_nonsense(msg):
+        return True
     for pattern in _OUT_OF_SCOPE_PATTERNS:
         if re.search(pattern, msg):
             return True
@@ -559,14 +638,14 @@ def classify_out_of_scope(message: str) -> bool:
 
 def get_classifications(message: str) -> Dict[str, Any]:
     """
-    Classify a message using rule-based detection.
+    Classify a message.
 
     Evaluation order:
     1. Empty message  → unclear / NO_SITUATION / low
     2. Greeting       → greeting intent, no situation, low risk
-    3. Out-of-scope   → redirect template, no LLM call
+    3. Out-of-scope   → redirect template, no model call
     4. Crisis         → crisis_disclosure, specific situation, high risk
-    5. Rule-based     → intent / situation / severity via keyword patterns
+    5. ML model       → SoulBuddyClassifier for intent / situation / severity
     """
     if not message or message.strip() == "":
         logger.warning("Received empty message for classification")
@@ -613,26 +692,66 @@ def get_classifications(message: str) -> Dict[str, Any]:
             }
         }
 
-    intent = classify_intent(message)
-    situation = classify_situation(message)
-    severity = classify_severity(message)
+    # ── ML model inference ────────────────────────────────────────────────────
+    logger.info("Classifying message with ML model: '%s'", message)
+    global _tokenizer, _model, _model_loaded, _torch
 
-    risk_score_map = {"high": 0.75, "medium": 0.35, "low": 0.1}
-    risk_score = risk_score_map[severity]
-    risk_level = "high" if risk_score > 0.7 else "medium" if risk_score > 0.3 else "low"
+    if not _model_loaded:
+        load_model()
 
-    logger.info(
-        "Rule-based classification: intent=%s situation=%s severity=%s",
-        intent, situation, severity
-    )
-    return {
-        "intent": intent,
-        "situation": situation,
-        "severity": severity,
-        "risk_score": risk_score,
-        "risk_level": risk_level,
-        "raw_scores": {"situation": 1.0, "severity": 1.0, "intent": 1.0, "risk": risk_score}
-    }
+    if _tokenizer is None or _model is None or _torch is None:
+        raise RuntimeError("Classification model failed to load")
+
+    try:
+        inputs = _tokenizer(message, return_tensors="pt", truncation=True, padding=True)
+        model_inputs = {
+            "input_ids": inputs.get("input_ids"),
+            "attention_mask": inputs.get("attention_mask"),
+        }
+
+        with _torch.no_grad():
+            s_logits, sev_logits, i_logits, r_logits = _model(**model_inputs)
+
+        situation_idx = _torch.argmax(s_logits, dim=1).item()
+        severity_idx = _torch.argmax(sev_logits, dim=1).item()
+        intent_idx = _torch.argmax(i_logits, dim=1).item()
+        risk_score = float(_torch.sigmoid(r_logits).item())
+
+        if risk_score < 0.3:
+            risk_level = "low"
+        elif risk_score < 0.7:
+            risk_level = "medium"
+        else:
+            risk_level = "high"
+
+        classifications = {
+            "intent": INTENT_LABELS.get(intent_idx, "unknown"),
+            "situation": SITUATION_LABELS.get(situation_idx, "unknown"),
+            "severity": SEVERITY_LABELS.get(severity_idx, "unknown"),
+            "risk_score": round(risk_score, 3),
+            "risk_level": risk_level,
+            "raw_scores": {
+                "situation": float(s_logits.max().item()),
+                "severity": float(sev_logits.max().item()),
+                "intent": float(i_logits.max().item()),
+                "risk": risk_score
+            }
+        }
+        if float(i_logits.max().item()) < 0.5:
+            classifications["intent"] = "unclear"
+        if float(s_logits.max().item()) < 0.5:
+            classifications["situation"] = "unclear"
+            classifications["severity"] = "low"
+
+        logger.info(
+            "ML model classification: intent=%s severity=%s",
+            classifications["intent"], classifications["severity"]
+        )
+        return classifications
+
+    except Exception as e:
+        logger.exception("Error during ML model classification: %s", str(e))
+        raise
 
 
 # ============================================================================
@@ -654,7 +773,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "is_greeting": classifications.get("is_greeting", False),
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
             "is_out_of_scope": classifications.get("is_out_of_scope", False),
-            "risk_level": classifications["risk_level"],
+            "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
         }
 
     except Exception as e:
