@@ -64,8 +64,9 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         response_draft = state.response_draft
         is_crisis_detected = state.is_crisis_detected
         is_greeting = state.is_greeting
-        is_out_of_scope = state.is_out_of_scope
-        language = state.language or "en-IN"
+        is_out_of_scope = getattr(state, "is_out_of_scope", False)
+        language = getattr(state, "language", "en-in") or "en-in"
+
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
