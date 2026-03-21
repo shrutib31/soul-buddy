@@ -65,6 +65,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         is_crisis_detected = state.is_crisis_detected
         is_greeting = state.is_greeting
         is_out_of_scope = state.is_out_of_scope
+        language = state.language or "en-IN"
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
@@ -87,7 +88,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             return {"response_draft": template}
 
         # No template — route to LLM(s) based on provider flags.
-        args = (user_message, situation, severity, intent, response_draft)
+        args = (user_message, situation, severity, intent, response_draft, language)
 
         if COMPARE_RESULTS:
             # Call both in parallel and pick the best response.
@@ -159,7 +160,8 @@ async def generate_response_ollama(
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
-    context: Optional[str] = None
+    context: Optional[str] = None,
+    language: str = "en-IN"
 ) -> str:
     """
     Generate a compassionate response using Ollama.
@@ -192,6 +194,8 @@ Your role is to provide empathetic, supportive responses that validate the user'
 User message: "{user_message}"{context_info}
 
 Guidelines:
+- Respond in the SAME language as the user's message. (e.g., if user speaks in Bengali, you MUST respond in Bengali).
+- Use the provided language context ({language}) as a preference, but prioritize matching the user's spoken language for natural conversation.
 - Be warm, empathetic, and non-judgmental
 - Validate their feelings and experiences
 - Ask clarifying questions if needed
@@ -248,7 +252,8 @@ async def generate_response_gpt(
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
-    context: Optional[str] = None
+    context: Optional[str] = None,
+    language: str = "en-IN"
 ) -> str:
     """
     Generate a compassionate response using GPT-4o-mini.
@@ -282,10 +287,12 @@ async def generate_response_gpt(
         messages = [
             {
                 "role": "system",
-                "content": """You are a compassionate mental health support chatbot.
+                "content": f"""You are a compassionate mental health support chatbot.
 Your role is to provide empathetic, supportive responses that validate the user's feelings.
 
 Guidelines:
+- Respond in the SAME language as the user's message. (e.g., if user speaks in Bengali, you MUST respond in Bengali).
+- Use the provided language context ({language}) as a preference, but prioritize matching the user's spoken language for natural conversation.
 - Be warm, empathetic, and non-judgmental
 - Validate their feelings and experiences
 - Ask clarifying questions if needed

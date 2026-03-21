@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
   turn_index INT,
   speaker TEXT CHECK (speaker IN ('user','bot')),
   message TEXT,
+  language VARCHAR(10) DEFAULT 'en-IN',
   created_at TIMESTAMP DEFAULT NOW()
 );
 

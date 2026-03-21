@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from api.supabase_auth import optional_supabase_token, verify_supabase_token
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any
 import uuid
 import logging
@@ -35,9 +35,33 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User input message")
     is_incognito: bool = Field(True, description="True for anonymous session, False for authenticated session")
     sb_conv_id: Optional[str] = None
-    language: str = Field("en-IN", description="Language code for the session")
+    language: str = Field(
+        "en-in",
+        max_length=10,
+        pattern=r"^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$",
+        description="Language code for the session",
+    )
     domain: str = "student"
     metadata: Optional[Dict[str, Any]] = None
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def normalize_language(cls, v: Optional[str]) -> str:
+        """
+        Normalize language codes and enforce a default.
+        - Strip whitespace
+        - Fall back to default if empty/None
+        - Canonicalize casing (lowercase)
+        """
+        if v is None:
+            return "en-in"
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if not v:
+                return "en-in"
+            return v
+        raise ValueError("language must be a string")
+
 
 
 # ============================================================================
