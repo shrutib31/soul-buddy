@@ -66,35 +66,45 @@ _torch = None
 
 
 def load_model():
-    """Load the classification model and tokenizer."""
+    """
+    Load the classification model and tokenizer.
+
+    Only attempted when model_weights.pt exists — avoids downloading the base
+    model from HuggingFace at runtime when there are no trained weights to use.
+    Callers should check _model_loaded after calling this; if the weights file
+    is absent the function returns early and the ML path stays disabled.
+    """
     global _tokenizer, _model, _model_loaded, _torch
-    
+
     if _model_loaded:
         return
-    
+
+    model_path = os.getenv("MODEL_WEIGHTS_PATH", "model_weights.pt")
+    if not os.path.exists(model_path):
+        logger.info(
+            "Classification model weights not found at %r — ML classification disabled, "
+            "rule-based fallback active. Provide a trained model_weights.pt to enable it.",
+            model_path,
+        )
+        return
+
     try:
         import torch
         from transformers import AutoTokenizer
         from transformer_models.SoulBuddyClassifier import SoulBuddyClassifier
 
+        logger.info("Loading classification model from %r …", model_path)
         _tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         _model = SoulBuddyClassifier(MODEL_NAME)
         _torch = torch
-        
-        # Load model weights if file exists
-        model_path = "model_weights.pt"
-        if os.path.exists(model_path):
-            _model.load_state_dict(torch.load(model_path, map_location="cpu"))
-            logger.info("Classification model weights loaded successfully")
-        else:
-            logger.warning(f"Model weights file not found at {model_path}, using untrained model")
-        
+
+        _model.load_state_dict(torch.load(model_path, map_location="cpu"))
         _model.eval()
         _model_loaded = True
-        logger.info("Classification model initialized")
-        
+        logger.info("Classification model loaded successfully from %r", model_path)
+
     except Exception as e:
-        logger.error(f"Failed to load classification model: {str(e)}")
+        logger.error("Failed to load classification model: %s", e)
         raise
 
 def detect_greeting(message: str) -> bool:
@@ -273,7 +283,21 @@ def get_classifications(message: str, domain: str = "general") -> Dict[str, Any]
         load_model()
 
     if _tokenizer is None or _model is None or _torch is None:
-        raise RuntimeError("Classification model failed to load")
+        logger.info("ML model unavailable — returning rule-based default classification")
+        return {
+            "intent": "seek_information",
+            "situation": "NO_SITUATION",
+            "severity": "low",
+            "risk_score": 0.0,
+            "risk_level": "low",
+            "is_out_of_scope": False,
+            "raw_scores": {
+                "situation": 0.0,
+                "severity": 0.0,
+                "intent": 0.0,
+                "risk": 0.0,
+            }
+        }
 
     try:
         inputs = _tokenizer(message, return_tensors="pt", truncation=True, padding=True)

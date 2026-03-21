@@ -211,8 +211,8 @@ class TestGetClassificationsUnit:
         assert out["risk_level"] == "low"
         assert out["is_out_of_scope"] is True
 
-    def test_model_path_requires_loaded_model(self):
-        """Without model loaded, get_classifications for non-greeting non-crisis raises RuntimeError."""
+    def test_no_model_returns_rule_based_default(self):
+        """When no model weights are available, get_classifications returns a rule-based default."""
         import graph.nodes.agentic_nodes.classification_node as mod
         orig_loaded, orig_model, orig_tok = mod._model_loaded, mod._model, mod._tokenizer
         mod._model_loaded = False
@@ -223,8 +223,9 @@ class TestGetClassificationsUnit:
                 with patch.object(mod, "detect_greeting", return_value=False):
                     with patch.object(mod, "detect_crisis", return_value={"is_crisis": False}):
                         with patch.object(mod, "detect_out_of_scope", return_value={"is_out_of_scope": False}):
-                            with pytest.raises(RuntimeError, match="Classification model failed to load"):
-                                get_classifications("Some random message that is not greeting or crisis")
+                            result = get_classifications("Some random message that is not greeting or crisis")
+            assert result["intent"] == "seek_information"
+            assert result["is_out_of_scope"] is False
         finally:
             mod._model_loaded = orig_loaded
             mod._model = orig_model

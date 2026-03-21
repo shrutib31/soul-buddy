@@ -205,7 +205,7 @@ class TestGenerateResponseOllamaUnit:
             mock_session.return_value.post.return_value = mock_resp
             mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_session.return_value)
             mock_session.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = await generate_response_ollama("I need help")
+            result = await generate_response_ollama("I need help", chat_preference="")
         assert result == "Here is support."
 
     @pytest.mark.asyncio
@@ -220,7 +220,7 @@ class TestGenerateResponseOllamaUnit:
             mock_session.return_value.post.return_value = mock_resp
             mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_session.return_value)
             mock_session.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = await generate_response_ollama("I need help")
+            result = await generate_response_ollama("I need help", chat_preference="")
         assert result == ""
 
 
@@ -234,5 +234,5 @@ class TestGenerateResponseGptUnit:
     @pytest.mark.asyncio
     async def test_no_api_key_returns_empty(self):
         with patch(f"{_MOD}.OPENAI_API_KEY", ""):
-            result = await generate_response_gpt("Hello")
+            result = await generate_response_gpt("Hello", chat_preference="")
         assert result == ""

@@ -37,7 +37,7 @@ class ChatRequest(BaseModel):
     sb_conv_id: Optional[str] = None
     domain: str
     metadata: Optional[Dict[str, Any]] = None
-    chat_preference: str
+    chat_preference: str = ""
 
 
 # ============================================================================
@@ -64,7 +64,7 @@ async def create_initial_state(
     message: str,
     mode: str,
     domain: str,
-    chat_preference: str,
+    chat_preference: str = "",
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
 ) -> ConversationState:

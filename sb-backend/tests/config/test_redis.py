@@ -38,7 +38,8 @@ class TestRedisConfigConnect:
         config = RedisConfig()
         mock_client = make_mock_client()
 
-        with patch("config.redis.aioredis.from_url", return_value=mock_client):
+        with patch("config.redis.aioredis") as mock_aioredis:
+            mock_aioredis.from_url.return_value = mock_client
             result = await config.connect()
 
         assert result is True
@@ -50,7 +51,8 @@ class TestRedisConfigConnect:
         config = RedisConfig()
         mock_client = make_mock_client(ping_raises=ConnectionRefusedError("refused"))
 
-        with patch("config.redis.aioredis.from_url", return_value=mock_client):
+        with patch("config.redis.aioredis") as mock_aioredis:
+            mock_aioredis.from_url.return_value = mock_client
             result = await config.connect()
 
         assert result is False
@@ -64,7 +66,8 @@ class TestRedisConfigConnect:
         config.url = "redis://:secret@localhost:6379"
         mock_client = make_mock_client()
 
-        with patch("config.redis.aioredis.from_url", return_value=mock_client):
+        with patch("config.redis.aioredis") as mock_aioredis:
+            mock_aioredis.from_url.return_value = mock_client
             result = await config.connect()
 
         assert result is True
