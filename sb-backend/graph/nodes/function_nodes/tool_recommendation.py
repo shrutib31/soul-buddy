@@ -4,15 +4,15 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from langchain_ollama import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage
+from dotenv import load_dotenv
 
-
+load_dotenv()
 # --- PGVector connection string (Postgres DB) --------------------
-PGVECTOR_CONNECTION_STRING = "postgres://postgres:postgres123@72.60.99.35:5432/lifeskills_rag"  # <-- fill this in
-
+PGVECTOR_CONNECTION_STRING =  os.getenv("PGVECTOR_CONNECTION_STRING")
 # --- Collection name (the table your embeddings are stored in) -------------
-COLLECTION_NAME = "n8n_vectors"               # <-- fill this in
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")
 
-LLAMA_3B_API_URL="http://srv940034.hstgr.cloud:11434/v1"
+LLAMA_3B_API_URL= os.getenv("OLLAMA_BASE_URL")
 LLAMA_MODEL_TAG="llama3.2:3b"
 
 # ===========================================================================
