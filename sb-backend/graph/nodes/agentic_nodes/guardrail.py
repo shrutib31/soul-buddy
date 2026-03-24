@@ -15,19 +15,25 @@ OLLAMA_TIMEOUT = settings.ollama.timeout
 
 logger = logging.getLogger(__name__)
 
-_GENERAL_KNOWLEDGE_PATTERNS = [
-    r"\bcapital of\b",
-    r"\bpopulation of\b",
-    r"\bcurrency of\b",
-    r"\bpresident of\b",
-    r"\bprime minister of\b",
-    r"\bweather in\b",
-    r"\bsolve\b.+[0-9x+y=z]",
-    r"\bcalculate\b",
-    r"\btranslate\b",
-    r"\bdefinition of\b",
-    r"\bwhat(?:'s| is) the\b.+\b(country|capital|currency|population|formula|weather)\b",
-]
+_KEYBOARD_ROWS = (
+    "qwertyuiop",
+    "asdfghjkl",
+    "zxcvbnm",
+)
+
+_GENERAL_KNOWLEDGE_PATTERNS = (
+    re.compile(r"\bcapital of\b"),
+    re.compile(r"\bpopulation of\b"),
+    re.compile(r"\bcurrency of\b"),
+    re.compile(r"\bpresident of\b"),
+    re.compile(r"\bprime minister of\b"),
+    re.compile(r"\bweather in\b"),
+    re.compile(r"\bsolve\b.+[0-9x+y=z]"),
+    re.compile(r"\bcalculate\b"),
+    re.compile(r"\btranslate\b"),
+    re.compile(r"\bdefinition of\b"),
+    re.compile(r"\bwhat(?:'s| is) the\b.+\b(country|capital|currency|population|formula|weather)\b"),
+)
 
 _IN_SCOPE_SUPPORT_KEYWORDS = {
     "anxious", "anxiety", "burnout", "depressed", "emotion", "exams", "feeling",
@@ -35,6 +41,38 @@ _IN_SCOPE_SUPPORT_KEYWORDS = {
     "sad", "self", "soulgym", "stressed", "stress", "support", "therapy",
     "tired", "wellbeing", "wellness", "work", "worry"
 }
+
+_IN_SCOPE_KNOWLEDGE_KEYWORDS = {
+    "attachment", "boundaries", "cbt", "chakra", "compassion", "coping",
+    "dissociation", "ego", "energy", "grounding", "healing", "inner child",
+    "meditation", "mindfulness", "nervous system", "psychology", "self compassion",
+    "self-compassion", "self worth", "self-worth", "shadow work", "somatic",
+    "spirit", "spiritual", "spirituality", "therapy", "trauma", "values",
+}
+
+_IN_SCOPE_KNOWLEDGE_PATTERNS = (
+    re.compile(r"\bdefinition of\b"),
+    re.compile(r"\bmeaning of\b"),
+    re.compile(r"\bwhat(?:'s| is)\b"),
+    re.compile(r"\bwhat does\b"),
+    re.compile(r"\bhow does\b"),
+    re.compile(r"\bcan you explain\b"),
+    re.compile(r"\bexplain\b"),
+    re.compile(r"\btell me about\b"),
+    re.compile(r"\bhelp me understand\b"),
+)
+
+_TRIVIA_STYLE_PATTERNS = (
+    re.compile(r"\bwho\b"),
+    re.compile(r"\bwhen\b"),
+    re.compile(r"\bwhere\b"),
+    re.compile(r"\bcapital of\b"),
+    re.compile(r"\bpopulation of\b"),
+    re.compile(r"\bcurrency of\b"),
+    re.compile(r"\bpresident of\b"),
+    re.compile(r"\bprime minister of\b"),
+    re.compile(r"\bweather in\b"),
+)
 
 # Rules/Patterns Guadrail checks against
 GUARDRAIL_RULES = [
@@ -71,6 +109,7 @@ def detect_out_of_scope(
     message: str,
     domain: str = "general",
     llm_fn: Optional[Callable[[str], str]] = None,
+    allow_llm_fallback: bool = True,
 ) -> Dict[str, Any]:
     """
     Detect whether a user message is outside soulbuddy's scope.
@@ -88,6 +127,9 @@ def detect_out_of_scope(
         return get_out_of_scope_result(True, pattern_reason, domain)
 
     if looks_like_in_scope_support(message):
+        return get_out_of_scope_result(False, "in_scope", domain)
+
+    if not allow_llm_fallback:
         return get_out_of_scope_result(False, "in_scope", domain)
 
     if llm_fn is None:
@@ -123,6 +165,9 @@ Mark messages as out of scope when they are:
 - technical, academic, or factual questions unrelated to wellbeing support
 - nonsense or gibberish that does not form a meaningful request
 
+Keep messages in scope when they ask about psychology, emotional wellbeing,
+mindfulness, spirituality, or self-reflection in a way that could support the user.
+
 Return ONLY JSON in this exact shape:
 {{
   "is_out_of_scope": true or false,
@@ -135,22 +180,42 @@ User message: "{message}"
 
 def detect_pattern_reason(message: str) -> Optional[str]:
     message_lower = message.lower().strip()
-    if looks_like_general_knowledge(message_lower):
-        return "general_knowledge"
     if looks_like_nonsense(message_lower):
         return "nonsense"
+    if is_support_topic_query(message_lower):
+        return None
+    if looks_like_general_knowledge(message_lower):
+        return "general_knowledge"
     return None
 
 
 def looks_like_general_knowledge(message_lower: str) -> bool:
     for pattern in _GENERAL_KNOWLEDGE_PATTERNS:
-        if re.search(pattern, message_lower):
+        if pattern.search(message_lower):
             return True
     return False
 
 
+def is_support_topic_query(message_lower: str) -> bool:
+    if any(pattern.search(message_lower) for pattern in _TRIVIA_STYLE_PATTERNS):
+        return False
+
+    if not any(keyword in message_lower for keyword in _IN_SCOPE_KNOWLEDGE_KEYWORDS):
+        return False
+
+    return any(pattern.search(message_lower) for pattern in _IN_SCOPE_KNOWLEDGE_PATTERNS)
+
+
 def looks_like_nonsense(message_lower: str) -> bool:
     alnum_tokens = re.findall(r"[a-zA-Z0-9]+", message_lower)
+    alpha_tokens = re.findall(r"[a-zA-Z]+", message_lower)
+
+    if is_single_word_nonsense(alpha_tokens):
+        return True
+
+    if len(alpha_tokens) >= 4 and all(len(token) == 1 for token in alpha_tokens):
+        return True
+
     if len(alnum_tokens) < 2:
         return False
 
@@ -166,7 +231,6 @@ def looks_like_nonsense(message_lower: str) -> bool:
     if suspicious_mixed_tokens >= 2:
         return True
 
-    alpha_tokens = re.findall(r"[a-zA-Z]+", message_lower)
     if len(alpha_tokens) < 2:
         return False
 
@@ -183,8 +247,33 @@ def looks_like_nonsense(message_lower: str) -> bool:
     return consonant_heavy >= max(2, len(long_alpha_tokens) - 1)
 
 
+def is_single_word_nonsense(alpha_tokens: list[str]) -> bool:
+    if len(alpha_tokens) != 1:
+        return False
+
+    token = alpha_tokens[0].lower()
+    if len(token) < 6:
+        return False
+
+    if re.fullmatch(r"([a-z])\1{5,}", token):
+        return True
+
+    if any(token in row or token in row[::-1] for row in _KEYBOARD_ROWS):
+        return True
+
+    if len(token) >= 8 and (
+        not re.search(r"[aeiouy]", token)
+        or re.search(r"[bcdfghjklmnpqrstvwxz]{5,}", token)
+    ):
+        return True
+
+    return False
+
+
 def looks_like_in_scope_support(message: str) -> bool:
     message_lower = message.lower()
+    if is_support_topic_query(message_lower):
+        return True
     if any(keyword in message_lower for keyword in _IN_SCOPE_SUPPORT_KEYWORDS):
         return True
     return bool(re.search(r"\b(i|i'm|i am|my|me)\b", message_lower) and re.search(r"\b(feel|feeling|struggling|cope|help)\b", message_lower))
@@ -207,7 +296,7 @@ def get_out_of_scope_result(
     return {
         "is_out_of_scope": is_out_of_scope,
         "reason": reason if is_out_of_scope else "in_scope",
-        "response": get_out_of_scope_response(domain) if is_out_of_scope else "",
+        "response": get_out_of_scope_response(domain, reason=reason) if is_out_of_scope else "",
     }
 
 

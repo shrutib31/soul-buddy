@@ -19,6 +19,7 @@ class ConversationState(BaseModel):
     intent: Optional[str] = None
     is_greeting: bool = False
     is_out_of_scope: bool = False
+    out_of_scope_reason: Optional[str] = None
 
     # safety
     risk_level: str = "low"

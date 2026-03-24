@@ -9,7 +9,21 @@ so no real database or Ollama/OpenAI is required.
 """
 
 import pytest
+import sys
+import types
 from unittest.mock import patch, AsyncMock, MagicMock
+
+redis_module = types.ModuleType("redis")
+redis_asyncio_module = types.ModuleType("redis.asyncio")
+redis_exceptions_module = types.ModuleType("redis.exceptions")
+redis_asyncio_module.Redis = object
+redis_exceptions_module.ConnectionError = RuntimeError
+redis_exceptions_module.TimeoutError = RuntimeError
+redis_module.asyncio = redis_asyncio_module
+redis_module.exceptions = redis_exceptions_module
+sys.modules.setdefault("redis", redis_module)
+sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
+sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from graph.graph_builder import get_compiled_flow
 from graph.state import ConversationState
@@ -65,6 +79,7 @@ async def test_full_graph_invoke_with_mocked_io(mock_session):
                 mode="incognito",
                 domain="general",
                 user_message="Hi!",  # Greeting so no model load in classification
+                chat_preference="general",
             )
             result = await flow.ainvoke(state.model_dump())
 
@@ -75,3 +90,45 @@ async def test_full_graph_invoke_with_mocked_io(mock_session):
     assert "response" in api_resp
     assert len(api_resp["response"]) > 0
     assert "conversation_id" in api_resp
+
+
+@pytest.mark.asyncio
+async def test_fast_out_of_scope_happens_before_classification():
+    async def fake_conv_id_handler(_state):
+        return {"conversation_id": "test-conv-123"}
+
+    async def fake_load_user_context(_state):
+        return {}
+
+    async def fake_store_message(_state):
+        return {}
+
+    def unexpected_classification(_state):
+        raise AssertionError("classification_node should not run")
+
+    with patch(
+        "graph.graph_builder.conv_id_handler_node",
+        new=fake_conv_id_handler,
+    ), patch(
+        "graph.graph_builder.load_user_context_node",
+        new=fake_load_user_context,
+    ), patch(
+        "graph.graph_builder.store_message_node",
+        new=fake_store_message,
+    ), patch(
+        "graph.graph_builder.classification_node",
+        new=unexpected_classification,
+    ):
+        flow = get_compiled_flow()
+        state = ConversationState(
+            conversation_id="test-conv-123",
+            mode="incognito",
+            domain="general",
+            user_message="asdfghjkl",
+            chat_preference="general",
+        )
+        result = await flow.ainvoke(state.model_dump())
+
+    assert result["api_response"]["success"] is True
+    assert result["api_response"]["metadata"]["intent"] == "out_of_scope"
+    assert result["api_response"]["metadata"]["out_of_scope_reason"] == "nonsense"

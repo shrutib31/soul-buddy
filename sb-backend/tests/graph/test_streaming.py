@@ -7,8 +7,22 @@ and payload are emitted.
 """
 
 import json
+import sys
+import types
 import pytest
 from unittest.mock import patch, MagicMock
+
+redis_module = types.ModuleType("redis")
+redis_asyncio_module = types.ModuleType("redis.asyncio")
+redis_exceptions_module = types.ModuleType("redis.exceptions")
+redis_asyncio_module.Redis = object
+redis_exceptions_module.ConnectionError = RuntimeError
+redis_exceptions_module.TimeoutError = RuntimeError
+redis_module.asyncio = redis_asyncio_module
+redis_module.exceptions = redis_exceptions_module
+sys.modules.setdefault("redis", redis_module)
+sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
+sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from graph.state import ConversationState
 from graph.streaming import stream_as_sse
@@ -56,6 +70,7 @@ def sample_state():
         mode="incognito",
         domain="general",
         user_message="I need some help.",
+        chat_preference="general",
     )
 
 
@@ -177,10 +192,11 @@ class TestStreamAsSse:
         api_response = {"success": True, "response": "I'm here for you."}
         mock_flow = make_mock_flow([
             {"conv_id_handler": {"conversation_id": "abc"}},
+            {"load_user_context": {}},
             {"store_message": {}},
+            {"out_of_scope": {}},
             {"classification_node": {"intent": "venting"}},
             {"response_generator": {"response_draft": "I'm here for you."}},
-            {"guardrail": {"guardrail_status": "OK"}},
             {"store_bot_response": {}},
             {"render": {"api_response": api_response}},
         ])

@@ -53,6 +53,26 @@ class TestGuardrailEndpointUnit:
         assert data["guardrail"]["is_out_of_scope"] is True
         assert data["guardrail"]["reason"] == "nonsense"
 
+    def test_guardrail_flags_single_token_keyboard_run_as_out_of_scope(self, client):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": "asdfghjkl", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is True
+        assert data["guardrail"]["reason"] == "nonsense"
+
+    def test_guardrail_flags_single_letter_runs_as_out_of_scope(self, client):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": "a s d f g h", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is True
+        assert data["guardrail"]["reason"] == "nonsense"
+
     def test_guardrail_flags_mixed_alphanumeric_gibberish_as_out_of_scope(self, client):
         resp = client.post(
             "/api/v1/guardrail",
@@ -73,6 +93,26 @@ class TestGuardrailEndpointUnit:
         assert data["guardrail"]["is_out_of_scope"] is False
         assert data["guardrail"]["reason"] == "in_scope"
         assert data["guardrail"]["response"] == ""
+
+    def test_guardrail_keeps_psychology_definition_question_in_scope(self, client):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": "definition of mindfulness", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is False
+        assert data["guardrail"]["reason"] == "in_scope"
+
+    def test_guardrail_keeps_spiritual_concept_question_in_scope(self, client):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": "what is shadow work in spirituality?", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is False
+        assert data["guardrail"]["reason"] == "in_scope"
 
     def test_guardrail_bad_json_falls_back_to_in_scope(self, client):
         with patch(

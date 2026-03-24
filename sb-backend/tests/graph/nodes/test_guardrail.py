@@ -45,6 +45,7 @@ def sample_state():
         mode="incognito",
         domain="general",
         user_message="I'm feeling really overwhelmed and anxious.",
+        chat_preference="general",
         response_draft="I'm sorry you're feeling this way. I'm here with you.",
     )
 
@@ -57,6 +58,7 @@ def sample_state_with_attempts():
         mode="incognito",
         domain="general",
         user_message="I'm feeling really overwhelmed and anxious.",
+        chat_preference="general",
         response_draft="I'm sorry you're feeling this way. I'm here with you.",
         attempt=2,
         step_index=3,
@@ -119,6 +121,41 @@ class TestOutOfScopeDetectionUnit:
 
         assert result["is_out_of_scope"] is True
         assert result["reason"] == "other_out_of_scope"
+
+    def test_llm_fallback_can_be_disabled(self):
+        with patch(
+            "graph.nodes.agentic_nodes.guardrail.call_guardrail_llm",
+            side_effect=AssertionError("LLM fallback should not be called"),
+        ):
+            result = detect_out_of_scope(
+                "Can you review this merger thesis?",
+                allow_llm_fallback=False,
+            )
+
+        assert result["is_out_of_scope"] is False
+        assert result["reason"] == "in_scope"
+
+    def test_out_of_scope_responses_vary_by_reason(self):
+        general_knowledge = detect_out_of_scope("What is the capital of France?")
+        nonsense = detect_out_of_scope("asdfghjkl")
+
+        assert general_knowledge["reason"] == "general_knowledge"
+        assert nonsense["reason"] == "nonsense"
+        assert general_knowledge["response"] != nonsense["response"]
+        assert "SoulGym" in general_knowledge["response"]
+        assert "SoulGym" in nonsense["response"]
+
+    def test_psychology_concept_query_stays_in_scope(self):
+        result = detect_out_of_scope("definition of mindfulness", allow_llm_fallback=False)
+
+        assert result["is_out_of_scope"] is False
+        assert result["reason"] == "in_scope"
+
+    def test_spiritual_concept_query_stays_in_scope(self):
+        result = detect_out_of_scope("what is shadow work in spirituality?", allow_llm_fallback=False)
+
+        assert result["is_out_of_scope"] is False
+        assert result["reason"] == "in_scope"
 
 
 class TestGuardrailNodeUnit:

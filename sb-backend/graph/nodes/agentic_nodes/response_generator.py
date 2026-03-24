@@ -69,6 +69,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         is_crisis_detected = state.is_crisis_detected
         is_greeting = state.is_greeting
         is_out_of_scope = getattr(state, "is_out_of_scope", False)
+        out_of_scope_reason = getattr(state, "out_of_scope_reason", None)
         chat_preference = preference_style
 
         if not user_message:
@@ -82,6 +83,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
                 "severity": severity,
                 "is_crisis_detected": is_crisis_detected,
                 "is_out_of_scope": is_out_of_scope,
+                "out_of_scope_reason": out_of_scope_reason,
                 "is_greeting": is_greeting,
                 "chat_preference": selected_chat_preference,
                 "chat_preference_style": chat_preference,
@@ -94,6 +96,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             is_greeting,
             domain,
             is_out_of_scope=is_out_of_scope,
+            out_of_scope_reason=out_of_scope_reason,
         )
         if template:
             logger.info(
@@ -101,6 +104,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
                 extra={
                     "is_crisis_detected": is_crisis_detected,
                     "is_out_of_scope": is_out_of_scope,
+                    "out_of_scope_reason": out_of_scope_reason,
                     "is_greeting": is_greeting,
                     "domain": domain,
                 }

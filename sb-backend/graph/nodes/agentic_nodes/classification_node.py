@@ -122,7 +122,7 @@ def detect_greeting(message: str) -> bool:
     if not words:
         return False
 
-    # ── Rule 1: Exact match against known greeting phrases ──────────────────
+    # Rule 1: Exact match against known greeting phrases
     EXACT_GREETINGS = {
         "hi", "hii", "hello", "hey", "heyy", "greetings", "howdy",
         "hi there", "hey there", "hello there", "howdy there",
@@ -133,7 +133,6 @@ def detect_greeting(message: str) -> bool:
         "morning", "afternoon", "evening",
         "nice to meet you", "great to meet you", "pleased to meet you",
         "long time no see", "hey hey",
-        # common check-in phrases used as openers
         "how are you", "how are you doing", "how are you today",
         "how r u", "how ru", "how are u", "how do you do",
         "how have you been", "hope you are well", "hope youre well",
@@ -141,7 +140,7 @@ def detect_greeting(message: str) -> bool:
     if message_clean in EXACT_GREETINGS:
         return True
 
-    # ── Rule 2: Short messages (≤ 4 words) starting with a greeting word ────
+    # Rule 2: Short messages (<= 4 words) starting with a greeting word
     GREETING_STARTERS = {
         "hi", "hii", "hello", "hey", "heyy", "howdy", "hiya",
         "namaste", "namaskar", "yo", "sup", "hola", "greetings", "morning",
@@ -149,7 +148,7 @@ def detect_greeting(message: str) -> bool:
     if len(words) <= 4 and words[0] in GREETING_STARTERS:
         return True
 
-    # ── Rule 3: Time-based greetings as first two words ─────────────────────
+    # Rule 3: Time-based greetings as first two words
     TIME_GREETING_PAIRS = {
         "good morning", "good afternoon", "good evening",
         "good night", "good day",
@@ -157,7 +156,7 @@ def detect_greeting(message: str) -> bool:
     if len(words) >= 2 and " ".join(words[:2]) in TIME_GREETING_PAIRS:
         return True
 
-    # ── Rule 4: "what is/what's up" with optional term of address ──────────
+    # Rule 4: "what is/what's up" with optional term of address
     INFORMAL_GREETING_PREFIXES = {"whats up", "what is up"}
     VOCATIVE_WORDS = {
         "baby", "babe", "bro", "bruh", "buddy", "dude", "fam", "friend",
@@ -248,7 +247,11 @@ def get_classifications(message: str, domain: str = "general") -> Dict[str, Any]
             }
         }
 
-    out_of_scope_result = detect_out_of_scope(message, domain=domain)
+    out_of_scope_result = detect_out_of_scope(
+        message,
+        domain=domain,
+        allow_llm_fallback=False,
+    )
     if out_of_scope_result["is_out_of_scope"]:
         logger.info("Message classified as out_of_scope")
         return {
@@ -258,6 +261,7 @@ def get_classifications(message: str, domain: str = "general") -> Dict[str, Any]
             "risk_score": 0.0,
             "risk_level": "low",
             "is_out_of_scope": True,
+            "out_of_scope_reason": out_of_scope_result.get("reason"),
             "raw_scores": {
                 "situation": 0.0,
                 "severity": 0.0,
@@ -666,6 +670,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "is_greeting": classifications.get("is_greeting", False),
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
             "is_out_of_scope": classifications.get("is_out_of_scope", False),
+            "out_of_scope_reason": classifications.get("out_of_scope_reason"),
             "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
         }
 

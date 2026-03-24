@@ -77,27 +77,45 @@ _HIGH_RISK_TEMPLATES = [
 # OUT-OF-SCOPE TEMPLATES
 # ============================================================================
 
-_OUT_OF_SCOPE_TEMPLATES = {
-    "student": (
-        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
-        "planning your SoulGym, or talking through stress, motivation, or how you are feeling. "
-        "Would you like help with one of those instead?"
-    ),
-    "employee": (
-        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
-        "planning your SoulGym, or talking through work stress, burnout, or how you are feeling. "
-        "Would you like help with one of those instead?"
-    ),
-    "corporate": (
-        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
-        "planning your SoulGym, or helping you reflect on stress, pressure, or how you are feeling. "
-        "Would you like help with one of those instead?"
-    ),
-    "general": (
-        "That is outside what I can reliably help with. I am here for wellbeing support like journaling, "
-        "planning your SoulGym, or talking through what you are feeling. "
-        "Would you like help with one of those instead?"
-    ),
+_OUT_OF_SCOPE_REASON_OPENERS = {
+    "general_knowledge": [
+        "That sounds more like a trivia or fact question than something I can answer well.",
+        "I'm probably not the best place for general knowledge or factual lookup questions.",
+        "That seems like a factual question, and I'm not the most reliable tool for that kind of answer.",
+    ],
+    "nonsense": [
+        "I don't think I quite caught what you meant there.",
+        "That message didn't come through clearly enough for me to respond to it well.",
+        "I might be missing what you were trying to say there.",
+    ],
+    "other_out_of_scope": [
+        "That's a bit outside what I'm built to help with here.",
+        "I'm probably not the right tool for that kind of request.",
+        "That goes beyond the kind of support I can give well in this chat.",
+    ],
+}
+
+_OUT_OF_SCOPE_REDIRECTS = {
+    "student": [
+        "I can help with student stress, motivation, friendships, journaling, or planning your SoulGym instead. Want to go that way?",
+        "I'm better at helping with things like exam stress, feeling overwhelmed, journaling, or planning your SoulGym. If you want, we can switch to that.",
+        "If what you really need is support, I can help you talk through stress, motivation, or how you're feeling, or help plan your SoulGym.",
+    ],
+    "employee": [
+        "I can help with work stress, burnout, journaling, or planning your SoulGym instead. Want to shift to that?",
+        "I'm better at supporting you with work stress, pressure, burnout, reflection, or planning your SoulGym. We can go there if that helps.",
+        "If you want, I can help you talk through work stress, how you're feeling, or plan your SoulGym instead.",
+    ],
+    "corporate": [
+        "I can help with stress, pressure, reflection, journaling, or planning your SoulGym instead. Want to pivot to that?",
+        "I'm better at helping with pressure, wellbeing, reflection, or planning your SoulGym. If that's useful, we can switch gears.",
+        "If what you need is support, I can help you think through stress, pressure, or how you're feeling, or help plan your SoulGym.",
+    ],
+    "general": [
+        "I can help with journaling, planning your SoulGym, or talking through what you're feeling instead. Want to try one of those?",
+        "I'm much better at wellbeing support like reflection, journaling, or planning your SoulGym. If you want, we can go in that direction.",
+        "If you were looking for support rather than facts, I can help you sort through what you're feeling or plan your SoulGym.",
+    ],
 }
 
 # ============================================================================
@@ -126,6 +144,7 @@ def get_template_response(
     is_greeting: bool,
     domain: Optional[str] = "general",
     is_out_of_scope: bool = False,
+    out_of_scope_reason: Optional[str] = None,
 ) -> Optional[str]:
     """
     Return a readymade template response if one applies, otherwise None.
@@ -140,6 +159,7 @@ def get_template_response(
         is_greeting:        True when classification_node detected a greeting.
         domain:             Conversation domain ("student", "employee", "corporate", "general").
         is_out_of_scope:    True when classification_node detected an out-of-scope message.
+        out_of_scope_reason: Why the message was considered out of scope.
 
     Returns:
         A template string, or None if no template applies (LLM should be used).
@@ -148,7 +168,7 @@ def get_template_response(
         return random.choice(_HIGH_RISK_TEMPLATES)
 
     if is_out_of_scope:
-        return get_out_of_scope_response(domain)
+        return get_out_of_scope_response(domain, reason=out_of_scope_reason)
 
     if is_greeting:
         domain_key = domain if domain in _GREETING_TEMPLATES else "general"
@@ -157,9 +177,15 @@ def get_template_response(
     return None
 
 
-def get_out_of_scope_response(domain: Optional[str] = "general") -> str:
-    domain_key = domain if domain in _OUT_OF_SCOPE_TEMPLATES else "general"
-    return _OUT_OF_SCOPE_TEMPLATES[domain_key]
+def get_out_of_scope_response(
+    domain: Optional[str] = "general",
+    reason: Optional[str] = "other_out_of_scope",
+) -> str:
+    domain_key = domain if domain in _OUT_OF_SCOPE_REDIRECTS else "general"
+    reason_key = reason if reason in _OUT_OF_SCOPE_REASON_OPENERS else "other_out_of_scope"
+    opener = random.choice(_OUT_OF_SCOPE_REASON_OPENERS[reason_key])
+    redirect = random.choice(_OUT_OF_SCOPE_REDIRECTS[domain_key])
+    return f"{opener} {redirect}"
 
 def get_chat_preference_style(selected_preference):
     if (selected_preference == "gentle_reflective"):
