@@ -10,8 +10,8 @@ import pytest
 from unittest.mock import patch
 
 from graph.state import ConversationState
+from graph.nodes.function_nodes.out_of_scope import detect_out_of_scope
 from graph.nodes.agentic_nodes.guardrail import (
-    detect_out_of_scope,
     guardrail_node,
     guardrail_router,
     call_guardrail_llm,
@@ -145,6 +145,52 @@ class TestOutOfScopeDetectionUnit:
         assert "SoulGym" in general_knowledge["response"]
         assert "SoulGym" in nonsense["response"]
 
+    def test_symbol_split_random_letters_are_marked_nonsense(self):
+        result = detect_out_of_scope("fhowijvnaiewlnaces'da", allow_llm_fallback=False)
+
+        assert result["is_out_of_scope"] is True
+        assert result["reason"] == "nonsense"
+
+    def test_symbol_noisy_consonant_token_is_marked_nonsense(self):
+        result = detect_out_of_scope("zxcb\\", allow_llm_fallback=False)
+
+        assert result["is_out_of_scope"] is True
+        assert result["reason"] == "nonsense"
+
+    def test_single_mixed_alphanumeric_token_is_marked_nonsense(self):
+        result = detect_out_of_scope("f9qu3hvleiurbvierowfeca", allow_llm_fallback=False)
+
+        assert result["is_out_of_scope"] is True
+        assert result["reason"] == "nonsense"
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "jfiuven p89q3h4iofnwci9o3anfic",
+            "qweoiu zxcmnv",
+            "jfcn983ounwfvico4wij2039j'f[",
+        ],
+    )
+    def test_prompt_gibberish_examples_are_marked_nonsense(self, message):
+        result = detect_out_of_scope(message, allow_llm_fallback=False)
+
+        assert result["is_out_of_scope"] is True
+        assert result["reason"] == "nonsense"
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "ptsd",
+            "Szczesny",
+            "const total = items[i];",
+        ],
+    )
+    def test_normal_short_text_names_and_code_are_not_marked_nonsense(self, message):
+        result = detect_out_of_scope(message, allow_llm_fallback=False)
+
+        assert result["is_out_of_scope"] is False
+        assert result["reason"] == "in_scope"
+
     def test_psychology_concept_query_stays_in_scope(self):
         result = detect_out_of_scope("definition of mindfulness", allow_llm_fallback=False)
 
@@ -266,7 +312,8 @@ class TestGuardrailNodeUnit:
     async def test_guardrail_fn_injection_used(self, sample_state, sync_to_thread):
         """Injected guardrail_fn should be used instead of default call."""
 
-        def fake_guardrail(_prompt: str) -> str:
+        def fake_guardrail(prompt: str) -> str:
+            assert prompt
             return '{"status": "OK", "feedback": "Injected", "violation": "None"}'
 
         result = await guardrail_node(sample_state, guardrail_fn=fake_guardrail)

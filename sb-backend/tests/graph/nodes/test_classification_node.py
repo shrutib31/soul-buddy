@@ -216,6 +216,24 @@ class TestGetClassificationsUnit:
         assert out["is_out_of_scope"] is True
         assert out["out_of_scope_reason"] == "nonsense"
 
+    def test_symbol_split_random_letters_return_out_of_scope_classification(self):
+        out = get_classifications("fhowijvnaiewlnaces'da")
+        assert out["intent"] == "out_of_scope"
+        assert out["situation"] == "NO_SITUATION"
+        assert out["severity"] == "low"
+        assert out["risk_level"] == "low"
+        assert out["is_out_of_scope"] is True
+        assert out["out_of_scope_reason"] == "nonsense"
+
+    def test_single_mixed_alphanumeric_token_returns_out_of_scope_classification(self):
+        out = get_classifications("f9qu3hvleiurbvierowfeca")
+        assert out["intent"] == "out_of_scope"
+        assert out["situation"] == "NO_SITUATION"
+        assert out["severity"] == "low"
+        assert out["risk_level"] == "low"
+        assert out["is_out_of_scope"] is True
+        assert out["out_of_scope_reason"] == "nonsense"
+
     def test_out_of_scope_detection_disables_llm_fallback(self):
         import graph.nodes.agentic_nodes.classification_node as mod
 

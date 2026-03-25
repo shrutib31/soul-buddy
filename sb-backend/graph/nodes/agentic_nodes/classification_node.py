@@ -3,7 +3,7 @@ import os
 import logging
 import re
 from graph.state import ConversationState
-from graph.nodes.agentic_nodes.guardrail import detect_out_of_scope
+from graph.nodes.function_nodes.out_of_scope import detect_out_of_scope
 
 logger = logging.getLogger(__name__)
 

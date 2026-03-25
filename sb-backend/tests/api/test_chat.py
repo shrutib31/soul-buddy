@@ -220,6 +220,92 @@ class TestChatEndpointsUnit:
         assert data["metadata"]["out_of_scope_reason"] == "nonsense"
         assert "SoulGym" in data["response"]
 
+    def test_random_letter_chat_fast_paths_through_graph(self, client):
+        async def fake_conv_id_handler(_state):
+            return {"conversation_id": "test-conv-123"}
+
+        async def fake_load_user_context(_state):
+            return {}
+
+        async def fake_store_message(_state):
+            return {}
+
+        def unexpected_classification(_state):
+            raise AssertionError("classification_node should not run")
+
+        with patch("api.chat.flow", None), patch(
+            "graph.graph_builder.conv_id_handler_node",
+            new=fake_conv_id_handler,
+        ), patch(
+            "graph.graph_builder.load_user_context_node",
+            new=fake_load_user_context,
+        ), patch(
+            "graph.graph_builder.store_message_node",
+            new=fake_store_message,
+        ), patch(
+            "graph.graph_builder.classification_node",
+            new=unexpected_classification,
+        ):
+            resp = client.post(
+                "/api/v1/chat",
+                json={
+                    "message": "fhowijvnaiewlnaces'da",
+                    "is_incognito": True,
+                    "domain": "student",
+                    "chat_preference": "general",
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["metadata"]["intent"] == "out_of_scope"
+        assert data["metadata"]["out_of_scope_reason"] == "nonsense"
+        assert "SoulGym" in data["response"]
+
+    def test_single_mixed_alphanumeric_chat_fast_paths_through_graph(self, client):
+        async def fake_conv_id_handler(_state):
+            return {"conversation_id": "test-conv-123"}
+
+        async def fake_load_user_context(_state):
+            return {}
+
+        async def fake_store_message(_state):
+            return {}
+
+        def unexpected_classification(_state):
+            raise AssertionError("classification_node should not run")
+
+        with patch("api.chat.flow", None), patch(
+            "graph.graph_builder.conv_id_handler_node",
+            new=fake_conv_id_handler,
+        ), patch(
+            "graph.graph_builder.load_user_context_node",
+            new=fake_load_user_context,
+        ), patch(
+            "graph.graph_builder.store_message_node",
+            new=fake_store_message,
+        ), patch(
+            "graph.graph_builder.classification_node",
+            new=unexpected_classification,
+        ):
+            resp = client.post(
+                "/api/v1/chat",
+                json={
+                    "message": "f9qu3hvleiurbvierowfeca",
+                    "is_incognito": True,
+                    "domain": "student",
+                    "chat_preference": "general",
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["metadata"]["intent"] == "out_of_scope"
+        assert data["metadata"]["out_of_scope_reason"] == "nonsense"
+        assert "SoulGym" in data["response"]
+
     def test_general_knowledge_chat_fast_paths_through_graph(self, client):
         async def fake_conv_id_handler(_state):
             return {"conversation_id": "test-conv-123"}

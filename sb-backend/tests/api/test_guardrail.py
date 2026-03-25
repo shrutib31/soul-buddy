@@ -63,6 +63,26 @@ class TestGuardrailEndpointUnit:
         assert data["guardrail"]["is_out_of_scope"] is True
         assert data["guardrail"]["reason"] == "nonsense"
 
+    def test_guardrail_flags_symbol_split_random_letters_as_out_of_scope(self, client):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": "fhowijvnaiewlnaces'da", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is True
+        assert data["guardrail"]["reason"] == "nonsense"
+
+    def test_guardrail_flags_symbol_noisy_consonant_token_as_out_of_scope(self, client):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": "zxcb\\", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is True
+        assert data["guardrail"]["reason"] == "nonsense"
+
     def test_guardrail_flags_single_letter_runs_as_out_of_scope(self, client):
         resp = client.post(
             "/api/v1/guardrail",
@@ -77,6 +97,34 @@ class TestGuardrailEndpointUnit:
         resp = client.post(
             "/api/v1/guardrail",
             json={"message": "infwbu94f873ucn39uq8f sad jfn9c2893fh83fh", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is True
+        assert data["guardrail"]["reason"] == "nonsense"
+
+    def test_guardrail_flags_single_mixed_alphanumeric_token_as_out_of_scope(self, client):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": "f9qu3hvleiurbvierowfeca", "domain": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["guardrail"]["is_out_of_scope"] is True
+        assert data["guardrail"]["reason"] == "nonsense"
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "jfiuven p89q3h4iofnwci9o3anfic",
+            "qweoiu zxcmnv",
+            "jfcn983ounwfvico4wij2039j'f[",
+        ],
+    )
+    def test_guardrail_flags_prompt_gibberish_examples_as_out_of_scope(self, client, message):
+        resp = client.post(
+            "/api/v1/guardrail",
+            json={"message": message, "domain": "general"},
         )
         assert resp.status_code == 200
         data = resp.json()
