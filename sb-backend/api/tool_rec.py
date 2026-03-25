@@ -17,25 +17,8 @@ class ToolRecRequest(BaseModel):
     message: str
     personality: dict
 
-class test():
-    message:str
-
 @app.post("/tool-recommendation")
 async def tool_recommendation_endpoint(request: ToolRecRequest):
-    try:
-        result = await run_tool_recommendation(
-            message=request.message,
-            personality=request.personality,
-        )
-        return {"status": "success", "response": result}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-
-@app.post("/test")
-async def test(request: test):
     try:
         result = await run_tool_recommendation(
             message=request.message,
