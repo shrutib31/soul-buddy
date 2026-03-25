@@ -67,8 +67,8 @@ class AuthDatabaseConfig:
             self.user = os.getenv('AUTH_DB_USER', os.getenv('RBAC_DB_USER', 'postgres'))
             self.password = os.getenv('AUTH_DB_PASSWORD', os.getenv('RBAC_DB_PASSWORD', ''))
         
-        self.max_connections = 20
-        self.min_connections = 5
+        self.max_connections = int(os.getenv('AUTH_DB_MAX_CONNECTIONS', '5'))
+        self.min_connections = int(os.getenv('AUTH_DB_MIN_CONNECTIONS', '1'))
         self.command_timeout = 30.0
         self.pool: Optional[asyncpg.Pool] = None
         self.log_level = os.getenv('LOG_LEVEL', 'info')

@@ -2,10 +2,14 @@
 # SoulBuddy Backend - Python Dependencies
 # ============================================================================
 # This file lists all Python dependencies required for the SoulBuddy backend
-# 
-# Installation:
-#   Using pip:     pip install -r requirements.txt
-#   Using uv:      uv pip install -r requirements.txt
+#
+# Installation (standard):
+#   Using pip:  pip install -r requirements.txt
+#   Using uv:   uv pip install -r requirements.txt
+#
+# Installation (CPU-only PyTorch — recommended, avoids large CUDA download):
+#   Using pip:  pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+#   Using uv:   uv pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 # ============================================================================
 
 # Web Framework
@@ -38,6 +42,10 @@ langchain-ollama>=0.1.0
 openai>=1.0.0
 pydantic>=2.0.0
 
+# ML Model
+torch>=2.0.0
+transformers>=4.40.0
+
 # Caching
 redis[asyncio]>=5.0.0
 
@@ -45,6 +53,3 @@ redis[asyncio]>=5.0.0
 cryptography>=42.0.0
 google-cloud-kms>=2.22.0
 
-# Machine Learning
-transformers>=4.30.0
-torch>=2.0.0

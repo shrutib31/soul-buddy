@@ -56,6 +56,9 @@ services:
     build: ./sb-backend
     container_name: sb-backend
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     env_file:
       - ${ENV_FILE:-./sb-backend/.env.docker}
     environment:
@@ -64,6 +67,13 @@ services:
       - DEBUG=${DEBUG:-0}
     ports:
       - "${BACKEND_PORT:-8000}:${PORT:-8000}"
+    # Memory cap — set BACKEND_MEM_LIMIT / BACKEND_MEMSWAP_LIMIT in your env file.
+    # memswap_limit == mem_limit disables swap so OOM is raised immediately
+    # rather than silently swapping (which masks memory leaks).
+    # Default is 1.5g: BERT-base model weights (~440 MB) + tokenizer + runtime
+    # overhead bring baseline RSS to ~650-700 MB; 1.5g gives comfortable headroom.
+    mem_limit: ${BACKEND_MEM_LIMIT:-1.5g}
+    memswap_limit: ${BACKEND_MEMSWAP_LIMIT:-1.5g}
     # No volume mount — run the image exactly as built
     networks:
       - sb-network

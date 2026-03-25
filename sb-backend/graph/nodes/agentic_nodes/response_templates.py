@@ -4,9 +4,9 @@ Response Templates
 Pre-defined responses for high-confidence, time-sensitive situations where a
 readymade response is safer, faster, and more consistent than LLM generation:
 
-  - Greetings : is_greeting == True
-  - Crisis    : is_crisis_detected == True
-  - Out of scope : is_out_of_scope == True
+  - Greetings     : is_greeting == True
+  - Crisis        : is_crisis_detected == True
+  - Out-of-scope  : is_out_of_scope == True
 """
 
 import random

@@ -5,20 +5,20 @@ from transformers import AutoModel
 class SoulBuddyClassifier(nn.Module):
     def __init__(self, model_name):
         super().__init__()
-        
+
         # Base transformer
         self.base_model = AutoModel.from_pretrained(model_name)
         hidden_size = self.base_model.config.hidden_size
-        
+
         # Situation head (8 classes)
         self.situation_head = nn.Linear(hidden_size, 8)
-        
+
         # Severity head (3 classes)
         self.severity_head = nn.Linear(hidden_size, 3)
-        
+
         # Intent head (8 classes)
         self.intent_head = nn.Linear(hidden_size, 8)
-        
+
         # Risk head (binary)
         self.risk_head = nn.Linear(hidden_size, 1)
 

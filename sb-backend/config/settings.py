@@ -99,6 +99,11 @@ class LLMSettings:
 
 
 @dataclass(frozen=True)
+class ModelSettings:
+    weights_path: str = field(default_factory=lambda: os.getenv("MODEL_WEIGHTS_PATH", "model_weights.pt"))
+
+
+@dataclass(frozen=True)
 class ServerSettings:
     host: str = field(default_factory=lambda: os.getenv("SERVER_HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: int(os.getenv("SERVER_PORT", "8000")))
@@ -131,6 +136,7 @@ class AppSettings:
     ollama: OllamaSettings = field(default_factory=OllamaSettings)
     openai: OpenAISettings = field(default_factory=OpenAISettings)
     llm: LLMSettings = field(default_factory=LLMSettings)
+    model: ModelSettings = field(default_factory=ModelSettings)
     server: ServerSettings = field(default_factory=ServerSettings)
     encryption: EncryptionConfig = field(default_factory=EncryptionConfig)
 

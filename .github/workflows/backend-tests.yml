@@ -18,6 +18,10 @@ defaults:
   run:
     working-directory: sb-backend
 
+# Opt into Node.js 24 now to avoid forced migration on 2026-06-02
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   unit-tests:
     name: Unit Tests (Python ${{ matrix.python-version }})
@@ -46,12 +50,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
-      # Install CPU-only PyTorch first (saves ~1.3 GB vs default CUDA build)
-      - name: Install PyTorch (CPU-only)
-        run: |
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
       # Install all project + dev dependencies
+      # ML deps (torch, transformers) are excluded — tests that need them
+      # use pytest.importorskip and are skipped automatically in CI.
       - name: Install project dependencies
         run: |
           pip install -e ".[dev]"

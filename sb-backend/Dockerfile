@@ -4,7 +4,8 @@ WORKDIR /app
 
 # Copy requirements and install dependencies first (layer-cached separately from source)
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Copy the rest of the backend source
 COPY . .
@@ -17,7 +18,8 @@ RUN mkdir -p /app/logs
 # Default environment variables (overrideable at runtime via env_file / -e)
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000
+    PORT=8000 \
+    MALLOC_TRIM_THRESHOLD_=100000
 
 EXPOSE 8000
 
