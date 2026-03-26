@@ -2,25 +2,7 @@
 Unit tests for graph builder: get_compiled_flow() structure and entry point.
 """
 
-import pytest
-import sys
-import types
-from unittest.mock import patch, AsyncMock
-
-redis_module = types.ModuleType("redis")
-redis_asyncio_module = types.ModuleType("redis.asyncio")
-redis_exceptions_module = types.ModuleType("redis.exceptions")
-redis_asyncio_module.Redis = object
-redis_exceptions_module.ConnectionError = RuntimeError
-redis_exceptions_module.TimeoutError = RuntimeError
-redis_module.asyncio = redis_asyncio_module
-redis_module.exceptions = redis_exceptions_module
-sys.modules.setdefault("redis", redis_module)
-sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
-sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
-
 from graph.graph_builder import get_compiled_flow
-from graph.state import ConversationState
 
 
 # ============================================================================

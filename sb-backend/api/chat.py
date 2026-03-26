@@ -35,9 +35,9 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User input message")
     is_incognito: bool = Field(True, description="True for anonymous session, False for authenticated session")
     sb_conv_id: Optional[str] = None
-    domain: str
+    domain: str = Field("student", description="Conversation domain, defaults to 'student' for backward compatibility")
     metadata: Optional[Dict[str, Any]] = None
-    chat_preference: str
+    chat_preference: str = Field("general", description="Chat preference, defaults to 'general' for backward compatibility")
 
 
 # ============================================================================

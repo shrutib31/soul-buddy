@@ -121,18 +121,18 @@ _OUT_OF_SCOPE_REDIRECTS = {
 # ============================================================================
 # CHAT PREFERENCES TEMPLATES
 # ============================================================================
-_CHAT_PREFERENCES= { 
+_CHAT_PREFERENCES = {
     "gentle_reflective": (
-        "Generate more empathetic response, with thoughtful and nurturing tone,"
+        "Generate more empathetic response, with thoughtful and nurturing tone, "
         "Goal of quality emotional processing and deep reflection with user"
-    ), 
+    ),
     "direct_practical": (
         "Generate clear, actionable advice and concrete strategies, "
         "Goal of problem-solving and giving practical advice to user"
-    ), 
+    ),
     "general": (
         "Generate helpful, warm response that helps user feel seen"
-    )
+    ),
 }
 
 # ============================================================================
@@ -186,6 +186,7 @@ def get_out_of_scope_response(
     opener = random.choice(_OUT_OF_SCOPE_REASON_OPENERS[reason_key])
     redirect = random.choice(_OUT_OF_SCOPE_REDIRECTS[domain_key])
     return f"{opener} {redirect}"
+
 
 def get_chat_preference_style(selected_preference):
     if (selected_preference == "gentle_reflective"):

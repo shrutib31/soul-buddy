@@ -181,7 +181,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
 
 async def generate_response_ollama(
     user_message: str,
-    chat_preference: str,
+    chat_preference: Optional[str] = None,
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
@@ -275,7 +275,7 @@ Compassionate response:"""
 
 async def generate_response_gpt(
     user_message: str,
-    chat_preference: str,
+    chat_preference: Optional[str] = None,
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
