@@ -46,6 +46,9 @@ config/serviceAccountKey.json
 # from Docker image to keep it clean.
 transformer_models/
 
+# Quickstart scripts — for local dev only, not needed in image
+quickstart*.sh
+
 # Git
 .git/
 .gitignore
