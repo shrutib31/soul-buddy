@@ -49,6 +49,10 @@ transformer_models/
 # Quickstart scripts — for local dev only, not needed in image
 quickstart*.sh
 
+# Dependency lock file and internal test docs — not needed in image
+uv.lock
+tests/TEST_GAPS.md
+
 # Git
 .git/
 .gitignore
