@@ -32,6 +32,7 @@ def _state(**kwargs) -> ConversationState:
         user_message="I'm overwhelmed",
         response_draft="I hear you.",
         supabase_uid=_VALID_USER_UUID,
+        chat_preference="general",
     )
     defaults.update(kwargs)
     return ConversationState(**defaults)

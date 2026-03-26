@@ -29,6 +29,7 @@ def _make_state(**kwargs) -> ConversationState:
         domain="student",
         user_message="I'm struggling with exams",
         supabase_uid="user-uid-123",
+        chat_preference="general",
     )
     defaults.update(kwargs)
     return ConversationState(**defaults)

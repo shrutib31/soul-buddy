@@ -685,10 +685,18 @@ def get_classifications(message: str) -> Dict[str, Any]:
 
     if classify_out_of_scope(message):
         logger.info("Message classified as out-of-scope")
+        msg_lower = message.lower().strip()
+        if looks_like_nonsense(msg_lower):
+            oos_reason = "nonsense"
+        elif looks_like_general_knowledge(msg_lower):
+            oos_reason = "general_knowledge"
+        else:
+            oos_reason = "other_out_of_scope"
         return {
             "intent": "out_of_scope", "situation": "NO_SITUATION",
             "severity": "low", "risk_score": 0.0, "risk_level": "low",
             "is_out_of_scope": True,
+            "out_of_scope_reason": oos_reason,
             "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 1.0, "risk": 0.0}
         }
 
