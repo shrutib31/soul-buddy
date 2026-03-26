@@ -1,10 +1,6 @@
 #!/bin/bash
-# Quick Docker Compose startup for sb-backend (local dev)
-
-echo "Starting sb-backend with Docker Compose..."
-docker compose -f "$COMPOSE_FILE" up --build
-
 set -e
+# Quick Docker Compose startup for sb-backend (local dev)
 
 usage() {
   echo "Usage: $0 [deploy|builddeploy|start|rebuild]"

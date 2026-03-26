@@ -13,8 +13,8 @@ class ConversationState(BaseModel):
     domain: str                  # student / employee / general
     user_message: str
     supabase_uid: Optional[str] = None  # supabase user ID (cognito only)
-    chat_preference: str
-    
+    chat_preference: str = "general"
+
     # intent detection
     intent: Optional[str] = None
     is_greeting: bool = False
