@@ -44,29 +44,31 @@ export default function ConversationList({ open, token, activeConvId, onSelect, 
         ) : conversations.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No past conversations</p>
         ) : (
-          conversations.map((conv) => (
-            <button
-              key={conv.id}
-              onClick={() => onSelect(conv.id)}
-              className={`w-full text-left px-3 py-3 rounded-xl mb-1 transition-colors ${
-                activeConvId === conv.id
-                  ? 'bg-buddy-50 text-buddy-700'
-                  : 'hover:bg-gray-50 text-gray-700'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 shrink-0 text-gray-400" />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">
-                    {conv.last_message ?? 'Conversation'}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {new Date(conv.created_at).toLocaleDateString()}
-                  </p>
+          conversations.map((conv) => {
+            const lastMsg = conv.messages[conv.messages.length - 1]?.message ?? 'Conversation'
+            const dateLabel = conv.started_at
+              ? new Date(conv.started_at).toLocaleDateString()
+              : ''
+            return (
+              <button
+                key={conv.conversation_id}
+                onClick={() => onSelect(conv.conversation_id)}
+                className={`w-full text-left px-3 py-3 rounded-xl mb-1 transition-colors ${
+                  activeConvId === conv.conversation_id
+                    ? 'bg-buddy-50 text-buddy-700'
+                    : 'hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 shrink-0 text-gray-400" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate">{lastMsg}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{dateLabel}</p>
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))
+              </button>
+            )
+          })
         )}
       </div>
     </aside>

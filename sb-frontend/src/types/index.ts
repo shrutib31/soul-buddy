@@ -14,10 +14,20 @@ export interface Message {
   timestamp: Date
 }
 
-export interface Conversation {
+export interface ConversationMessage {
   id: string
-  created_at: string
-  last_message?: string
+  turn_index: number
+  speaker: 'user' | 'bot'
+  message: string
+  created_at: string | null
+}
+
+export interface Conversation {
+  conversation_id: string
+  mode: string
+  started_at: string | null
+  ended_at: string | null
+  messages: ConversationMessage[]
 }
 
 export interface ChatRequest {

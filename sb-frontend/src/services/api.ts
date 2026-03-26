@@ -60,7 +60,7 @@ export async function* streamMessage(
 
 export async function getConversations(token: string): Promise<Conversation[]> {
   const headers = await getAuthHeaders(token)
-  const res = await fetch(`${API_BASE}/chat/conversations`, { headers })
+  const res = await fetch(`${API_BASE}/chat/conversations/messages`, { headers })
   if (!res.ok) return []
   const data = await res.json() as { conversations?: Conversation[] }
   return data.conversations ?? []
