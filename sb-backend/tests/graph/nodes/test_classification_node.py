@@ -34,6 +34,7 @@ def sample_state():
         mode="incognito",
         domain="general",
         user_message="I've been feeling really stressed lately",
+        chat_preference="general",
     )
 
 
@@ -45,6 +46,7 @@ def empty_message_state():
         mode="incognito",
         domain="general",
         user_message="",
+        chat_preference="general",
     )
 
 
@@ -56,6 +58,7 @@ def greeting_state():
         mode="incognito",
         domain="general",
         user_message="Hi there!",
+        chat_preference="general",
     )
 
 
@@ -183,6 +186,13 @@ class TestGetClassificationsUnit:
         assert out["severity"] == "low"
         assert out["risk_level"] == "low"
 
+    def test_what_is_up_baby_returns_greeting_intent(self):
+        out = get_classifications("what is up baby?")
+        assert out["intent"] == "greeting"
+        assert out["severity"] == "low"
+        assert out["risk_level"] == "low"
+        assert out["is_greeting"] is True
+
     def test_crisis_message_returns_crisis_classification(self):
         out = get_classifications("I want to kill myself")
         assert out["intent"] == "crisis_disclosure"
@@ -197,6 +207,7 @@ class TestGetClassificationsUnit:
         assert out["severity"] == "low"
         assert out["risk_level"] == "low"
         assert out["is_out_of_scope"] is True
+        assert out["out_of_scope_reason"] == "general_knowledge"
 
     def test_mixed_alphanumeric_gibberish_returns_out_of_scope_classification(self):
         out = get_classifications("infwbu94f873ucn39uq8f sad jfn9c2893fh83fh")
@@ -205,6 +216,54 @@ class TestGetClassificationsUnit:
         assert out["severity"] == "low"
         assert out["risk_level"] == "low"
         assert out["is_out_of_scope"] is True
+        assert out["out_of_scope_reason"] == "nonsense"
+
+    def test_symbol_split_random_letters_return_out_of_scope_classification(self):
+        out = get_classifications("fhowijvnaiewlnaces'da")
+        assert out["intent"] == "out_of_scope"
+        assert out["situation"] == "NO_SITUATION"
+        assert out["severity"] == "low"
+        assert out["risk_level"] == "low"
+        assert out["is_out_of_scope"] is True
+        assert out["out_of_scope_reason"] == "nonsense"
+
+    def test_single_mixed_alphanumeric_token_returns_out_of_scope_classification(self):
+        out = get_classifications("f9qu3hvleiurbvierowfeca")
+        assert out["intent"] == "out_of_scope"
+        assert out["situation"] == "NO_SITUATION"
+        assert out["severity"] == "low"
+        assert out["risk_level"] == "low"
+        assert out["is_out_of_scope"] is True
+        assert out["out_of_scope_reason"] == "nonsense"
+
+    def test_out_of_scope_detection_disables_llm_fallback(self):
+        import graph.nodes.agentic_nodes.classification_node as mod
+
+        with patch.object(mod, "detect_greeting", return_value=False):
+            with patch.object(mod, "detect_crisis", return_value={"is_crisis": False}):
+                with patch.object(
+                    mod,
+                    "detect_out_of_scope",
+                    return_value={"is_out_of_scope": False},
+                ) as mock_detect_out_of_scope:
+                    with patch.object(mod, "load_model"):
+                        orig_loaded, orig_model, orig_tok = mod._model_loaded, mod._model, mod._tokenizer
+                        mod._model_loaded = False
+                        mod._model = None
+                        mod._tokenizer = None
+                        try:
+                            with pytest.raises(RuntimeError, match="Classification model failed to load"):
+                                get_classifications("Some ambiguous non-support prompt")
+                        finally:
+                            mod._model_loaded = orig_loaded
+                            mod._model = orig_model
+                            mod._tokenizer = orig_tok
+
+        mock_detect_out_of_scope.assert_called_once_with(
+            "Some ambiguous non-support prompt",
+            domain="general",
+            allow_llm_fallback=False,
+        )
 
 
 
@@ -285,6 +344,7 @@ class TestClassificationNodeUnit:
             "risk_score": 0.0,
             "risk_level": "low",
             "is_out_of_scope": True,
+            "out_of_scope_reason": "general_knowledge",
             "raw_scores": {},
         }
         with patch(
@@ -294,6 +354,7 @@ class TestClassificationNodeUnit:
             result = classification_node(sample_state)
         assert result["intent"] == "out_of_scope"
         assert result["is_out_of_scope"] is True
+        assert result["out_of_scope_reason"] == "general_knowledge"
         assert result["risk_level"] == "low"
 
     def test_get_classifications_exception_returns_error(self, sample_state):
@@ -478,6 +539,12 @@ class TestDetectGreetingNewPatterns:
 
     def test_how_r_u(self):
         assert detect_greeting("how r u") is True
+
+    def test_what_is_up_baby(self):
+        assert detect_greeting("what is up baby?") is True
+
+    def test_what_is_up_with_me_is_not_greeting(self):
+        assert detect_greeting("what is up with me?") is False
 
     def test_nice_to_meet_you(self):
         assert detect_greeting("nice to meet you") is True

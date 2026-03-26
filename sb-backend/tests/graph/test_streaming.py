@@ -56,6 +56,7 @@ def sample_state():
         mode="incognito",
         domain="general",
         user_message="I need some help.",
+        chat_preference="general",
     )
 
 
@@ -177,10 +178,11 @@ class TestStreamAsSse:
         api_response = {"success": True, "response": "I'm here for you."}
         mock_flow = make_mock_flow([
             {"conv_id_handler": {"conversation_id": "abc"}},
+            {"load_user_context": {}},
             {"store_message": {}},
+            {"out_of_scope": {}},
             {"classification_node": {"intent": "venting"}},
             {"response_generator": {"response_draft": "I'm here for you."}},
-            {"guardrail": {"guardrail_status": "OK"}},
             {"store_bot_response": {}},
             {"render": {"api_response": api_response}},
         ])

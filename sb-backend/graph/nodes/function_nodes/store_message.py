@@ -5,7 +5,8 @@ Persists the current user message as a ConversationTurn row (speaker="user"),
 then invalidates the Redis conversation-history cache for this conversation so
 the next load_user_context call fetches fresh data from the database.
 
-Graph position: runs in parallel with classification_node after load_user_context.
+Graph position: runs after load_user_context in parallel with out_of_scope
+and stays off the classification/render critical path.
 """
 
 import logging
@@ -33,7 +34,7 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
     Store user message in the database.
 
     This node saves the current user message to the conversation history
-    in the ConversationTurn table. Runs in parallel with classification_node in the current graph flow.
+    in the ConversationTurn table while out_of_scope runs in parallel.
 
     Args:
         state: Current conversation state

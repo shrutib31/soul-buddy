@@ -35,8 +35,9 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User input message")
     is_incognito: bool = Field(True, description="True for anonymous session, False for authenticated session")
     sb_conv_id: Optional[str] = None
-    domain: str = "student"
+    domain: str = Field("student", description="Conversation domain, defaults to 'student' for backward compatibility")
     metadata: Optional[Dict[str, Any]] = None
+    chat_preference: str = Field("general", description="Chat preference, defaults to 'general' for backward compatibility")
 
 
 # ============================================================================
@@ -63,6 +64,7 @@ async def create_initial_state(
     message: str,
     mode: str,
     domain: str,
+    chat_preference: str,
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
 ) -> ConversationState:
@@ -81,6 +83,7 @@ async def create_initial_state(
         domain=domain,
         user_message=message,
         supabase_uid=supabase_uid,
+        chat_preference=chat_preference,
     )
 
 
@@ -108,10 +111,11 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
             domain=req.domain,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
+            chat_preference=req.chat_preference,
         )
         logging.debug(
-            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s *****",
-            state.conversation_id, state.mode, state.domain, state.user_message,
+            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_preference=%s *****",
+            state.conversation_id, state.mode, state.domain, state.user_message, state.chat_preference,
         )
         result = await invoke_graph(state)
         return result.get("api_response", {"success": False, "error": "No response generated"})
@@ -194,6 +198,7 @@ async def chat_stream(req: ChatRequest, user=Depends(optional_supabase_token)):
             domain=req.domain,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
+            chat_preference=req.chat_preference,
         )
 
         async def event_stream():
