@@ -4,12 +4,9 @@ import logging
 import re
 
 from graph.state import ConversationState
-<<<<<<< HEAD
 from graph.nodes.function_nodes.out_of_scope import detect_out_of_scope
-=======
-from graph.nodes.agentic_nodes.guardrail import looks_like_general_knowledge, looks_like_nonsense
+from graph.nodes.function_nodes.out_of_scope import looks_like_general_knowledge, looks_like_nonsense
 from config.settings import settings
->>>>>>> origin/main
 
 logger = logging.getLogger(__name__)
 
@@ -714,10 +711,9 @@ def get_classifications(message: str) -> Dict[str, Any]:
             }
         }
 
-<<<<<<< HEAD
     out_of_scope_result = detect_out_of_scope(
         message,
-        domain=domain,
+        domain="general",
         allow_llm_fallback=False,
     )
     if out_of_scope_result["is_out_of_scope"]:
@@ -739,10 +735,8 @@ def get_classifications(message: str) -> Dict[str, Any]:
         }
 
     logger.info(f"Classifying message: '{message}'")
-=======
     # ── ML model inference ────────────────────────────────────────────────────
     logger.info("Classifying message with ML model: '%s'", message)
->>>>>>> origin/main
     global _tokenizer, _model, _model_loaded, _torch
 
     if not _model_loaded:
