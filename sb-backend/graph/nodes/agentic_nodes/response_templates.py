@@ -123,15 +123,16 @@ _OUT_OF_SCOPE_REDIRECTS = {
 # ============================================================================
 _CHAT_PREFERENCES = {
     "gentle_reflective": (
-        "Generate more empathetic response, with thoughtful and nurturing tone, "
-        "Goal of quality emotional processing and deep reflection with user"
+        "Be extra gentle and soft — like a close friend who gives you space to feel without rushing. "
+        "Reflect their feelings back to them with warmth and help them explore what's going on inside."
     ),
     "direct_practical": (
-        "Generate clear, actionable advice and concrete strategies, "
-        "Goal of problem-solving and giving practical advice to user"
+        "Be a friend who's warm but also action-oriented — acknowledge feelings briefly, "
+        "then help them figure out what to do next with practical, concrete suggestions."
     ),
     "general": (
-        "Generate helpful, warm response that helps user feel seen"
+        "Be a genuine, caring friend — natural and conversational, not clinical. "
+        "Make the user feel heard and valued, and keep the chat flowing."
     ),
 }
 
