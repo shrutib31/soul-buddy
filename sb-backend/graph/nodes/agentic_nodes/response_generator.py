@@ -11,7 +11,7 @@ import asyncio
 import logging
 
 from graph.state import ConversationState
-from graph.nodes.agentic_nodes.response_templates import get_template_response
+from graph.nodes.agentic_nodes.response_templates import get_template_response, get_chat_preference_style
 from graph.nodes.agentic_nodes.response_evaluator import select_best_response
 from config.settings import settings
 
@@ -49,12 +49,16 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
     to compare their quality. Both responses are generated concurrently to minimize
     total latency. Both responses are stored in the state for evaluation/selection.
     
+    Tailor your response style according to chat_preference.
+    
     Args:
         state: Current conversation state
     
     Returns:
         Dict with ollama_response, gpt_response, and selected_response
     """
+    selected_chat_preference = state.chat_preference
+    preference_style = get_chat_preference_style(selected_chat_preference)
     try:
         user_message = state.user_message
         situation = state.situation
@@ -65,16 +69,28 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         is_crisis_detected = state.is_crisis_detected
         is_greeting = state.is_greeting
         is_out_of_scope = getattr(state, "is_out_of_scope", False)
+        language = getattr(state, "language", "en-in") or "en-in"
         crisis_category = getattr(state, "crisis_category", None)
+
+        out_of_scope_reason = getattr(state, "out_of_scope_reason", None)
+        chat_preference = preference_style
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
 
         logger.info(
             "response_generator: starting",
-            extra={"intent": intent, "situation": situation, "severity": severity,
-                   "is_crisis_detected": is_crisis_detected, "is_out_of_scope": is_out_of_scope,
-                   "is_greeting": is_greeting}
+            extra={
+                "intent": intent,
+                "situation": situation,
+                "severity": severity,
+                "is_crisis_detected": is_crisis_detected,
+                "is_out_of_scope": is_out_of_scope,
+                "out_of_scope_reason": out_of_scope_reason,
+                "is_greeting": is_greeting,
+                "chat_preference": selected_chat_preference,
+                "chat_preference_style": chat_preference,
+            }
         )
 
         # Use a readymade template when crisis, out-of-scope, or greeting is explicitly detected.
@@ -83,6 +99,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             is_greeting,
             domain,
             is_out_of_scope=is_out_of_scope,
+            out_of_scope_reason=out_of_scope_reason,
             crisis_category=crisis_category,
         )
         if template:
@@ -91,6 +108,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
                 extra={
                     "is_crisis_detected": is_crisis_detected,
                     "is_out_of_scope": is_out_of_scope,
+                    "out_of_scope_reason": out_of_scope_reason,
                     "is_greeting": is_greeting,
                     "domain": domain,
                 }
@@ -99,7 +117,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
 
         # No template — route to LLM(s) based on provider flags.
         history = state.conversation_history or []
-        args = (user_message, situation, severity, intent, history)
+        args = (user_message, chat_preference, situation, severity, intent, history, language)
 
         if COMPARE_RESULTS:
             # Call both in parallel and pick the best response.
@@ -267,10 +285,12 @@ def _format_history(conversation_history) -> str:
 
 def _build_prompt(
     user_message: str,
+    chat_preference: Optional[str] = None,
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
     conversation_history: list = None,
+    language: str = "en-IN",
 ) -> str:
     """Build an intent-aware, situation-specific prompt for the LLM."""
     intent_guide = _INTENT_GUIDELINES.get(intent, _INTENT_GUIDELINES["venting"])
@@ -294,18 +314,25 @@ def _build_prompt(
             f"already discussed. Build on what has been shared.\n"
         )
 
+    preference_line = ""
+    if chat_preference:
+        preference_line = f"\nChat Preference: {chat_preference}"
+
     return (
         f"You are SoulBuddy, a compassionate mental wellness companion. "
         f"You are NOT a therapist — you are a warm, caring friend who listens without judgment.\n\n"
         f"{history_block}"
         f"User message: \"{user_message}\"\n"
         f"{situation_line}\n"
-        f"Severity: {severity or 'low'}\n\n"
+        f"Severity: {severity or 'low'}\n"
+        f"{preference_line}\n\n"
         f"Response approach (based on user's intent — {intent or 'unclear'}):\n"
         f"{intent_guide}\n\n"
         f"Severity guidance:\n"
         f"{severity_guide}\n\n"
         f"Core rules:\n"
+        f"- Respond in the SAME language as the user's message. (e.g., if user speaks in Bengali, you MUST respond in Bengali).\n"
+        f"- Use the provided language context ({language}) as a preference, but prioritize matching the user's spoken language for natural conversation.\n"
         f"- NEVER say you are an AI, a chatbot, or a language model\n"
         f"- NEVER use phrases like \"as an AI\" or \"I'm not a therapist\"\n"
         f"- DO NOT force optimism or use toxic positivity\n"
@@ -313,6 +340,7 @@ def _build_prompt(
         f"- DO NOT give medical diagnoses or prescribe medication\n"
         f"- DO NOT repeat advice or exercises you already suggested in the conversation\n"
         f"- DO NOT assume or insert exam or academic stress context unless the user's message explicitly mentions exams, tests, assignments, or academic topics\n"
+        f"- Tailor your response according to Chat Preference if provided\n"
         f"- Always end with a gentle question or invitation to share more\n\n"
         f"Compassionate response:"
     )
@@ -324,20 +352,24 @@ def _build_prompt(
 
 async def generate_response_ollama(
     user_message: str,
+    chat_preference: Optional[str] = None,
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
     conversation_history: list = None,
+    language: str = "en-IN",
 ) -> str:
     """
     Generate a compassionate response using Ollama.
     
     Args:
         user_message: The user's message
+        chat_preference: Selected style of response
         situation: The identified situation/issue
         severity: Severity level (low, medium, high)
         intent: User's intent
         conversation_history: Previous turns [{speaker, message}]
+        language: Preferred response language
     
     Returns:
         Generated response string
@@ -346,7 +378,7 @@ async def generate_response_ollama(
         import aiohttp
         
         # Build intent-aware, situation-specific prompt with conversation history
-        prompt = _build_prompt(user_message, situation, severity, intent, conversation_history)
+        prompt = _build_prompt(user_message, chat_preference, situation, severity, intent, conversation_history, language)
         
         async with aiohttp.ClientSession() as session:
             logger.info("generate_response_ollama: calling ollama", extra={"model": OLLAMA_MODEL, "url": OLLAMA_BASE_URL})
@@ -392,20 +424,24 @@ async def generate_response_ollama(
 
 async def generate_response_gpt(
     user_message: str,
+    chat_preference: Optional[str] = None,
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
     conversation_history: list = None,
+    language: str = "en-IN",
 ) -> str:
     """
     Generate a compassionate response using GPT-4o-mini.
     
     Args:
         user_message: The user's message
+        chat_preference: Selected style of response
         situation: The identified situation/issue
         severity: Severity level (low, medium, high)
         intent: User's intent
         conversation_history: Previous turns [{speaker, message}]
+        language: Preferred response language
     
     Returns:
         Generated response string
@@ -417,7 +453,7 @@ async def generate_response_gpt(
         import aiohttp
         import json
         
-        prompt = _build_prompt(user_message, situation, severity, intent, conversation_history)
+        prompt = _build_prompt(user_message, chat_preference, situation, severity, intent, conversation_history, language)
         
         messages = [
             {
@@ -478,4 +514,3 @@ async def generate_response_gpt(
     except Exception:
         logger.exception("generate_response_gpt: failed")
         return ""
-

@@ -4,7 +4,8 @@ import logging
 import re
 
 from graph.state import ConversationState
-from graph.nodes.agentic_nodes.guardrail import looks_like_general_knowledge, looks_like_nonsense
+from graph.nodes.function_nodes.out_of_scope import detect_out_of_scope
+from graph.nodes.function_nodes.out_of_scope import looks_like_general_knowledge, looks_like_nonsense
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,7 @@ def detect_greeting(message: str) -> bool:
     - Phrases:           hi there, hello there, nice to meet you …
     - Informal:          what's up, wassup, howdy, hola …
     - Check-in openers:  how are you, how r u, how have you been …
+    - Casual variants:   what is up baby, what's up bro, whats up buddy …
     """
     message_lower = message.lower().strip()
     if not message_lower:
@@ -122,11 +124,11 @@ def detect_greeting(message: str) -> bool:
     if not words:
         return False
 
-    # ── Rule 1: Exact match against known greeting phrases ──────────────────
+    # Rule 1: Exact match against known greeting phrases
     EXACT_GREETINGS = {
         "hi", "hii", "hello", "hey", "heyy", "greetings", "howdy",
         "hi there", "hey there", "hello there", "howdy there",
-        "hiya", "hola", "yo", "sup", "wassup", "watsup", "whats up",
+        "hiya", "hola", "yo", "sup", "wassup", "watsup", "whats up", "what is up",
         "namaste", "namaskar",
         "good morning", "good afternoon", "good evening",
         "good night", "good day", "gm", "gn",
@@ -140,7 +142,7 @@ def detect_greeting(message: str) -> bool:
     if message_clean in EXACT_GREETINGS:
         return True
 
-    # ── Rule 2: Short messages (≤ 4 words) starting with a greeting word ────
+    # Rule 2: Short messages (<= 4 words) starting with a greeting word
     GREETING_STARTERS = {
         "hi", "hii", "hello", "hey", "heyy", "howdy", "hiya",
         "namaste", "namaskar", "yo", "sup", "hola", "greetings", "morning",
@@ -148,13 +150,30 @@ def detect_greeting(message: str) -> bool:
     if len(words) <= 4 and words[0] in GREETING_STARTERS:
         return True
 
-    # ── Rule 3: Time-based greetings as first two words ─────────────────────
+    # Rule 3: Time-based greetings as first two words
     TIME_GREETING_PAIRS = {
         "good morning", "good afternoon", "good evening",
         "good night", "good day",
     }
     if len(words) >= 2 and " ".join(words[:2]) in TIME_GREETING_PAIRS:
         return True
+
+    # Rule 4: "what is/what's up" with optional term of address
+    INFORMAL_GREETING_PREFIXES = {"whats up", "what is up"}
+    VOCATIVE_WORDS = {
+        "baby", "babe", "bro", "bruh", "buddy", "dude", "fam", "friend",
+        "girl", "guys", "homie", "king", "love", "man", "mate", "pal",
+        "queen", "sir", "sis", "soulbuddy", "team", "there", "yall",
+    }
+    if len(words) >= 2:
+        for prefix in INFORMAL_GREETING_PREFIXES:
+            prefix_words = prefix.split()
+            if words[:len(prefix_words)] == prefix_words:
+                trailing_words = words[len(prefix_words):]
+                if not trailing_words:
+                    return True
+                if len(trailing_words) <= 2 and all(word in VOCATIVE_WORDS for word in trailing_words):
+                    return True
 
     return False
 
@@ -743,10 +762,18 @@ def get_classifications(message: str) -> Dict[str, Any]:
 
     if classify_out_of_scope(message):
         logger.info("Message classified as out-of-scope")
+        msg_lower = message.lower().strip()
+        if looks_like_nonsense(msg_lower):
+            oos_reason = "nonsense"
+        elif looks_like_general_knowledge(msg_lower):
+            oos_reason = "general_knowledge"
+        else:
+            oos_reason = "other_out_of_scope"
         return {
             "intent": "out_of_scope", "situation": "NO_SITUATION",
             "severity": "low", "risk_score": 0.0, "risk_level": "low",
             "is_out_of_scope": True,
+            "out_of_scope_reason": oos_reason,
             "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 1.0, "risk": 0.0}
         }
 
@@ -770,6 +797,30 @@ def get_classifications(message: str) -> Dict[str, Any]:
             }
         }
 
+    out_of_scope_result = detect_out_of_scope(
+        message,
+        domain="general",
+        allow_llm_fallback=False,
+    )
+    if out_of_scope_result["is_out_of_scope"]:
+        logger.info("Message classified as out_of_scope")
+        return {
+            "intent": "out_of_scope",
+            "situation": "NO_SITUATION",
+            "severity": "low",
+            "risk_score": 0.0,
+            "risk_level": "low",
+            "is_out_of_scope": True,
+            "out_of_scope_reason": out_of_scope_result.get("reason"),
+            "raw_scores": {
+                "situation": 0.0,
+                "severity": 0.0,
+                "intent": 1.0,
+                "risk": 0.0
+            }
+        }
+
+    logger.info(f"Classifying message: '{message}'")
     # ── ML model inference ────────────────────────────────────────────────────
     logger.info("Classifying message with ML model: '%s'", message)
     global _tokenizer, _model, _model_loaded, _torch
@@ -892,6 +943,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
             "crisis_category": classifications.get("crisis_category", None),
             "is_out_of_scope": classifications.get("is_out_of_scope", False),
+            "out_of_scope_reason": classifications.get("out_of_scope_reason"),
             "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
         }
 

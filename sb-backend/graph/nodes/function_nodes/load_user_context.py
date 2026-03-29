@@ -16,8 +16,8 @@ What this node loads
 
 Node placement in the graph
 ----------------------------
-  conv_id_handler → load_user_context → store_message      (parallel)
-                                      → classification_node (parallel)
+  conv_id_handler → load_user_context → store_message ┐
+                                      → out_of_scope → classification_node / render
 """
 
 import logging

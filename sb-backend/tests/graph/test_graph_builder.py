@@ -2,11 +2,7 @@
 Unit tests for graph builder: get_compiled_flow() structure and entry point.
 """
 
-import pytest
-from unittest.mock import patch, AsyncMock
-
 from graph.graph_builder import get_compiled_flow
-from graph.state import ConversationState
 
 
 # ============================================================================
@@ -27,7 +23,9 @@ class TestGraphBuilderUnit:
         nodes = list(graph.nodes)
         expected = {
             "conv_id_handler",
+            "load_user_context",
             "store_message",
+            "out_of_scope",
             "classification_node",
             "response_generator",
             "store_bot_response",
@@ -46,31 +44,30 @@ class TestGraphBuilderUnit:
         if hasattr(graph, "nodes"):
             assert "conv_id_handler" in list(graph.nodes)
 
-    def test_compiled_flow_has_edge_conv_id_handler_to_store_message(self):
-        flow = get_compiled_flow()
-        graph = flow.get_graph()
-        edges = list(graph.edges) if hasattr(graph, "edges") else []
-        edge_sources = {e[0]: e[1] for e in edges} if edges else {}
-        # conv_id_handler should have outgoing edges to store_message and classification_node
-        assert "conv_id_handler" in [e[0] for e in edges] or "conv_id_handler" in str(edges)
-
-    def test_compiled_flow_has_edge_classification_to_response_generator(self):
+    def test_compiled_flow_has_edge_conv_id_handler_to_load_user_context(self):
         flow = get_compiled_flow()
         graph = flow.get_graph()
         edges = list(graph.edges) if hasattr(graph, "edges") else []
         edge_pairs = [(e[0], e[1]) for e in edges]
-        assert ("classification_node", "response_generator") in edge_pairs
+        assert ("conv_id_handler", "load_user_context") in edge_pairs
 
-    def test_compiled_flow_has_edge_response_generator_to_store_bot_response(self):
+    def test_compiled_flow_has_edge_load_user_context_to_store_message(self):
         flow = get_compiled_flow()
         graph = flow.get_graph()
         edges = list(graph.edges) if hasattr(graph, "edges") else []
         edge_pairs = [(e[0], e[1]) for e in edges]
-        assert ("response_generator", "store_bot_response") in edge_pairs
+        assert ("load_user_context", "store_message") in edge_pairs
 
-    def test_compiled_flow_has_edge_store_bot_response_to_render(self):
+    def test_compiled_flow_has_edge_load_user_context_to_out_of_scope(self):
         flow = get_compiled_flow()
         graph = flow.get_graph()
         edges = list(graph.edges) if hasattr(graph, "edges") else []
         edge_pairs = [(e[0], e[1]) for e in edges]
-        assert ("store_bot_response", "render") in edge_pairs
+        assert ("load_user_context", "out_of_scope") in edge_pairs
+
+    def test_compiled_flow_has_no_edge_store_message_to_out_of_scope_path(self):
+        flow = get_compiled_flow()
+        graph = flow.get_graph()
+        edges = list(graph.edges) if hasattr(graph, "edges") else []
+        edge_pairs = [(e[0], e[1]) for e in edges]
+        assert ("store_message", "out_of_scope") not in edge_pairs

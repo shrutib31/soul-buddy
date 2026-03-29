@@ -10,6 +10,7 @@ from graph.nodes.agentic_nodes.response_templates import (
     get_template_response,
     _HIGH_RISK_TEMPLATES,
     _GREETING_TEMPLATES,
+    get_out_of_scope_response,
 )
 
 
@@ -92,6 +93,38 @@ class TestNoTemplate:
     def test_default_args_return_none(self):
         result = get_template_response(is_crisis_detected=False, is_greeting=False, domain="general")
         assert result is None
+
+
+# ============================================================================
+# Out-of-scope templates
+# ============================================================================
+
+class TestOutOfScopeTemplates:
+    def test_out_of_scope_general_knowledge_response_mentions_support_redirect(self):
+        result = get_template_response(
+            is_crisis_detected=False,
+            is_greeting=False,
+            domain="general",
+            is_out_of_scope=True,
+            out_of_scope_reason="general_knowledge",
+        )
+        assert isinstance(result, str)
+        assert "SoulGym" in result
+
+    def test_out_of_scope_employee_response_mentions_work_stress(self):
+        result = get_template_response(
+            is_crisis_detected=False,
+            is_greeting=False,
+            domain="employee",
+            is_out_of_scope=True,
+            out_of_scope_reason="other_out_of_scope",
+        )
+        assert "work stress" in result
+
+    def test_out_of_scope_reason_changes_response_copy(self):
+        general_knowledge = get_out_of_scope_response("general", reason="general_knowledge")
+        nonsense = get_out_of_scope_response("general", reason="nonsense")
+        assert general_knowledge != nonsense
 
 
 # ============================================================================
