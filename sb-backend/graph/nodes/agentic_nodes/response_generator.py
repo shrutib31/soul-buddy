@@ -65,6 +65,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         is_crisis_detected = state.is_crisis_detected
         is_greeting = state.is_greeting
         is_out_of_scope = getattr(state, "is_out_of_scope", False)
+        crisis_category = getattr(state, "crisis_category", None)
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
@@ -82,6 +83,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             is_greeting,
             domain,
             is_out_of_scope=is_out_of_scope,
+            crisis_category=crisis_category,
         )
         if template:
             logger.info(
@@ -96,7 +98,8 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             return {"response_draft": template}
 
         # No template — route to LLM(s) based on provider flags.
-        args = (user_message, situation, severity, intent, response_draft)
+        history = state.conversation_history or []
+        args = (user_message, situation, severity, intent, history)
 
         if COMPARE_RESULTS:
             # Call both in parallel and pick the best response.
@@ -160,6 +163,162 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
 
 
 # ============================================================================
+# INTENT-AWARE PROMPT BUILDER
+# ============================================================================
+
+_INTENT_GUIDELINES = {
+    "venting": (
+        "The user is venting and needs emotional validation above all else.\n"
+        "- Lead with empathy: acknowledge and name the emotion they expressed\n"
+        "- DO NOT jump to advice or solutions — they haven't asked for any\n"
+        "- Reflect back what you heard to show you understand\n"
+        "- Gently invite them to share more if they want to\n"
+        "- Keep it warm and short (2-4 sentences)"
+    ),
+    "seek_support": (
+        "The user is seeking emotional support and connection.\n"
+        "- Validate their feelings and make them feel heard\n"
+        "- Reassure them that reaching out was the right thing to do\n"
+        "- Be present and warm — avoid clinical language\n"
+        "- Ask a gentle follow-up to show you care\n"
+        "- Keep response supportive (3-5 sentences)"
+    ),
+    "open_to_solution": (
+        "The user is open to practical advice or solutions.\n"
+        "- Briefly validate their feelings first (1 sentence)\n"
+        "- Then offer 1-2 concrete, actionable suggestions\n"
+        "- Frame suggestions gently (\"you might try\" not \"you should\")\n"
+        "- Keep it practical and encouraging (3-5 sentences)"
+    ),
+    "try_tool": (
+        "The user wants a specific exercise, technique, or coping tool.\n"
+        "- Suggest ONE specific, easy-to-follow exercise (breathing, grounding, journaling, etc.)\n"
+        "- Give clear step-by-step instructions they can do right now\n"
+        "- Keep the tone warm and encouraging\n"
+        "- End by asking how it went or if they'd like another option (3-6 sentences)"
+    ),
+    "seek_information": (
+        "The user wants to understand something about their mental health.\n"
+        "- Provide clear, accurate psychoeducation in simple language\n"
+        "- Normalise their experience where appropriate\n"
+        "- Avoid being overly clinical or textbook-like\n"
+        "- Keep it conversational and accessible (3-5 sentences)"
+    ),
+    "seek_understanding": (
+        "The user is trying to make sense of their own feelings or behaviour.\n"
+        "- Help them explore and understand their emotions without judging\n"
+        "- Normalise their experience (\"that's a really common reaction\")\n"
+        "- Ask reflective questions to deepen their self-understanding\n"
+        "- Avoid over-intellectualising — keep it human (3-5 sentences)"
+    ),
+}
+
+_SITUATION_CONTEXT = {
+    "EXAM_ANXIETY": "They are dealing with exam-related stress or anxiety. Acknowledge the pressure without minimising it.",
+    "ACADEMIC_COMPARISON": "They are comparing themselves to peers academically. Validate the feeling, remind them that everyone's path is different.",
+    "RELATIONSHIP_ISSUES": "They are going through relationship difficulties. Be sensitive and avoid taking sides.",
+    "FINANCIAL_STRESS": "They are stressed about money or finances. Acknowledge the real weight of financial pressure.",
+    "HEALTH_CONCERNS": "They are worried about health issues. Be empathetic and encourage professional medical consultation if needed.",
+    "BELONGING_DOUBT": "They feel like they don't belong or are isolated. Validate the pain of loneliness and remind them they're not alone.",
+    "LOW_MOTIVATION": "They are struggling with low motivation or feeling stuck. Avoid pushing productivity — meet them where they are.",
+    "FUTURE_UNCERTAINTY": "They are anxious about their future, career, or life direction. Normalise the uncertainty and help ground them.",
+    "GENERAL_OVERWHELM": "They feel overwhelmed by everything. Acknowledge the weight without rushing to fix it.",
+    "ANXIETY": "They are experiencing anxiety or panic. Be calming and grounding in your response.",
+    "SLEEP_ISSUES": "They are struggling with sleep. Acknowledge how exhausting that is.",
+    "BURNOUT": "They are experiencing burnout. Validate the exhaustion without pushing them to do more.",
+    "GRIEF_LOSS": "They are grieving a loss. Be especially gentle — avoid silver linings or rushing through grief.",
+}
+
+_SEVERITY_GUIDANCE = {
+    "high": (
+        "This is a high-severity message — the user is in significant distress.\n"
+        "- Prioritise emotional safety and validation\n"
+        "- Take extra care with your words — avoid anything that could feel dismissive\n"
+        "- If appropriate, gently encourage professional support\n"
+        "- Respond with 4-6 thoughtful sentences"
+    ),
+    "medium": (
+        "This is a moderate-severity message — the user is struggling but not in crisis.\n"
+        "- Balance validation with gentle exploration\n"
+        "- Respond with 3-5 sentences"
+    ),
+    "low": (
+        "This is a lower-severity message — the user may be checking in or exploring.\n"
+        "- Be warm and conversational\n"
+        "- Respond with 2-3 sentences"
+    ),
+}
+
+
+def _format_history(conversation_history) -> str:
+    """Format conversation history into a readable block for the prompt."""
+    if not conversation_history:
+        return ""
+    lines = []
+    for turn in conversation_history:
+        speaker = turn.get("speaker", "user")
+        message = turn.get("message", "")
+        if speaker == "user":
+            lines.append(f"User: {message}")
+        else:
+            lines.append(f"SoulBuddy: {message}")
+    return "\n".join(lines)
+
+
+def _build_prompt(
+    user_message: str,
+    situation: Optional[str] = None,
+    severity: Optional[str] = None,
+    intent: Optional[str] = None,
+    conversation_history: list = None,
+) -> str:
+    """Build an intent-aware, situation-specific prompt for the LLM."""
+    intent_guide = _INTENT_GUIDELINES.get(intent, _INTENT_GUIDELINES["venting"])
+    severity_guide = _SEVERITY_GUIDANCE.get(severity, _SEVERITY_GUIDANCE["low"])
+
+    situation_line = ""
+    if situation and situation not in ("NO_SITUATION", "unclear", "OTHER", None):
+        situation_line = _SITUATION_CONTEXT.get(
+            situation,
+            f"Situation: {situation}. Respond with empathy appropriate to this context."
+        )
+        situation_line = f"\nSituation context: {situation_line}"
+
+    history_block = ""
+    if conversation_history:
+        formatted = _format_history(conversation_history)
+        history_block = (
+            f"\nConversation so far:\n{formatted}\n\n"
+            f"Continue the conversation naturally. Reference earlier messages "
+            f"when relevant — don't repeat yourself or re-introduce topics "
+            f"already discussed. Build on what has been shared.\n"
+        )
+
+    return (
+        f"You are SoulBuddy, a compassionate mental wellness companion. "
+        f"You are NOT a therapist — you are a warm, caring friend who listens without judgment.\n\n"
+        f"{history_block}"
+        f"User message: \"{user_message}\"\n"
+        f"{situation_line}\n"
+        f"Severity: {severity or 'low'}\n\n"
+        f"Response approach (based on user's intent — {intent or 'unclear'}):\n"
+        f"{intent_guide}\n\n"
+        f"Severity guidance:\n"
+        f"{severity_guide}\n\n"
+        f"Core rules:\n"
+        f"- NEVER say you are an AI, a chatbot, or a language model\n"
+        f"- NEVER use phrases like \"as an AI\" or \"I'm not a therapist\"\n"
+        f"- DO NOT force optimism or use toxic positivity\n"
+        f"- DO NOT lecture, moralise, or compare them to others\n"
+        f"- DO NOT give medical diagnoses or prescribe medication\n"
+        f"- DO NOT repeat advice or exercises you already suggested in the conversation\n"
+        f"- DO NOT assume or insert exam or academic stress context unless the user's message explicitly mentions exams, tests, assignments, or academic topics\n"
+        f"- Always end with a gentle question or invitation to share more\n\n"
+        f"Compassionate response:"
+    )
+
+
+# ============================================================================
 # OLLAMA RESPONSE GENERATION
 # ============================================================================
 
@@ -168,7 +327,7 @@ async def generate_response_ollama(
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
-    context: Optional[str] = None
+    conversation_history: list = None,
 ) -> str:
     """
     Generate a compassionate response using Ollama.
@@ -178,7 +337,7 @@ async def generate_response_ollama(
         situation: The identified situation/issue
         severity: Severity level (low, medium, high)
         intent: User's intent
-        context: Additional context or draft
+        conversation_history: Previous turns [{speaker, message}]
     
     Returns:
         Generated response string
@@ -186,29 +345,8 @@ async def generate_response_ollama(
     try:
         import aiohttp
         
-        # Build context-aware prompt
-        context_info = ""
-        if situation:
-            context_info += f"\nSituation identified: {situation}"
-        if severity:
-            context_info += f"\nSeverity: {severity}"
-        if intent:
-            context_info += f"\nUser intent: {intent}"
-        
-        prompt = f"""You are a compassionate mental health support chatbot. 
-Your role is to provide empathetic, supportive responses that validate the user's feelings.
-
-User message: "{user_message}"{context_info}
-
-Guidelines:
-- Be warm, empathetic, and non-judgmental
-- Validate their feelings and experiences
-- Ask clarifying questions if needed
-- Offer practical support or resources when appropriate
-- Keep response concise (2-3 sentences)
-- Avoid being prescriptive or dismissive
-
-Compassionate response:"""
+        # Build intent-aware, situation-specific prompt with conversation history
+        prompt = _build_prompt(user_message, situation, severity, intent, conversation_history)
         
         async with aiohttp.ClientSession() as session:
             logger.info("generate_response_ollama: calling ollama", extra={"model": OLLAMA_MODEL, "url": OLLAMA_BASE_URL})
@@ -257,7 +395,7 @@ async def generate_response_gpt(
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
-    context: Optional[str] = None
+    conversation_history: list = None,
 ) -> str:
     """
     Generate a compassionate response using GPT-4o-mini.
@@ -267,7 +405,7 @@ async def generate_response_gpt(
         situation: The identified situation/issue
         severity: Severity level (low, medium, high)
         intent: User's intent
-        context: Additional context or draft
+        conversation_history: Previous turns [{speaker, message}]
     
     Returns:
         Generated response string
@@ -279,32 +417,16 @@ async def generate_response_gpt(
         import aiohttp
         import json
         
-        # Build context-aware prompt
-        context_info = ""
-        if situation:
-            context_info += f"\nSituation identified: {situation}"
-        if severity:
-            context_info += f"\nSeverity: {severity}"
-        if intent:
-            context_info += f"\nUser intent: {intent}"
+        prompt = _build_prompt(user_message, situation, severity, intent, conversation_history)
         
         messages = [
             {
                 "role": "system",
-                "content": """You are a compassionate mental health support chatbot.
-Your role is to provide empathetic, supportive responses that validate the user's feelings.
-
-Guidelines:
-- Be warm, empathetic, and non-judgmental
-- Validate their feelings and experiences
-- Ask clarifying questions if needed
-- Offer practical support or resources when appropriate
-- Keep response concise (2-3 sentences)
-- Avoid being prescriptive or dismissive"""
+                "content": prompt.split("User message:")[0].strip()
             },
             {
                 "role": "user",
-                "content": f"User message: \"{user_message}\"{context_info}\n\nProvide a compassionate response:"
+                "content": "User message:" + prompt.split("User message:", 1)[1]
             }
         ]
         
