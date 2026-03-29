@@ -50,6 +50,9 @@ async def render_node(state: ConversationState) -> Dict[str, Any]:
                 "timestamp": datetime.utcnow().isoformat(),
             }
         }
+
+        if getattr(state, "is_out_of_scope", False):
+            api_response["metadata"]["out_of_scope_reason"] = getattr(state, "out_of_scope_reason", None)
         
         # Add optional fields if they exist
         if hasattr(state, 'ollama_response') and state.ollama_response:
@@ -87,5 +90,4 @@ async def render_node(state: ConversationState) -> Dict[str, Any]:
         return {
             "api_response": error_response
         }
-
 

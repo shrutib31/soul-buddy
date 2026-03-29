@@ -42,7 +42,9 @@ class ChatRequest(BaseModel):
         description="Language code for the session",
     )
     domain: str = "student"
+    domain: str = Field("student", description="Conversation domain, defaults to 'student' for backward compatibility")
     metadata: Optional[Dict[str, Any]] = None
+    chat_preference: str = Field("general", description="Chat preference, defaults to 'general' for backward compatibility")
 
     @field_validator("language", mode="before")
     @classmethod
@@ -89,6 +91,7 @@ async def create_initial_state(
     mode: str,
     domain: str,
     language: str = "en-IN",
+    chat_preference: str,
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
 ) -> ConversationState:
@@ -108,6 +111,7 @@ async def create_initial_state(
         user_message=message,
         language=language,
         supabase_uid=supabase_uid,
+        chat_preference=chat_preference,
     )
 
 
@@ -136,10 +140,11 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
             language=req.language,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
+            chat_preference=req.chat_preference,
         )
         logging.debug(
-            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s *****",
-            state.conversation_id, state.mode, state.domain, state.user_message,
+            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_preference=%s *****",
+            state.conversation_id, state.mode, state.domain, state.user_message, state.chat_preference,
         )
         result = await invoke_graph(state)
         return result.get("api_response", {"success": False, "error": "No response generated"})
@@ -223,6 +228,7 @@ async def chat_stream(req: ChatRequest, user=Depends(optional_supabase_token)):
             language=req.language,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
+            chat_preference=req.chat_preference,
         )
 
         async def event_stream():
