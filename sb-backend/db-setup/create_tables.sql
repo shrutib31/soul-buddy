@@ -81,10 +81,15 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
   turn_index INT,
   speaker TEXT CHECK (speaker IN ('user','bot')),
   message TEXT,
+  language VARCHAR(10) DEFAULT 'en-IN',
+  romanised_content TEXT,
+  canonical_content TEXT,
+  mixed_content TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS situation_assessments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   turn_id UUID REFERENCES conversation_turns(id),
   situation_id TEXT,
   severity TEXT,
@@ -93,6 +98,7 @@ CREATE TABLE IF NOT EXISTS situation_assessments (
 );
 
 CREATE TABLE IF NOT EXISTS risk_assessments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   turn_id UUID REFERENCES conversation_turns(id),
   risk_level TEXT,
   confidence FLOAT
@@ -108,6 +114,7 @@ CREATE TABLE IF NOT EXISTS flow_state (
 );
 
 CREATE TABLE IF NOT EXISTS step_outputs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   turn_id UUID REFERENCES conversation_turns(id),
   emotion_label TEXT,
   paraphrase TEXT,
@@ -117,10 +124,18 @@ CREATE TABLE IF NOT EXISTS step_outputs (
 );
 
 CREATE TABLE IF NOT EXISTS crisis_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   session_id UUID REFERENCES sb_conversations(id),
   triggered_at TIMESTAMP DEFAULT NOW(),
   risk_level TEXT,
   resolved BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE IF NOT EXISTS user_conversation_summaries (
+  user_id UUID PRIMARY KEY,
+  summary TEXT NOT NULL,
+  last_conversation_id UUID REFERENCES sb_conversations(id),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS encryption_audit_log (
