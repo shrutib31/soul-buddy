@@ -91,7 +91,7 @@ async def create_initial_state(
     mode: str,
     domain: str,
     language: str = "en-IN",
-    chat_preference: str,
+    chat_preference: str = "general",
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
 ) -> ConversationState:
