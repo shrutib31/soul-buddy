@@ -14,6 +14,7 @@ from orm.models import ConversationTurn, UserConversationSummary
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
 from services.key_manager import get_key_manager
+from utils.lang_classifier import classify_language_format, ROMANISED, CANONICAL, MIXED
 
 logger = logging.getLogger(__name__)
 data_db = SQLAlchemyDataDB()
@@ -42,6 +43,13 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
         if not conversation_id or not bot_response:
             return {"error": "Missing conversation_id or bot response"}
 
+        # Classify language format
+        format_type = classify_language_format(bot_response, state.language or 'en-IN')
+        logger.info("[LanguageClassifier] Bot response format: %s (lang: %s)", format_type, state.language)
+        romanised = bot_response if format_type == ROMANISED else None
+        canonical = bot_response if format_type == CANONICAL else None
+        mixed = bot_response if format_type == MIXED else None
+
         km = get_key_manager()
         message_to_store = await km.encrypt(conversation_id, bot_response) if km.is_encryption_enabled() else bot_response
 
@@ -58,7 +66,9 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                 speaker="bot",
                 message=message_to_store,
                 language=state.language,
-                # Classification logic commented out per user request
+                romanised_content=romanised,
+                canonical_content=canonical,
+                mixed_content=mixed,
             )
             session.add(turn)
             await session.commit()
