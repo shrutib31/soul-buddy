@@ -14,7 +14,7 @@ class GuardrailRequest(BaseModel):
 @router.post("")
 async def guardrail_message(req: GuardrailRequest):
     try:
-        from graph.nodes.agentic_nodes.guardrail import detect_out_of_scope
+        from graph.nodes.function_nodes.out_of_scope import detect_out_of_scope
 
         guardrail = await asyncio.to_thread(
             detect_out_of_scope,

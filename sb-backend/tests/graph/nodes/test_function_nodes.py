@@ -39,6 +39,7 @@ def state_no_conv_id():
         mode="incognito",
         domain="general",
         user_message="Hello",
+        chat_preference="general",
     )
 
 
@@ -49,6 +50,7 @@ def state_with_conv_id():
         mode="incognito",
         domain="general",
         user_message="Hello",
+        chat_preference="general",
     )
 
 
@@ -59,6 +61,7 @@ def state_for_store_message():
         mode="incognito",
         domain="general",
         user_message="I need to talk",
+        chat_preference="general",
     )
 
 
@@ -70,6 +73,7 @@ def state_for_store_bot_response():
         domain="general",
         user_message="Hi",
         response_draft="I'm here for you.",
+        chat_preference="general",
     )
 
 
@@ -85,6 +89,7 @@ def state_for_render():
         severity="low",
         risk_level="low",
         response_draft="Hello! How can I support you today?",
+        chat_preference="general",
     )
 
 
@@ -161,6 +166,7 @@ class TestStoreMessageNodeUnit:
             mode="incognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         result = await store_message_node(state)
         assert "error" in result
@@ -173,6 +179,7 @@ class TestStoreMessageNodeUnit:
             mode="incognito",
             domain="general",
             user_message="",
+            chat_preference="general",
         )
         result = await store_message_node(state)
         assert "error" in result
@@ -224,6 +231,7 @@ class TestStoreBotResponseNodeUnit:
             domain="general",
             user_message="Hi",
             response_draft="Reply",
+            chat_preference="general",
         )
         result = await store_bot_response_node(state)
         assert "error" in result
@@ -237,6 +245,7 @@ class TestStoreBotResponseNodeUnit:
             domain="general",
             user_message="Hi",
             response_draft="",
+            chat_preference="general",
         )
         result = await store_bot_response_node(state)
         assert "error" in result
@@ -303,6 +312,7 @@ class TestRenderNodeUnit:
             domain="general",
             user_message="Hi",
             response_draft="",
+            chat_preference="general",
         )
         result = await render_node(state)
         assert result["api_response"]["success"] is False
@@ -317,6 +327,7 @@ class TestRenderNodeUnit:
             user_message="Hi",
             response_draft="",
             error="Something went wrong",
+            chat_preference="general",
         )
         result = await render_node(state)
         assert "error" in result["api_response"]["metadata"]
@@ -347,6 +358,7 @@ class TestGetMessagesNodeUnit:
             mode="incognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         result = await get_messages_node(state)
         assert result == {"conversation_history": []}
@@ -359,6 +371,7 @@ class TestGetMessagesNodeUnit:
             mode="cognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         result = await get_messages_node(state)
         assert "error" in result
@@ -381,6 +394,7 @@ class TestGetMessagesNodeUnit:
             mode="cognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         with patch("graph.nodes.function_nodes.get_messages._data_db") as mock_db, \
              patch("graph.nodes.function_nodes.get_messages.get_key_manager", return_value=km):
@@ -407,6 +421,7 @@ class TestGetMessagesNodeUnit:
             mode="cognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         with patch("graph.nodes.function_nodes.get_messages._data_db") as mock_db, \
              patch("services.key_manager.get_key_manager", return_value=km):

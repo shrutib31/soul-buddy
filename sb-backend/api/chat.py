@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from api.supabase_auth import optional_supabase_token, verify_supabase_token
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any
 import uuid
 import logging
@@ -35,8 +35,35 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User input message")
     is_incognito: bool = Field(True, description="True for anonymous session, False for authenticated session")
     sb_conv_id: Optional[str] = None
+    language: str = Field(
+        "en-in",
+        max_length=10,
+        pattern=r"^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$",
+        description="Language code for the session",
+    )
     domain: str = "student"
+    domain: str = Field("student", description="Conversation domain, defaults to 'student' for backward compatibility")
     metadata: Optional[Dict[str, Any]] = None
+    chat_preference: str = Field("general", description="Chat preference, defaults to 'general' for backward compatibility")
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def normalize_language(cls, v: Optional[str]) -> str:
+        """
+        Normalize language codes and enforce a default.
+        - Strip whitespace
+        - Fall back to default if empty/None
+        - Canonicalize casing (lowercase)
+        """
+        if v is None:
+            return "en-in"
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if not v:
+                return "en-in"
+            return v
+        raise ValueError("language must be a string")
+
 
 
 # ============================================================================
@@ -63,6 +90,8 @@ async def create_initial_state(
     message: str,
     mode: str,
     domain: str,
+    language: str = "en-IN",
+    chat_preference: str = "general",
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
 ) -> ConversationState:
@@ -80,7 +109,9 @@ async def create_initial_state(
         mode=mode,
         domain=domain,
         user_message=message,
+        language=language,
         supabase_uid=supabase_uid,
+        chat_preference=chat_preference,
     )
 
 
@@ -106,12 +137,14 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
             message=req.message,
             mode=mode,
             domain=req.domain,
+            language=req.language,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
+            chat_preference=req.chat_preference,
         )
         logging.debug(
-            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s *****",
-            state.conversation_id, state.mode, state.domain, state.user_message,
+            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_preference=%s *****",
+            state.conversation_id, state.mode, state.domain, state.user_message, state.chat_preference,
         )
         result = await invoke_graph(state)
         return result.get("api_response", {"success": False, "error": "No response generated"})
@@ -192,8 +225,10 @@ async def chat_stream(req: ChatRequest, user=Depends(optional_supabase_token)):
             message=req.message,
             mode=mode,
             domain=req.domain,
+            language=req.language,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
+            chat_preference=req.chat_preference,
         )
 
         async def event_stream():
