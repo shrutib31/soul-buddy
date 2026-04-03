@@ -10,6 +10,7 @@ from graph.nodes.function_nodes.load_user_context import load_user_context_node
 from graph.nodes.function_nodes.store_message import store_message_node
 from graph.nodes.function_nodes.render import render_node
 from graph.nodes.function_nodes.store_bot_response import store_bot_response_node
+from graph.nodes.function_nodes.tool_trigger_gate import tool_trigger_gate_node
 from graph.nodes.agentic_nodes.response_generator import response_generator_node
 from graph.nodes.agentic_nodes.classification_node import classification_node
 
@@ -22,6 +23,7 @@ def get_compiled_flow():
     graph.add_node("load_user_context", load_user_context_node)
     graph.add_node("store_message", store_message_node)
     graph.add_node("classification_node", classification_node)
+    graph.add_node("tool_trigger_gate", tool_trigger_gate_node)
     graph.add_node("response_generator", response_generator_node)
     graph.add_node("store_bot_response", store_bot_response_node)
     graph.add_node("render", render_node)
@@ -31,14 +33,16 @@ def get_compiled_flow():
     # Ensure a valid conversation_id exists before loading any user data
     graph.add_edge("conv_id_handler", "load_user_context")
 
-    # Run persistence and fast out-of-scope detection in parallel after context load.
+# Fan-out: store_message and classification_node run in parallel.
     graph.add_edge("load_user_context", "store_message")
     graph.add_edge("load_user_context", "out_of_scope")
 
     # Route to render for cheap out-of-scope cases; otherwise continue normally.
     graph.add_conditional_edges("out_of_scope", out_of_scope_router)
 
-    graph.add_edge("classification_node", "response_generator")
+    # classification_node sets intent; tool_trigger_gate uses it to decide tool recommendation
+    graph.add_edge("classification_node", "tool_trigger_gate")
+    graph.add_edge("tool_trigger_gate", "response_generator")
     graph.add_edge("response_generator", "store_bot_response")
     graph.add_edge("store_bot_response", "render")
     graph.add_edge("render", END)

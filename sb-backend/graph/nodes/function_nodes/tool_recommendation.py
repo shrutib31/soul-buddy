@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 # ---------------------------------------------------------------------------
 # Model Flags — flip these to control which model(s) run
 # ---------------------------------------------------------------------------
-FLAG_COMPARISON_MODE: bool = False   # True → both models run, judge picks winner
-FLAG_USE_LLAMA: bool = False        # True → use local Ollama/Llama
-FLAG_USE_OPENAI: bool = True        # True → use OpenAI gpt-4o-mini
+FLAG_COMPARISON_MODE: bool = False  # True → both models run, judge picks winner
+FLAG_USE_LLAMA: bool = False     # True → use local Ollama/Llama
+FLAG_USE_OPENAI: bool = True  # True → use OpenAI gpt-4o-mini
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -185,10 +185,10 @@ USER PERSONALITY: {json.dumps(personality, indent=2)}
 
 Two AI assistants produced the following responses:
 
---- RESPONSE A ---
+--- RESPONSE A (Llama) ---
 {llama_response}
 
---- RESPONSE B ---
+--- RESPONSE B (OpenAI) ---
 {openai_response}
 
 Evaluate both responses strictly on these criteria:
@@ -197,8 +197,13 @@ Evaluate both responses strictly on these criteria:
 3. Clarity — is it easy to follow and actionable?
 4. Relevance — does it directly address what the user asked?
 
-Return ONLY the full text of the better response with no preamble, no explanation, no labels.
-If both are equal, return Response B.
+Return ONLY in this exact format:
+[Model Selected: A: Llama / B: OpenAI]
+[Reasoning: 1-2 sentences explaining why this response is better]
+
+[The full text of the better response]
+
+If both are equal, select Response B and explain accordingly.
 """
 
     logger.info("Calling LLM judge (gpt-4o-mini)...")
