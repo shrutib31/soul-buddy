@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useBuddy } from '../contexts/BuddyContext'
 import { sendMessage } from '../services/api'
-import type { Message } from '../types'
+import type { ChatMode, Message } from '../types'
 import Header from '../components/Header'
 import ChatWindow from '../components/ChatWindow'
 import ChatInput from '../components/ChatInput'
@@ -25,6 +25,7 @@ export default function ChatPage() {
   const [conversationId, setConversationId] = useState<string | undefined>()
   const [sending, setSending] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [chatMode, setChatMode] = useState<ChatMode>('default')
   const bottomRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>
 
   // Redirect to onboarding if cognito user has no config
@@ -71,6 +72,7 @@ export default function ChatPage() {
             sb_conv_id: conversationId,
             domain: config?.domain ?? 'general',
             chat_preference: config?.personality ?? 'general',
+            chat_mode: chatMode,
           },
           token ?? undefined,
         )
@@ -102,7 +104,7 @@ export default function ChatPage() {
         setSending(false)
       }
     },
-    [sending, isIncognito, conversationId, config, token],
+    [sending, isIncognito, conversationId, config, token, chatMode],
   )
 
   function startNewConversation() {
@@ -164,7 +166,12 @@ export default function ChatPage() {
 
         <ChatWindow messages={messages} sending={sending} bottomRef={bottomRef} />
 
-        <ChatInput onSend={handleSend} disabled={sending} />
+        <ChatInput
+          onSend={handleSend}
+          disabled={sending}
+          chatMode={chatMode}
+          onModeChange={setChatMode}
+        />
       </div>
     </div>
   )

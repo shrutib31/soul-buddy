@@ -14,6 +14,7 @@ class ConversationState(BaseModel):
     user_message: str
     supabase_uid: Optional[str] = None  # supabase user ID (cognito only)
     chat_preference: str = "general"
+    chat_mode: str = "default"          # default / reflection / venting / therapist
 
     # intent detection
     intent: Optional[str] = None

@@ -1,5 +1,6 @@
 export type Domain = 'student' | 'employee' | 'corporate' | 'general'
 export type ChatPreference = 'gentle_reflective' | 'direct_practical' | 'general'
+export type ChatMode = 'default' | 'reflection' | 'venting' | 'therapist'
 
 export interface BuddyConfig {
   name: string
@@ -36,6 +37,7 @@ export interface ChatRequest {
   sb_conv_id?: string
   domain: Domain
   chat_preference: ChatPreference
+  chat_mode: ChatMode
 }
 
 export interface ChatResponse {

@@ -38,6 +38,7 @@ class ChatRequest(BaseModel):
     domain: str = Field("student", description="Conversation domain, defaults to 'student' for backward compatibility")
     metadata: Optional[Dict[str, Any]] = None
     chat_preference: str = Field("general", description="Chat preference, defaults to 'general' for backward compatibility")
+    chat_mode: str = Field("default", description="Interaction mode: default | reflection | venting | therapist")
 
 
 # ============================================================================
@@ -65,6 +66,7 @@ async def create_initial_state(
     mode: str,
     domain: str,
     chat_preference: str,
+    chat_mode: str = "default",
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
 ) -> ConversationState:
@@ -74,8 +76,8 @@ async def create_initial_state(
         logger.warning("Invalid conversation_id ignored (not a UUID): %r", conversation_id)
 
     logger.debug(
-        "Returned Conversation State | conv_id=%s mode=%s domain=%s message=%s",
-        valid_conv_id, mode, domain, message,
+        "Returned Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_mode=%s",
+        valid_conv_id, mode, domain, message, chat_mode,
     )
     return ConversationState(
         conversation_id=valid_conv_id or "",  # Empty string triggers ID generation
@@ -84,6 +86,7 @@ async def create_initial_state(
         user_message=message,
         supabase_uid=supabase_uid,
         chat_preference=chat_preference,
+        chat_mode=chat_mode,
     )
 
 
@@ -112,10 +115,11 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
             chat_preference=req.chat_preference,
+            chat_mode=req.chat_mode,
         )
         logging.debug(
-            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_preference=%s *****",
-            state.conversation_id, state.mode, state.domain, state.user_message, state.chat_preference,
+            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_preference=%s chat_mode=%s *****",
+            state.conversation_id, state.mode, state.domain, state.user_message, state.chat_preference, state.chat_mode,
         )
         result = await invoke_graph(state)
         return result.get("api_response", {"success": False, "error": "No response generated"})
@@ -199,6 +203,7 @@ async def chat_stream(req: ChatRequest, user=Depends(optional_supabase_token)):
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
             chat_preference=req.chat_preference,
+            chat_mode=req.chat_mode,
         )
 
         async def event_stream():

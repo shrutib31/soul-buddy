@@ -11,7 +11,7 @@ import asyncio
 import logging
 
 from graph.state import ConversationState
-from graph.nodes.agentic_nodes.response_templates import get_template_response, get_chat_preference_style
+from graph.nodes.agentic_nodes.response_templates import get_template_response, get_chat_preference_style, get_chat_mode_instructions
 from graph.nodes.agentic_nodes.response_evaluator import select_best_response
 from config.settings import settings
 
@@ -59,6 +59,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
     """
     selected_chat_preference = state.chat_preference
     preference_style = get_chat_preference_style(selected_chat_preference)
+    chat_mode_instructions = get_chat_mode_instructions(state.chat_mode)
     try:
         user_message = state.user_message
         situation = state.situation
@@ -112,7 +113,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             return {"response_draft": template}
 
         # No template — route to LLM(s) based on provider flags.
-        args = (user_message, chat_preference, situation, severity, intent, response_draft)
+        args = (user_message, chat_preference, situation, severity, intent, response_draft, chat_mode_instructions)
 
         if COMPARE_RESULTS:
             # Call both in parallel and pick the best response.
@@ -186,6 +187,7 @@ async def generate_response_ollama(
     severity: Optional[str] = None,
     intent: Optional[str] = None,
     context: Optional[str] = None,
+    chat_mode_instructions: Optional[str] = None,
 ) -> str:
     """
     Generate a compassionate response using Ollama.
@@ -202,8 +204,10 @@ async def generate_response_ollama(
         Generated response string
     """
     try:
+        import ssl
+        import certifi
         import aiohttp
-        
+
         # Build context-aware prompt
         context_info = ""
         if situation:
@@ -214,24 +218,23 @@ async def generate_response_ollama(
             context_info += f"\nUser intent: {intent}"
         if chat_preference:
             context_info += f"\nChat Preference: {chat_preference}"
-        
-        prompt = f"""You are a compassionate mental health support chatbot. 
-Your role is to provide empathetic, supportive responses that validate the user's feelings.
 
+        mode_instruction = f"\nInteraction mode instructions: {chat_mode_instructions}" if chat_mode_instructions else ""
+        prompt = f"""You are SoulBuddy — a caring personal companion for emotional support.
+{mode_instruction}
 User message: "{user_message}"{context_info}
 
-Guidelines:
-- Be warm, empathetic, and non-judgmental
-- Validate their feelings and experiences
-- Ask clarifying questions if needed
-- Offer practical support or resources when appropriate
-- Keep response concise (2-3 sentences)
-- Avoid being prescriptive or dismissive
--Tailor your response according to Chat Preference 
+Rules:
+- Follow the Interaction mode instructions above exactly — they define your persona and tone
+- Keep response short (1–2 sentences unless the mode requires more depth)
+- Use natural, everyday language — no clinical or counselor-speak
+- Tailor tone to Chat Preference if provided
+- Never use phrases like "It's completely normal to feel", "I understand that", "That sounds really hard", or "Would you like to tell me more about..."
 
-Compassionate response:"""
-        
-        async with aiohttp.ClientSession() as session:
+Response:"""
+
+        ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_ctx)) as session:
             logger.info("generate_response_ollama: calling ollama", extra={"model": OLLAMA_MODEL, "url": OLLAMA_BASE_URL})
             try:
                 async with session.post(
@@ -279,7 +282,8 @@ async def generate_response_gpt(
     situation: Optional[str] = None,
     severity: Optional[str] = None,
     intent: Optional[str] = None,
-    context: Optional[str] = None
+    context: Optional[str] = None,
+    chat_mode_instructions: Optional[str] = None,
 ) -> str:
     """
     Generate a compassionate response using GPT-4o-mini.
@@ -299,8 +303,9 @@ async def generate_response_gpt(
         if not OPENAI_API_KEY:
             logger.debug("generate_response_gpt: OpenAI API key not configured")
             return ""
+        import ssl
+        import certifi
         import aiohttp
-        import json
         
         # Build context-aware prompt
         context_info = ""
@@ -313,20 +318,20 @@ async def generate_response_gpt(
         if chat_preference:
             context_info += f"\nChat Preference: {chat_preference}"
         
+        mode_section = f"\nInteraction mode instructions: {chat_mode_instructions}" if chat_mode_instructions else ""
         messages = [
             {
                 "role": "system",
-                "content": """You are a compassionate mental health support chatbot.
-Your role is to provide empathetic, supportive responses that validate the user's feelings.
-
-Guidelines:
-- Be warm, empathetic, and non-judgmental
-- Validate their feelings and experiences
-- Ask clarifying questions if needed
-- Offer practical support or resources when appropriate
-- Keep response concise (2-3 sentences)
-- Avoid being prescriptive or dismissive
--Tailor your response according to Chat Preference """
+                "content": (
+                    f"You are SoulBuddy — a caring personal companion for emotional support.{mode_section}\n\n"
+                    "Rules:\n"
+                    "- Follow the Interaction mode instructions above exactly — they define your persona and tone\n"
+                    "- Keep response short (1–2 sentences unless the mode requires more depth)\n"
+                    "- Use natural, everyday language — no clinical or counselor-speak\n"
+                    "- Tailor tone to Chat Preference if provided\n"
+                    "- Never use phrases like 'It's completely normal to feel', 'I understand that', "
+                    "'That sounds really hard', or 'Would you like to tell me more about...'"
+                )
             },
             {
                 "role": "user",
@@ -350,7 +355,8 @@ Guidelines:
             logger.warning("generate_response_gpt: OPENAI_API_KEY not configured")
             return ""
 
-        async with aiohttp.ClientSession() as session:
+        ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_ctx)) as session:
             logger.info("generate_response_gpt: calling openai", extra={"model": "gpt-4o-mini"})
             try:
                 async with session.post(
