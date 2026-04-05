@@ -18,6 +18,7 @@ from orm.models import ConversationTurn
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
 from services.key_manager import get_key_manager
+from utils.lang_classifier import classify_language_format, ROMANISED, CANONICAL, MIXED
 
 logger = logging.getLogger(__name__)
 data_db = SQLAlchemyDataDB()
@@ -42,8 +43,23 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
         if not conversation_id or not user_message:
             return {"error": "Missing conversation_id or user_message"}
         
+        # Classify language format
+        format_type = classify_language_format(user_message, state.language or 'en-IN')
+        logger.info("[LanguageClassifier] User message format: %s (lang: %s)", format_type, state.language)
+
         km = get_key_manager()
-        message_to_store = await km.encrypt(conversation_id, user_message) if km.is_encryption_enabled() else user_message
+        if km.is_encryption_enabled():
+            # When encryption is enabled, do not store plaintext in format-specific columns.
+            message_to_store = await km.encrypt(conversation_id, user_message)
+            romanised = None
+            canonical = None
+            mixed = None
+        else:
+            # When encryption is disabled, store the classified plaintext in the appropriate column.
+            message_to_store = user_message
+            romanised = user_message if format_type == ROMANISED else None
+            canonical = user_message if format_type == CANONICAL else None
+            mixed = user_message if format_type == MIXED else None
 
         async with data_db.get_session() as session:
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(
@@ -58,7 +74,9 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
                 speaker="user",
                 message=message_to_store,
                 language=state.language,
-                # Classification logic commented out per user request
+                romanised_content=romanised,
+                canonical_content=canonical,
+                mixed_content=mixed,
             )
             session.add(turn)
             await session.commit()
