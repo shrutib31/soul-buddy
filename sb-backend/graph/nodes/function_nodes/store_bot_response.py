@@ -51,7 +51,18 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
         mixed = bot_response if format_type == MIXED else None
 
         km = get_key_manager()
-        message_to_store = await km.encrypt(conversation_id, bot_response) if km.is_encryption_enabled() else bot_response
+        encryption_enabled = km.is_encryption_enabled()
+        if encryption_enabled:
+            # Encrypt main message and any populated format-specific content
+            message_to_store = await km.encrypt(conversation_id, bot_response)
+            if romanised is not None:
+                romanised = await km.encrypt(conversation_id, romanised)
+            if canonical is not None:
+                canonical = await km.encrypt(conversation_id, canonical)
+            if mixed is not None:
+                mixed = await km.encrypt(conversation_id, mixed)
+        else:
+            message_to_store = bot_response
 
         async with data_db.get_session() as session:
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(

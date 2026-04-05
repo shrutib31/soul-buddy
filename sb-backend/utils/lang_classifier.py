@@ -34,10 +34,12 @@ def _is_english_content(text: str) -> bool:
     ratio = matches / len(words)
     return ratio >= 0.4 or (len(words) <= 2 and ratio > 0)
 
-def classify_language_format(text: str, language: str = None) -> str | None:
+def classify_language_format(text: str, language: str | None = None) -> str | None:
     """
-    Independently classifies text content.
-    The 'language' parameter is now ignored for Latin script to ensure independence.
+    Independently classifies text content based only on the characters in `text`.
+
+    The `language` parameter is optional and currently ignored; it is kept only for
+    backward compatibility and does not affect the classification result.
     """
     if not text or not text.strip():
         return None

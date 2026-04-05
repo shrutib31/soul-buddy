@@ -46,12 +46,20 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
         # Classify language format
         format_type = classify_language_format(user_message, state.language or 'en-IN')
         logger.info("[LanguageClassifier] User message format: %s (lang: %s)", format_type, state.language)
-        romanised = user_message if format_type == ROMANISED else None
-        canonical = user_message if format_type == CANONICAL else None
-        mixed = user_message if format_type == MIXED else None
 
         km = get_key_manager()
-        message_to_store = await km.encrypt(conversation_id, user_message) if km.is_encryption_enabled() else user_message
+        if km.is_encryption_enabled():
+            # When encryption is enabled, do not store plaintext in format-specific columns.
+            message_to_store = await km.encrypt(conversation_id, user_message)
+            romanised = None
+            canonical = None
+            mixed = None
+        else:
+            # When encryption is disabled, store the classified plaintext in the appropriate column.
+            message_to_store = user_message
+            romanised = user_message if format_type == ROMANISED else None
+            canonical = user_message if format_type == CANONICAL else None
+            mixed = user_message if format_type == MIXED else None
 
         async with data_db.get_session() as session:
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(
