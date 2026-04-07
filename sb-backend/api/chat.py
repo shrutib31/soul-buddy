@@ -107,6 +107,7 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
 
     mode = "incognito" if req.is_incognito else "cognito"
     supabase_uid: Optional[str] = None if req.is_incognito else user["id"]
+    logging.debug("***  supabase_uid: %s", supabase_uid) 
     try:
         state = await create_initial_state(
             message=req.message,

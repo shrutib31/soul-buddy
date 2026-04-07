@@ -373,6 +373,58 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
 
 
 # ============================================================================
+# POSITIVE EMOTION DETECTION
+# ============================================================================
+
+_POSITIVE_WORDS = {
+    # joy / happiness
+    "happy", "happiness", "excited", "exciting", "joy", "joyful", "elated", "thrilled",
+    "ecstatic", "overjoyed", "delighted", "wonderful", "fantastic", "amazing", "brilliant",
+    "awesome", "great", "excellent", "superb", "incredible", "magnificent",
+    # positive social
+    "love", "loved", "lovely", "blessed", "grateful", "thankful", "lucky", "fortunate",
+    "proud", "content", "satisfied", "peaceful", "calm", "relaxed",
+    # affirmatives / short enthusiastic replies
+    "yes", "yep", "yup", "yeah", "absolutely", "definitely", "totally", "exactly",
+    "right", "true", "indeed", "agreed", "of course",
+    # celebration / good news
+    "celebrate", "celebration", "good news", "good day", "great day", "best day",
+    "fun", "laugh", "laughed", "laughing", "smile", "smiling", "smiled",
+    "nice", "good", "cool", "sweet", "rad", "yay", "woah", "wow",
+}
+
+_DISTRESS_WORDS = {
+    "sad", "depressed", "anxious", "anxiety", "stressed", "stress", "overwhelmed",
+    "hopeless", "helpless", "worthless", "alone", "lonely", "scared", "afraid",
+    "crying", "cried", "hurt", "pain", "suffer", "suffering", "numb", "empty",
+    "miserable", "desperate", "desperate", "broken", "lost", "stuck", "dying",
+    "dead", "kill", "harm", "cut", "hate", "give up", "gave up",
+}
+
+
+def _has_distress(words: list) -> bool:
+    return any(w in _DISTRESS_WORDS for w in words)
+
+
+def detect_positive_message(message: str) -> bool:
+    """
+    Return True when a message is clearly positive/celebratory and
+    contains no distress signals.  Used to prevent the ML model from
+    misclassifying short, context-dependent affirmatives like "yes so much".
+    """
+    words = re.sub(r"[^\w\s]", "", message.lower()).split()
+    if not words:
+        return False
+    if _has_distress(words):
+        return False
+    positive_count = sum(1 for w in words if w in _POSITIVE_WORDS)
+    # Short messages (≤ 6 words): one positive word is enough
+    # Longer messages: require at least two positive words
+    threshold = 1 if len(words) <= 6 else 2
+    return positive_count >= threshold
+
+
+# ============================================================================
 # RULE-BASED INTENT CLASSIFICATION
 # ============================================================================
 
@@ -742,7 +794,38 @@ def get_classifications(message: str) -> Dict[str, Any]:
             }
         }
 
-    logger.info(f"Classifying message: '{message}'")
+    # ── Positive emotion short-circuit ───────────────────────────────────────
+    # Prevents the ML model from misclassifying joyful / affirmative messages.
+    # "yes so much", "that was amazing", "I'm so excited" etc. must NOT come
+    # back as distress — the LLM has full conversation history and will handle
+    # these correctly once we return a neutral classification.
+    if detect_positive_message(message):
+        logger.info("Message classified as positive/celebratory — skipping ML model")
+        return {
+            "intent": "unclear",
+            "situation": "NO_SITUATION",
+            "severity": "low",
+            "risk_score": 0.0,
+            "risk_level": "low",
+            "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 0.0, "risk": 0.0}
+        }
+
+    # ── Short-message guard ───────────────────────────────────────────────────
+    # Very short messages (≤ 4 words) with no rule-based distress signal are
+    # ambiguous out of context.  Rather than letting the ML model guess, return
+    # neutral and let the LLM use conversation history to respond correctly.
+    word_count = len(message.strip().split())
+    if word_count <= 4 and classify_situation(message) == "NO_SITUATION" and classify_severity(message) == "low":
+        logger.info("Short message with no distress signal — skipping ML model (word_count=%d)", word_count)
+        return {
+            "intent": "unclear",
+            "situation": "NO_SITUATION",
+            "severity": "low",
+            "risk_score": 0.0,
+            "risk_level": "low",
+            "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 0.0, "risk": 0.0}
+        }
+
     # ── ML model inference ────────────────────────────────────────────────────
     logger.info("Classifying message with ML model: '%s'", message)
     global _tokenizer, _model, _model_loaded, _torch

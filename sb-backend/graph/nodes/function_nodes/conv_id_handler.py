@@ -61,18 +61,20 @@ async def conv_id_handler_node(state: ConversationState) -> Dict[str, Any]:
     """
     conversation_id = state.conversation_id
     mode = state.mode
-    
+    supabase_uid = state.supabase_uid
+
     try:
         async with data_db.get_session() as session:
             # Case 1: No conversation ID provided - generate new one
             if not conversation_id or conversation_id.strip() == "":
                 new_conv_id = str(uuid.uuid4())
-                
+
                 # Create new conversation record
                 new_conversation = SbConversation(
                     id=new_conv_id,
                     mode=mode,
-                    started_at=datetime.utcnow()
+                    started_at=datetime.utcnow(),
+                    supabase_user_id=supabase_uid,
                 )
                 session.add(new_conversation)
                 await session.commit()
@@ -100,7 +102,8 @@ async def conv_id_handler_node(state: ConversationState) -> Dict[str, Any]:
                         new_conversation = SbConversation(
                             id=new_conv_id,
                             mode=mode,
-                            started_at=datetime.utcnow()
+                            started_at=datetime.utcnow(),
+                            supabase_user_id=supabase_uid,
                         )
                         session.add(new_conversation)
                         await session.commit()
@@ -119,7 +122,8 @@ async def conv_id_handler_node(state: ConversationState) -> Dict[str, Any]:
                     new_conversation = SbConversation(
                         id=new_conv_id,
                         mode=mode,
-                        started_at=datetime.utcnow()
+                        started_at=datetime.utcnow(),
+                        supabase_user_id=supabase_uid,
                     )
                     session.add(new_conversation)
                     await session.commit()
@@ -136,7 +140,8 @@ async def conv_id_handler_node(state: ConversationState) -> Dict[str, Any]:
                     new_conversation = SbConversation(
                         id=conversation_id,
                         mode=mode,
-                        started_at=datetime.utcnow()
+                        started_at=datetime.utcnow(),
+                        supabase_user_id=supabase_uid,
                     )
                     session.add(new_conversation)
                     await session.commit()

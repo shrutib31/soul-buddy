@@ -72,6 +72,8 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         is_out_of_scope = getattr(state, "is_out_of_scope", False)
         out_of_scope_reason = getattr(state, "out_of_scope_reason", None)
         chat_preference = preference_style
+        conversation_history = state.conversation_history or []
+        conversation_summary = state.conversation_summary
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
@@ -113,7 +115,13 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             return {"response_draft": template}
 
         # No template — route to LLM(s) based on provider flags.
-        args = (user_message, chat_preference, situation, severity, intent, response_draft, chat_mode_instructions)
+        # Therapist and reflection modes need deeper history; lighter modes cap at 6 turns.
+        _deep_modes = {"therapist", "reflection"}
+        history_limit = 16 if state.chat_mode in _deep_modes else 6
+        trimmed_history = conversation_history[-history_limit:] if conversation_history else []
+
+        args = (user_message, chat_preference, situation, severity, intent, response_draft,
+                chat_mode_instructions, trimmed_history, conversation_summary)
 
         if COMPARE_RESULTS:
             # Call both in parallel and pick the best response.
@@ -188,10 +196,12 @@ async def generate_response_ollama(
     intent: Optional[str] = None,
     context: Optional[str] = None,
     chat_mode_instructions: Optional[str] = None,
+    conversation_history: Optional[list] = None,
+    conversation_summary: Optional[str] = None,
 ) -> str:
     """
     Generate a compassionate response using Ollama.
-    
+
     Args:
         user_message: The user's message
         chat_preference: Selected style of response
@@ -199,7 +209,9 @@ async def generate_response_ollama(
         severity: Severity level (low, medium, high)
         intent: User's intent
         context: Additional context or draft
-    
+        conversation_history: Prior turns [{speaker, message, turn_index}]
+        conversation_summary: Summarised context from previous sessions
+
     Returns:
         Generated response string
     """
@@ -220,8 +232,22 @@ async def generate_response_ollama(
             context_info += f"\nChat Preference: {chat_preference}"
 
         mode_instruction = f"\nInteraction mode instructions: {chat_mode_instructions}" if chat_mode_instructions else ""
+
+        summary_section = ""
+        if conversation_summary:
+            summary_section = f"\nSummary of previous sessions: {conversation_summary}\n"
+
+        history_section = ""
+        if conversation_history:
+            lines = []
+            for turn in conversation_history:
+                speaker_label = "User" if turn.get("speaker") == "user" else "SoulBuddy"
+                lines.append(f"{speaker_label}: {turn.get('message', '')}")
+            history_section = "\n[Conversation so far]\n" + "\n".join(lines) + "\n"
+
         prompt = f"""You are SoulBuddy — a caring personal companion for emotional support.
-{mode_instruction}
+{mode_instruction}{summary_section}{history_section}
+[Current turn]
 User message: "{user_message}"{context_info}
 
 Rules:
@@ -284,10 +310,12 @@ async def generate_response_gpt(
     intent: Optional[str] = None,
     context: Optional[str] = None,
     chat_mode_instructions: Optional[str] = None,
+    conversation_history: Optional[list] = None,
+    conversation_summary: Optional[str] = None,
 ) -> str:
     """
     Generate a compassionate response using GPT-4o-mini.
-    
+
     Args:
         user_message: The user's message
         chat_preference: Selected style of response
@@ -295,7 +323,9 @@ async def generate_response_gpt(
         severity: Severity level (low, medium, high)
         intent: User's intent
         context: Additional context or draft
-    
+        conversation_history: Prior turns [{speaker, message, turn_index}]
+        conversation_summary: Summarised context from previous sessions
+
     Returns:
         Generated response string
     """
@@ -306,8 +336,8 @@ async def generate_response_gpt(
         import ssl
         import certifi
         import aiohttp
-        
-        # Build context-aware prompt
+
+        # Build context-aware metadata appended to the current user turn
         context_info = ""
         if situation:
             context_info += f"\nSituation identified: {situation}"
@@ -317,27 +347,31 @@ async def generate_response_gpt(
             context_info += f"\nUser intent: {intent}"
         if chat_preference:
             context_info += f"\nChat Preference: {chat_preference}"
-        
+
         mode_section = f"\nInteraction mode instructions: {chat_mode_instructions}" if chat_mode_instructions else ""
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    f"You are SoulBuddy — a caring personal companion for emotional support.{mode_section}\n\n"
-                    "Rules:\n"
-                    "- Follow the Interaction mode instructions above exactly — they define your persona and tone\n"
-                    "- Keep response short (1–2 sentences unless the mode requires more depth)\n"
-                    "- Use natural, everyday language — no clinical or counselor-speak\n"
-                    "- Tailor tone to Chat Preference if provided\n"
-                    "- Never use phrases like 'It's completely normal to feel', 'I understand that', "
-                    "'That sounds really hard', or 'Would you like to tell me more about...'"
-                )
-            },
-            {
-                "role": "user",
-                "content": f"User message: \"{user_message}\"{context_info}\n\nProvide a compassionate response:"
-            }
-        ]
+        summary_section = f"\nSummary of previous sessions: {conversation_summary}" if conversation_summary else ""
+
+        system_content = (
+            f"You are SoulBuddy — a caring personal companion for emotional support.{mode_section}{summary_section}\n\n"
+            "Rules:\n"
+            "- Follow the Interaction mode instructions above exactly — they define your persona and tone\n"
+            "- Keep response short (1–2 sentences unless the mode requires more depth)\n"
+            "- Use natural, everyday language — no clinical or counselor-speak\n"
+            "- Tailor tone to Chat Preference if provided\n"
+            "- Never use phrases like 'It's completely normal to feel', 'I understand that', "
+            "'That sounds really hard', or 'Would you like to tell me more about...'"
+        )
+
+        messages = [{"role": "system", "content": system_content}]
+
+        # Inject prior turns as real multi-turn messages so the model has genuine conversation memory
+        for turn in (conversation_history or []):
+            role = "user" if turn.get("speaker") == "user" else "assistant"
+            messages.append({"role": role, "content": turn.get("message", "")})
+
+        # Current user turn with classification metadata appended
+        current_content = f"{user_message}{context_info}" if context_info else user_message
+        messages.append({"role": "user", "content": current_content})
         
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
