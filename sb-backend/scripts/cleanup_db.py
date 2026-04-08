@@ -44,8 +44,14 @@ def main():
         # Step 2: Drop all tables
         logger.info("Step 2: Dropping all database tables...")
         logger.warning("⚠️  This will delete ALL data in the database!")
-        
-        # Drop all tables in reverse order of dependencies
+
+        # Drop legacy tables that are no longer in the ORM but may still exist
+        # in the DB with FK constraints that would block drop_all.
+        with engine.connect() as conn:
+            conn.execute(text("DROP TABLE IF EXISTS user_conversation_summaries CASCADE"))
+            conn.commit()
+
+        # Drop all ORM-registered tables (handles dependency order automatically)
         Base.metadata.drop_all(bind=engine)
         logger.info("✅ All tables dropped successfully")
         

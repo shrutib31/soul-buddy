@@ -11,7 +11,7 @@ import asyncio
 import logging
 
 from graph.state import ConversationState
-from graph.nodes.agentic_nodes.response_templates import get_template_response, get_chat_preference_style
+from graph.nodes.agentic_nodes.response_templates import get_template_response, get_chat_preference_style, get_chat_mode_instructions
 from graph.nodes.agentic_nodes.response_evaluator import select_best_response
 from config.settings import settings
 
@@ -38,6 +38,54 @@ elif not OLLAMA_FLAG and not OPENAI_FLAG:
 
 
 # ============================================================================
+# CROSS-SESSION CONTEXT BUILDER
+# ============================================================================
+
+def _build_cross_session_context(
+    user_memory: Optional[Dict[str, Any]],
+    session_summary: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    """
+    Build a compact cross-session context string injected into the LLM system
+    prompt only on the first turn of a new session.
+
+    Token budget: ~250 tokens total
+      - growth_summary  (~100 tokens): evolving user narrative from user_memory
+      - last session    (~150 tokens): key highlights from the previous session
+
+    Returns None if neither source has useful content.
+    """
+    parts = []
+
+    if user_memory:
+        growth_summary = user_memory.get("growth_summary")
+        if growth_summary:
+            parts.append(f"[Your journey so far]\n{growth_summary}")
+
+    if session_summary:
+        # Prefer the richer holistic final_summary fields if present
+        key_takeaways = session_summary.get("key_takeaways")
+        session_story = session_summary.get("session_story")
+        emotional_arc = session_summary.get("emotional_arc")
+
+        last_session_lines = []
+        if session_story:
+            last_session_lines.append(session_story)
+        if emotional_arc:
+            last_session_lines.append(f"Emotional arc: {emotional_arc}")
+        if key_takeaways:
+            if isinstance(key_takeaways, list):
+                last_session_lines.append("Key takeaways: " + "; ".join(key_takeaways))
+            else:
+                last_session_lines.append(f"Key takeaways: {key_takeaways}")
+
+        if last_session_lines:
+            parts.append("[Last session]\n" + "\n".join(last_session_lines))
+
+    return "\n\n".join(parts) if parts else None
+
+
+# ============================================================================
 # LANGRAPH NODE FUNCTION
 # ============================================================================
 
@@ -59,6 +107,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
     """
     selected_chat_preference = state.chat_preference
     preference_style = get_chat_preference_style(selected_chat_preference)
+    chat_mode_instructions = get_chat_mode_instructions(state.chat_mode)
     try:
         user_message = state.user_message
         situation = state.situation
@@ -73,6 +122,21 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
 
         out_of_scope_reason = getattr(state, "out_of_scope_reason", None)
         chat_preference = preference_style
+        conversation_history = state.conversation_history or []
+
+        # ── Cross-session context (token-optimised, first turn only) ─────────
+        # Injected only when a new conversation has just started.
+        # Injects at most ~250 tokens: growth_summary (~100) + last session (~150).
+        # Mid-session turns use conversation_history exclusively — zero extra tokens.
+        cross_session_context: Optional[str] = None
+        if state.is_new_session:
+            cross_session_context = _build_cross_session_context(
+                user_memory=state.user_memory,
+                session_summary=state.session_summary,
+            )
+
+        # Keep backward-compat variable name for passing into LLM helpers
+        conversation_summary = cross_session_context
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
@@ -114,6 +178,13 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             return {"response_draft": template}
 
         # No template — route to LLM(s) based on provider flags.
+        # Therapist and reflection modes need deeper history; lighter modes cap at 6 turns.
+        _deep_modes = {"therapist", "reflection"}
+        history_limit = 16 if state.chat_mode in _deep_modes else 6
+        trimmed_history = conversation_history[-history_limit:] if conversation_history else []
+
+        args = (user_message, chat_preference, situation, severity, intent, response_draft,
+                chat_mode_instructions, trimmed_history, conversation_summary)
         args = (user_message, situation, severity, intent, response_draft, language)
         args = (user_message, chat_preference, situation, severity, intent, response_draft)
 
@@ -189,11 +260,14 @@ async def generate_response_ollama(
     severity: Optional[str] = None,
     intent: Optional[str] = None,
     context: Optional[str] = None,
+    chat_mode_instructions: Optional[str] = None,
+    conversation_history: Optional[list] = None,
+    conversation_summary: Optional[str] = None,
     language: str = "en-IN"
 ) -> str:
     """
     Generate a compassionate response using Ollama.
-    
+
     Args:
         user_message: The user's message
         chat_preference: Selected style of response
@@ -201,13 +275,17 @@ async def generate_response_ollama(
         severity: Severity level (low, medium, high)
         intent: User's intent
         context: Additional context or draft
-    
+        conversation_history: Prior turns [{speaker, message, turn_index}]
+        conversation_summary: Summarised context from previous sessions
+
     Returns:
         Generated response string
     """
     try:
+        import ssl
+        import certifi
         import aiohttp
-        
+
         # Build context-aware prompt
         context_info = ""
         if situation:
@@ -218,12 +296,32 @@ async def generate_response_ollama(
             context_info += f"\nUser intent: {intent}"
         if chat_preference:
             context_info += f"\nChat Preference: {chat_preference}"
-        
-        prompt = f"""You are a compassionate mental health support chatbot. 
-Your role is to provide empathetic, supportive responses that validate the user's feelings.
 
+        mode_instruction = f"\nInteraction mode instructions: {chat_mode_instructions}" if chat_mode_instructions else ""
+
+        summary_section = ""
+        if conversation_summary:
+            summary_section = f"\nSummary of previous sessions: {conversation_summary}\n"
+
+        history_section = ""
+        if conversation_history:
+            lines = []
+            for turn in conversation_history:
+                speaker_label = "User" if turn.get("speaker") == "user" else "SoulBuddy"
+                lines.append(f"{speaker_label}: {turn.get('message', '')}")
+            history_section = "\n[Conversation so far]\n" + "\n".join(lines) + "\n"
+
+        prompt = f"""You are SoulBuddy — a caring personal companion for emotional support.
+{mode_instruction}{summary_section}{history_section}
+[Current turn]
 User message: "{user_message}"{context_info}
 
+Rules:
+- Follow the Interaction mode instructions above exactly — they define your persona and tone
+- Keep response short (1–2 sentences unless the mode requires more depth)
+- Use natural, everyday language — no clinical or counselor-speak
+- Tailor tone to Chat Preference if provided
+- Never use phrases like "It's completely normal to feel", "I understand that", "That sounds really hard", or "Would you like to tell me more about..."
 Guidelines:
 - Respond in the SAME language as the user's message. (e.g., if user speaks in Bengali, you MUST respond in Bengali).
 - Use the provided language context ({language}) as a preference, but prioritize matching the user's spoken language for natural conversation.
@@ -235,9 +333,10 @@ Guidelines:
 - Avoid being prescriptive or dismissive
 -Tailor your response according to Chat Preference 
 
-Compassionate response:"""
-        
-        async with aiohttp.ClientSession() as session:
+Response:"""
+
+        ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_ctx)) as session:
             logger.info("generate_response_ollama: calling ollama", extra={"model": OLLAMA_MODEL, "url": OLLAMA_BASE_URL})
             try:
                 async with session.post(
@@ -286,11 +385,14 @@ async def generate_response_gpt(
     severity: Optional[str] = None,
     intent: Optional[str] = None,
     context: Optional[str] = None,
+    chat_mode_instructions: Optional[str] = None,
+    conversation_history: Optional[list] = None,
+    conversation_summary: Optional[str] = None,
     language: str = "en-IN"
 ) -> str:
     """
     Generate a compassionate response using GPT-4o-mini.
-    
+
     Args:
         user_message: The user's message
         chat_preference: Selected style of response
@@ -298,7 +400,9 @@ async def generate_response_gpt(
         severity: Severity level (low, medium, high)
         intent: User's intent
         context: Additional context or draft
-    
+        conversation_history: Prior turns [{speaker, message, turn_index}]
+        conversation_summary: Summarised context from previous sessions
+
     Returns:
         Generated response string
     """
@@ -306,10 +410,11 @@ async def generate_response_gpt(
         if not OPENAI_API_KEY:
             logger.debug("generate_response_gpt: OpenAI API key not configured")
             return ""
+        import ssl
+        import certifi
         import aiohttp
-        import json
-        
-        # Build context-aware prompt
+
+        # Build context-aware metadata appended to the current user turn
         context_info = ""
         if situation:
             context_info += f"\nSituation identified: {situation}"
@@ -319,6 +424,31 @@ async def generate_response_gpt(
             context_info += f"\nUser intent: {intent}"
         if chat_preference:
             context_info += f"\nChat Preference: {chat_preference}"
+
+        mode_section = f"\nInteraction mode instructions: {chat_mode_instructions}" if chat_mode_instructions else ""
+        summary_section = f"\nSummary of previous sessions: {conversation_summary}" if conversation_summary else ""
+
+        system_content = (
+            f"You are SoulBuddy — a caring personal companion for emotional support.{mode_section}{summary_section}\n\n"
+            "Rules:\n"
+            "- Follow the Interaction mode instructions above exactly — they define your persona and tone\n"
+            "- Keep response short (1–2 sentences unless the mode requires more depth)\n"
+            "- Use natural, everyday language — no clinical or counselor-speak\n"
+            "- Tailor tone to Chat Preference if provided\n"
+            "- Never use phrases like 'It's completely normal to feel', 'I understand that', "
+            "'That sounds really hard', or 'Would you like to tell me more about...'"
+        )
+
+        messages = [{"role": "system", "content": system_content}]
+
+        # Inject prior turns as real multi-turn messages so the model has genuine conversation memory
+        for turn in (conversation_history or []):
+            role = "user" if turn.get("speaker") == "user" else "assistant"
+            messages.append({"role": role, "content": turn.get("message", "")})
+
+        # Current user turn with classification metadata appended
+        current_content = f"{user_message}{context_info}" if context_info else user_message
+        messages.append({"role": "user", "content": current_content})
         
         messages = [
             {
@@ -359,7 +489,8 @@ Guidelines:
             logger.warning("generate_response_gpt: OPENAI_API_KEY not configured")
             return ""
 
-        async with aiohttp.ClientSession() as session:
+        ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_ctx)) as session:
             logger.info("generate_response_gpt: calling openai", extra={"model": "gpt-4o-mini"})
             try:
                 async with session.post(

@@ -373,6 +373,69 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
 
 
 # ============================================================================
+# POSITIVE EMOTION DETECTION
+# ============================================================================
+
+_POSITIVE_WORDS = {
+    # joy / happiness
+    "happy", "happiness", "excited", "exciting", "joy", "joyful", "elated", "thrilled",
+    "ecstatic", "overjoyed", "delighted", "wonderful", "fantastic", "amazing", "brilliant",
+    "awesome", "great", "excellent", "superb", "incredible", "magnificent",
+    # positive social
+    "love", "loved", "lovely", "blessed", "grateful", "thankful", "lucky", "fortunate",
+    "proud", "content", "satisfied", "peaceful", "calm", "relaxed",
+    # affirmatives / short enthusiastic replies
+    "yes", "yep", "yup", "yeah", "absolutely", "definitely", "totally", "exactly",
+    "right", "true", "indeed", "agreed",
+    # celebration
+    "celebrate", "celebration",
+    "fun", "laugh", "laughed", "laughing", "smile", "smiling", "smiled",
+    "nice", "good", "cool", "sweet", "rad", "yay", "woah", "wow",
+}
+
+# Multi-word positive phrases — tested against the full normalised text, not token-by-token
+_POSITIVE_PHRASES = {"of course", "good news", "good day", "great day", "best day"}
+
+_DISTRESS_WORDS = {
+    "sad", "depressed", "anxious", "anxiety", "stressed", "stress", "overwhelmed",
+    "hopeless", "helpless", "worthless", "alone", "lonely", "scared", "afraid",
+    "crying", "cried", "hurt", "pain", "suffer", "suffering", "numb", "empty",
+    "miserable", "desperate", "broken", "lost", "stuck", "dying",
+    "dead", "kill", "harm", "cut", "hate",
+}
+
+# Multi-word distress phrases — tested against the full normalised text
+_DISTRESS_PHRASES = {"give up", "gave up"}
+
+
+def _has_distress(words: list, normalised_text: str) -> bool:
+    return (
+        any(w in _DISTRESS_WORDS for w in words)
+        or any(phrase in normalised_text for phrase in _DISTRESS_PHRASES)
+    )
+
+
+def detect_positive_message(message: str) -> bool:
+    """
+    Return True when a message is clearly positive/celebratory and
+    contains no distress signals.  Used to prevent the ML model from
+    misclassifying short, context-dependent affirmatives like "yes so much".
+    """
+    normalised = re.sub(r"[^\w\s]", "", message.lower())
+    words = normalised.split()
+    if not words:
+        return False
+    if _has_distress(words, normalised):
+        return False
+    positive_count = sum(1 for w in words if w in _POSITIVE_WORDS)
+    positive_count += sum(1 for phrase in _POSITIVE_PHRASES if phrase in normalised)
+    # Short messages (≤ 6 words): one positive word/phrase is enough
+    # Longer messages: require at least two positive words/phrases
+    threshold = 1 if len(words) <= 6 else 2
+    return positive_count >= threshold
+
+
+# ============================================================================
 # RULE-BASED INTENT CLASSIFICATION
 # ============================================================================
 
@@ -742,7 +805,38 @@ def get_classifications(message: str) -> Dict[str, Any]:
             }
         }
 
-    logger.info(f"Classifying message: '{message}'")
+    # ── Positive emotion short-circuit ───────────────────────────────────────
+    # Prevents the ML model from misclassifying joyful / affirmative messages.
+    # "yes so much", "that was amazing", "I'm so excited" etc. must NOT come
+    # back as distress — the LLM has full conversation history and will handle
+    # these correctly once we return a neutral classification.
+    if detect_positive_message(message):
+        logger.info("Message classified as positive/celebratory — skipping ML model")
+        return {
+            "intent": "unclear",
+            "situation": "NO_SITUATION",
+            "severity": "low",
+            "risk_score": 0.0,
+            "risk_level": "low",
+            "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 0.0, "risk": 0.0}
+        }
+
+    # ── Short-message guard ───────────────────────────────────────────────────
+    # Very short messages (≤ 4 words) with no rule-based distress signal are
+    # ambiguous out of context.  Rather than letting the ML model guess, return
+    # neutral and let the LLM use conversation history to respond correctly.
+    word_count = len(message.strip().split())
+    if word_count <= 4 and classify_situation(message) == "NO_SITUATION" and classify_severity(message) == "low":
+        logger.info("Short message with no distress signal — skipping ML model (word_count=%d)", word_count)
+        return {
+            "intent": "unclear",
+            "situation": "NO_SITUATION",
+            "severity": "low",
+            "risk_score": 0.0,
+            "risk_level": "low",
+            "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 0.0, "risk": 0.0}
+        }
+
     # ── ML model inference ────────────────────────────────────────────────────
     logger.info("Classifying message with ML model: '%s'", message)
     global _tokenizer, _model, _model_loaded, _torch
@@ -809,6 +903,49 @@ def get_classifications(message: str) -> Dict[str, Any]:
 # LANGGRAPH NODE
 # ============================================================================
 
+def _escalate_risk_with_user_memory(
+    risk_level: str,
+    risk_score: float,
+    user_memory: Dict[str, Any],
+) -> str:
+    """
+    Adjust the ML-derived risk_level upward when the user's cross-session
+    memory contains known risk signals.
+
+    Rules (conservative — only escalate, never de-escalate):
+      - risk_signals present (non-empty) + current risk_level == "medium"
+        → escalate to "high"
+      - emotional_baseline == "high_distress" + current risk_level == "low"
+        → escalate to "medium"
+
+    This prevents under-detecting risk in users who have a documented history
+    of high-risk disclosures but whose current message looks mild in isolation.
+    """
+    if not user_memory:
+        return risk_level
+
+    risk_signals = user_memory.get("risk_signals")
+    emotional_baseline = user_memory.get("emotional_baseline", "")
+
+    # Escalate medium → high when there are known risk signals
+    if risk_signals and risk_level == "medium":
+        logger.info(
+            "Risk escalated medium→high based on user_memory risk_signals | score=%.3f",
+            risk_score,
+        )
+        return "high"
+
+    # Escalate low → medium when baseline is documented as high distress
+    if emotional_baseline == "high_distress" and risk_level == "low":
+        logger.info(
+            "Risk escalated low→medium based on user_memory emotional_baseline=high_distress | score=%.3f",
+            risk_score,
+        )
+        return "medium"
+
+    return risk_level
+
+
 def classification_node(state: ConversationState) -> Dict[str, Any]:
     """LangGraph node: classify the user message and update state."""
     try:
@@ -817,6 +954,21 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             return {"error": "No user message to classify"}
 
         classifications = get_classifications(message)
+
+        risk_score = classifications["risk_score"]
+        raw_risk_level = (
+            "high" if risk_score > 0.7 else "medium" if risk_score > 0.3 else "low"
+        )
+
+        # Apply user memory risk escalation for cognito users
+        user_memory = getattr(state, "user_memory", None) or {}
+        final_risk_level = _escalate_risk_with_user_memory(raw_risk_level, risk_score, user_memory)
+
+        # Derive emotion_intensity from risk_score (0.0–1.0).
+        # risk_score is a sigmoid output that captures emotional distress intensity —
+        # a reasonable proxy until a dedicated emotion intensity model is added.
+        emotion_intensity = round(risk_score, 3)
+
         return {
             "intent": classifications["intent"],
             "situation": classifications["situation"],
@@ -825,7 +977,8 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
             "is_out_of_scope": classifications.get("is_out_of_scope", False),
             "out_of_scope_reason": classifications.get("out_of_scope_reason"),
-            "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
+            "risk_level": final_risk_level,
+            "emotion_intensity": emotion_intensity,
         }
 
     except Exception as e:

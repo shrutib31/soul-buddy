@@ -12,9 +12,11 @@ class ConversationState(BaseModel):
     mode: str                    # incognito / cognito
     domain: str                  # student / employee / general
     user_message: str
+    language: str = "en-IN"             # BCP-47 language tag sent by Sarvam STT / frontend
     language: str = "en-IN"
     supabase_uid: Optional[str] = None  # supabase user ID (cognito only)
     chat_preference: str = "general"
+    chat_mode: str = "default"          # default / reflection / venting / therapist
 
     # intent detection
     intent: Optional[str] = None
@@ -45,7 +47,13 @@ class ConversationState(BaseModel):
     user_personality_profile: Dict[str, Any] = {} # personality traits; DB schema pending, cached when available
     user_preferences: Dict[str, Any] = {}        # user preferences; DB schema pending, cached when available
     conversation_history: List[Dict[str, Any]] = []  # last N turns [{speaker, message, turn_index}]
-    conversation_summary: Optional[str] = None       # latest summarised context (written by summarisation job)
+    conversation_summary: Optional[str] = None       # legacy field — kept for backward compat during transition
+
+    # Intelligence layer context (populated by load_user_context_node)
+    session_summary: Optional[Dict[str, Any]] = None   # current session's incremental/final summary (JSONB)
+    user_memory: Optional[Dict[str, Any]] = None        # user's long-term memory row (growth_summary, themes, etc.)
+    emotion_intensity: Optional[float] = None           # emotion intensity for current turn (0.0–1.0), set by classifier
+    is_new_session: bool = False                        # True on first turn of a brand-new conversation
 
     # metadata
     error: Annotated[Optional[str], _keep_last_error] = None

@@ -35,35 +35,27 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User input message")
     is_incognito: bool = Field(True, description="True for anonymous session, False for authenticated session")
     sb_conv_id: Optional[str] = None
+    domain: str = Field("student", description="Conversation domain, defaults to 'student' for backward compatibility")
+    metadata: Optional[Dict[str, Any]] = None
+    chat_preference: str = Field("general", description="Chat preference, defaults to 'general' for backward compatibility")
+    chat_mode: str = Field("default", description="Interaction mode: default | reflection | venting | therapist")
     language: str = Field(
         "en-in",
         max_length=10,
         pattern=r"^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$",
-        description="Language code for the session",
+        description="BCP-47 language tag from Sarvam STT (e.g. en-IN, hi-IN, ta-IN)",
     )
-    domain: str = "student"
-    domain: str = Field("student", description="Conversation domain, defaults to 'student' for backward compatibility")
-    metadata: Optional[Dict[str, Any]] = None
-    chat_preference: str = Field("general", description="Chat preference, defaults to 'general' for backward compatibility")
 
     @field_validator("language", mode="before")
     @classmethod
     def normalize_language(cls, v: Optional[str]) -> str:
-        """
-        Normalize language codes and enforce a default.
-        - Strip whitespace
-        - Fall back to default if empty/None
-        - Canonicalize casing (lowercase)
-        """
+        """Normalize language codes: strip whitespace, lowercase, default to en-in."""
         if v is None:
             return "en-in"
         if isinstance(v, str):
             v = v.strip().lower()
-            if not v:
-                return "en-in"
-            return v
+            return v if v else "en-in"
         raise ValueError("language must be a string")
-
 
 
 # ============================================================================
@@ -90,10 +82,11 @@ async def create_initial_state(
     message: str,
     mode: str,
     domain: str,
-    language: str = "en-IN",
-    chat_preference: str = "general",
+    chat_preference: str,
+    chat_mode: str = "default",
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
+    language: str = "en-IN",
 ) -> ConversationState:
     # Reject non-UUID values (e.g. Swagger default "string") — treat as new session
     valid_conv_id = conversation_id if (conversation_id and _is_valid_uuid(conversation_id)) else None
@@ -101,17 +94,18 @@ async def create_initial_state(
         logger.warning("Invalid conversation_id ignored (not a UUID): %r", conversation_id)
 
     logger.debug(
-        "Returned Conversation State | conv_id=%s mode=%s domain=%s message=%s",
-        valid_conv_id, mode, domain, message,
+        "Returned Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_mode=%s",
+        valid_conv_id, mode, domain, message, chat_mode,
     )
     return ConversationState(
         conversation_id=valid_conv_id or "",  # Empty string triggers ID generation
         mode=mode,
         domain=domain,
         user_message=message,
-        language=language,
         supabase_uid=supabase_uid,
         chat_preference=chat_preference,
+        chat_mode=chat_mode,
+        language=language,
     )
 
 
@@ -132,19 +126,21 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
 
     mode = "incognito" if req.is_incognito else "cognito"
     supabase_uid: Optional[str] = None if req.is_incognito else user["id"]
+    logger.debug("***  supabase_uid: %s", supabase_uid)
     try:
         state = await create_initial_state(
             message=req.message,
             mode=mode,
             domain=req.domain,
-            language=req.language,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
             chat_preference=req.chat_preference,
+            chat_mode=req.chat_mode,
+            language=req.language,
         )
-        logging.debug(
-            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_preference=%s *****",
-            state.conversation_id, state.mode, state.domain, state.user_message, state.chat_preference,
+        logger.debug(
+            "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_preference=%s chat_mode=%s *****",
+            state.conversation_id, state.mode, state.domain, state.user_message, state.chat_preference, state.chat_mode,
         )
         result = await invoke_graph(state)
         return result.get("api_response", {"success": False, "error": "No response generated"})
@@ -225,10 +221,11 @@ async def chat_stream(req: ChatRequest, user=Depends(optional_supabase_token)):
             message=req.message,
             mode=mode,
             domain=req.domain,
-            language=req.language,
             conversation_id=req.sb_conv_id,
             supabase_uid=supabase_uid,
             chat_preference=req.chat_preference,
+            chat_mode=req.chat_mode,
+            language=req.language,
         )
 
         async def event_stream():

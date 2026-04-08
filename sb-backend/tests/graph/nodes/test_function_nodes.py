@@ -97,6 +97,7 @@ def state_for_render():
 def mock_session():
     session = MagicMock()
     session.add = MagicMock()
+    session.flush = AsyncMock()  # store_message_node awaits session.flush()
     session.commit = AsyncMock()
     session.execute = AsyncMock()
     session.__aenter__ = AsyncMock(return_value=session)
@@ -191,7 +192,9 @@ class TestStoreMessageNodeUnit:
         mock_session.execute.return_value = mock_result
         km = _make_km(encryption_enabled=False)
         with patch("graph.nodes.function_nodes.store_message.data_db") as mock_db, \
-             patch("graph.nodes.function_nodes.store_message.get_key_manager", return_value=km):
+             patch("graph.nodes.function_nodes.store_message.get_key_manager", return_value=km), \
+             patch("graph.nodes.function_nodes.store_message.cache_service") as mock_cache:
+            mock_cache.invalidate_conversation_history = AsyncMock()
             mock_db.get_session.return_value = mock_session
             result = await store_message_node(state_for_store_message)
         assert "error" not in result
@@ -206,7 +209,9 @@ class TestStoreMessageNodeUnit:
         mock_session.execute.return_value = mock_result
         km = _make_km(encryption_enabled=True)
         with patch("graph.nodes.function_nodes.store_message.data_db") as mock_db, \
-             patch("graph.nodes.function_nodes.store_message.get_key_manager", return_value=km):
+             patch("graph.nodes.function_nodes.store_message.get_key_manager", return_value=km), \
+             patch("graph.nodes.function_nodes.store_message.cache_service") as mock_cache:
+            mock_cache.invalidate_conversation_history = AsyncMock()
             mock_db.get_session.return_value = mock_session
             result = await store_message_node(state_for_store_message)
         assert "error" not in result
@@ -279,16 +284,12 @@ class TestStoreBotResponseNodeUnit:
             mock_db.get_session.return_value = mock_session
             result = await store_bot_response_node(state_for_store_bot_response)
         assert "error" not in result
-        # The code encrypts the main message and, depending on the classifier, possibly romanised/canonical/mixed
-        # For the default fixture, response_draft is English, so only main and canonical are encrypted
-        expected_calls = [
-            ((state_for_store_bot_response.conversation_id, state_for_store_bot_response.response_draft),),
-            ((state_for_store_bot_response.conversation_id, state_for_store_bot_response.response_draft),)
-        ]
-        actual_calls = km.encrypt.await_args_list
-        assert len(actual_calls) == len(expected_calls)
-        for call, expected in zip(actual_calls, expected_calls):
-            assert call.args == expected[0]
+        # When encryption is enabled, only the main message column is encrypted;
+        # format-specific columns (canonical/romanised/mixed) are set to NULL.
+        km.encrypt.assert_awaited_once_with(
+            state_for_store_bot_response.conversation_id,
+            state_for_store_bot_response.response_draft,
+        )
 
 
 # ============================================================================

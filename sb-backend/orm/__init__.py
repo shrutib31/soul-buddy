@@ -15,7 +15,12 @@ from .models import (
     FlowState,
     StepOutput,
     CrisisEvent,
-    UserConversationSummary,
+    ConversationContext,
+    SessionModeSegment,
+    SessionSummary,
+    UserMemory,
+    UserInsight,
+    InterventionOutcome,
     EncryptionAuditLog,
 )
 
@@ -36,6 +41,11 @@ __all__ = [
     "FlowState",
     "StepOutput",
     "CrisisEvent",
-    "UserConversationSummary",
-    "EncryptionAuditLog"
+    "ConversationContext",
+    "SessionModeSegment",
+    "SessionSummary",
+    "UserMemory",
+    "UserInsight",
+    "InterventionOutcome",
+    "EncryptionAuditLog",
 ]

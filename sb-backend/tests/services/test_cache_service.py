@@ -285,8 +285,8 @@ class TestCacheServiceKeyBuilders:
     def test_key_profile(self):
         assert CacheService._key_profile("u1") == "user:u1:profile"
 
-    def test_key_conversation_summary(self):
-        assert CacheService._key_conversation_summary("u1") == "user:u1:conversation_summary"
+    def test_key_session_summary(self):
+        assert CacheService._key_session_summary("conv1") == "conv:conv1:session_summary"
 
     def test_key_ui_state(self):
         assert CacheService._key_ui_state("u1") == "user:u1:ui_state"
