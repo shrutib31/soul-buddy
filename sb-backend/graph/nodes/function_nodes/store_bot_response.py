@@ -28,10 +28,10 @@ import asyncio
 import uuid
 import logging
 from typing import Dict, Any, Optional
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 
 from graph.state import ConversationState
-from orm.models import ConversationTurn, SessionSummary
+from orm.models import ConversationTurn, SessionSummary, SbConversation
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
 from services.key_manager import get_key_manager
@@ -175,7 +175,6 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                             conversation_id=prev_id,
                             user_id=user_id,
                             dominant_mode=dominant_mode,
-                            turn_count=0,  # service fetches actual count from DB
                         )
                         if final:
                             await update_user_memory(
@@ -204,9 +203,12 @@ async def _get_previous_unfinalised_session(
     user_id: str, current_conversation_id: str
 ) -> Optional[str]:
     """
-    Find the most recent session_summaries row for this user that:
+    Find the most recent cognito session for this user (from sb_conversations) that:
     - is NOT the current conversation
-    - is NOT yet finalised
+    - is NOT yet finalised (no row in session_summaries, OR is_finalised=False)
+
+    Querying sb_conversations as the primary source ensures sessions that never
+    reached the incremental-summary threshold (< 5 turns) are also considered.
 
     Returns the conversation_id string, or None if no such session exists.
     """
@@ -216,13 +218,21 @@ async def _get_previous_unfinalised_session(
 
         async with data_db.get_session() as session:
             stmt = (
-                select(SessionSummary.session_id)
-                .where(
-                    SessionSummary.user_id == user_uuid,
-                    SessionSummary.session_id != current_uuid,
-                    SessionSummary.is_finalised == False,  # noqa: E712
+                select(SbConversation.id)
+                .outerjoin(
+                    SessionSummary,
+                    SessionSummary.session_id == SbConversation.id,
                 )
-                .order_by(SessionSummary.updated_at.desc())
+                .where(
+                    SbConversation.supabase_user_id == user_uuid,
+                    SbConversation.id != current_uuid,
+                    SbConversation.mode == "cognito",
+                    or_(
+                        SessionSummary.session_id == None,  # noqa: E711 – no summary row yet
+                        SessionSummary.is_finalised == False,  # noqa: E712
+                    ),
+                )
+                .order_by(SbConversation.started_at.desc())
                 .limit(1)
             )
             result = await session.execute(stmt)

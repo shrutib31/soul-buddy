@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Heart, User, MessageCircle, LogOut,
@@ -59,9 +60,9 @@ function ScoreBar({ value }: { value: number }) {
 function InsightSection({
   icon, title, children, defaultOpen = true,
 }: {
-  icon: React.ReactNode
+  icon: ReactNode
   title: string
-  children: React.ReactNode
+  children: ReactNode
   defaultOpen?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)

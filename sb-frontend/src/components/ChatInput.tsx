@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import type { KeyboardEvent, ChangeEvent } from 'react'
 import { Send } from 'lucide-react'
 import type { ChatMode } from '../types'
 
@@ -30,14 +31,14 @@ export default function ChatInput({ onSend, disabled = false, chatMode, onModeCh
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
   }
 
-  function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
+  function handleInput(e: ChangeEvent<HTMLTextAreaElement>) {
     setText(e.target.value)
     const ta = e.target
     ta.style.height = 'auto'

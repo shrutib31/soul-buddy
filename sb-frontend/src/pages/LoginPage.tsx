@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Heart, Eye, EyeOff, Loader2, Mail, Lock, ArrowRight, Sparkles } from 'lucide-react'
+import type { FormEvent } from 'react'
+import { Heart, Eye, EyeOff, Loader2, Mail, Lock, ArrowRight } from 'lucide-react'
 import '../styles.css'
 
 type Mode = 'login' | 'signup'
@@ -44,7 +45,7 @@ export default function LoginPage() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)

@@ -117,8 +117,8 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
                 turn_id=turn.id,
                 mode=chat_mode,
                 style=style,
-                detected_emotion=None,   # classifier hasn't run yet
-                intensity=emotion_intensity,
+                detected_emotion=None,    # classifier hasn't run yet
+                intensity=emotion_intensity,  # may be None — set by classification_node in next step
             )
             session.add(ctx)
 

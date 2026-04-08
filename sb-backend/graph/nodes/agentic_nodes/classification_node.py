@@ -386,24 +386,33 @@ _POSITIVE_WORDS = {
     "proud", "content", "satisfied", "peaceful", "calm", "relaxed",
     # affirmatives / short enthusiastic replies
     "yes", "yep", "yup", "yeah", "absolutely", "definitely", "totally", "exactly",
-    "right", "true", "indeed", "agreed", "of course",
-    # celebration / good news
-    "celebrate", "celebration", "good news", "good day", "great day", "best day",
+    "right", "true", "indeed", "agreed",
+    # celebration
+    "celebrate", "celebration",
     "fun", "laugh", "laughed", "laughing", "smile", "smiling", "smiled",
     "nice", "good", "cool", "sweet", "rad", "yay", "woah", "wow",
 }
+
+# Multi-word positive phrases — tested against the full normalised text, not token-by-token
+_POSITIVE_PHRASES = {"of course", "good news", "good day", "great day", "best day"}
 
 _DISTRESS_WORDS = {
     "sad", "depressed", "anxious", "anxiety", "stressed", "stress", "overwhelmed",
     "hopeless", "helpless", "worthless", "alone", "lonely", "scared", "afraid",
     "crying", "cried", "hurt", "pain", "suffer", "suffering", "numb", "empty",
-    "miserable", "desperate", "desperate", "broken", "lost", "stuck", "dying",
-    "dead", "kill", "harm", "cut", "hate", "give up", "gave up",
+    "miserable", "desperate", "broken", "lost", "stuck", "dying",
+    "dead", "kill", "harm", "cut", "hate",
 }
 
+# Multi-word distress phrases — tested against the full normalised text
+_DISTRESS_PHRASES = {"give up", "gave up"}
 
-def _has_distress(words: list) -> bool:
-    return any(w in _DISTRESS_WORDS for w in words)
+
+def _has_distress(words: list, normalised_text: str) -> bool:
+    return (
+        any(w in _DISTRESS_WORDS for w in words)
+        or any(phrase in normalised_text for phrase in _DISTRESS_PHRASES)
+    )
 
 
 def detect_positive_message(message: str) -> bool:
@@ -412,14 +421,16 @@ def detect_positive_message(message: str) -> bool:
     contains no distress signals.  Used to prevent the ML model from
     misclassifying short, context-dependent affirmatives like "yes so much".
     """
-    words = re.sub(r"[^\w\s]", "", message.lower()).split()
+    normalised = re.sub(r"[^\w\s]", "", message.lower())
+    words = normalised.split()
     if not words:
         return False
-    if _has_distress(words):
+    if _has_distress(words, normalised):
         return False
     positive_count = sum(1 for w in words if w in _POSITIVE_WORDS)
-    # Short messages (≤ 6 words): one positive word is enough
-    # Longer messages: require at least two positive words
+    positive_count += sum(1 for phrase in _POSITIVE_PHRASES if phrase in normalised)
+    # Short messages (≤ 6 words): one positive word/phrase is enough
+    # Longer messages: require at least two positive words/phrases
     threshold = 1 if len(words) <= 6 else 2
     return positive_count >= threshold
 

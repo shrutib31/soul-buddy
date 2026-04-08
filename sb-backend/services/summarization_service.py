@@ -369,7 +369,6 @@ async def summarize_session_final(
     conversation_id: str,
     user_id: str,
     dominant_mode: str,
-    turn_count: int,
 ) -> Optional[Dict[str, Any]]:
     """
     Generate the full holistic session summary at session end.
@@ -383,6 +382,8 @@ async def summarize_session_final(
 
         if not turns:
             return None
+
+        turn_count = len(turns)
 
         # Full transcript (both speakers) capped at last 30 turns
         transcript = "\n".join(

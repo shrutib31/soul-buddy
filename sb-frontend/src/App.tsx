@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { BuddyProvider } from './contexts/BuddyContext'
 import LoginPage from './pages/LoginPage'
@@ -6,7 +7,7 @@ import OnboardingPage from './pages/OnboardingPage'
 import ChatPage from './pages/ChatPage'
 import HomePage from './pages/HomePage'
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) {
     return (
