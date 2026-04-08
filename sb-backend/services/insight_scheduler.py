@@ -30,7 +30,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import select, distinct
 
@@ -46,8 +46,8 @@ _DAILY_INTERVAL_SECONDS = 24 * 60 * 60   # 24 hours
 _WEEKLY_INTERVAL_SECONDS = 7 * 24 * 60 * 60  # 7 days
 
 # Task handles — kept so stop_scheduler() can cancel them
-_daily_task: asyncio.Task = None
-_weekly_task: asyncio.Task = None
+_daily_task: Optional[asyncio.Task] = None
+_weekly_task: Optional[asyncio.Task] = None
 
 
 # ============================================================================

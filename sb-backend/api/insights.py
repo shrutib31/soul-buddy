@@ -124,8 +124,11 @@ async def get_session_summary(
     supabase_uid: str = user["id"]
 
     try:
+        # Cache-aside — check before opening a DB session
+        cached = await cache_service.get_session_summary(conversation_id)
+
         async with _data_db.get_session() as session:
-            # Ownership check
+            # Ownership check: confirm the conversation belongs to this user
             conv_stmt = select(SbConversation).where(
                 SbConversation.id == uuid.UUID(conversation_id),
                 SbConversation.supabase_user_id == uuid.UUID(supabase_uid),
@@ -134,12 +137,9 @@ async def get_session_summary(
             if conv_result.scalar_one_or_none() is None:
                 raise HTTPException(status_code=404, detail="Conversation not found")
 
-        # Cache-aside
-        cached = await cache_service.get_session_summary(conversation_id)
-        if cached:
-            return {"conversation_id": conversation_id, "summary": cached, "source": "cache"}
+            if cached:
+                return {"conversation_id": conversation_id, "summary": cached, "source": "cache"}
 
-        async with _data_db.get_session() as session:
             stmt = select(SessionSummary).where(
                 SessionSummary.session_id == uuid.UUID(conversation_id)
             )

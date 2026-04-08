@@ -210,7 +210,7 @@ async def _fetch_turns_with_context(
             stmt = (
                 select(ConversationTurn, ConversationContext)
                 .outerjoin(ConversationContext, ConversationContext.turn_id == ConversationTurn.id)
-                .where(ConversationTurn.session_id == conversation_id)
+                .where(ConversationTurn.session_id == uuid.UUID(conversation_id))
                 .order_by(ConversationTurn.turn_index.asc())
             )
             result = await session.execute(stmt)
@@ -262,7 +262,7 @@ async def _fetch_mode_segments(conversation_id: str) -> List[Dict[str, Any]]:
         async with _data_db.get_session() as session:
             stmt = (
                 select(SessionModeSegment)
-                .where(SessionModeSegment.session_id == conversation_id)
+                .where(SessionModeSegment.session_id == uuid.UUID(conversation_id))
                 .order_by(SessionModeSegment.start_turn.asc())
             )
             result = await session.execute(stmt)
@@ -580,9 +580,3 @@ def _extract_emotion(turns: List[Dict[str, Any]]) -> Optional[str]:
         return "calm/positive"
 
 
-# Module-level singleton
-summarization_service_module = {
-    "summarize_session_incremental": summarize_session_incremental,
-    "summarize_session_final": summarize_session_final,
-    "update_user_memory": update_user_memory,
-}

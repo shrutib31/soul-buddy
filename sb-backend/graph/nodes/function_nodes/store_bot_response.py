@@ -27,10 +27,8 @@ Graph position: runs after response_generator, before render.
 import asyncio
 import uuid
 import logging
-from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from sqlalchemy import select, func
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from graph.state import ConversationState
 from orm.models import ConversationTurn, SessionSummary
@@ -43,7 +41,7 @@ from services.summarization_service import (
     update_user_memory,
 )
 from services.insight_scoring import score_session
-import logging
+from utils.lang_classifier import classify_language_format, ROMANISED, CANONICAL, MIXED
 
 logger = logging.getLogger(__name__)
 
@@ -51,27 +49,11 @@ data_db = SQLAlchemyDataDB()
 
 # How often to generate an incremental summary (every N bot turns)
 _INCREMENTAL_SUMMARY_EVERY_N_TURNS = 5
-from utils.lang_classifier import classify_language_format, ROMANISED, CANONICAL, MIXED
 
-logger = logging.getLogger(__name__)
-data_db = SQLAlchemyDataDB()
 
-def _build_summary(state: ConversationState, turn_count: int) -> str:
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    parts = [f"[{date_str}]", f"Domain: {state.domain}."]
-    if state.situation:
-        severity_str = f" ({state.severity} severity)" if state.severity else ""
-        parts.append(f"Situation: {state.situation}{severity_str}.")
-    if state.intent:
-        parts.append(f"Intent: {state.intent}.")
-    if state.risk_level:
-        parts.append(f"Risk: {state.risk_level}.")
-    if state.is_crisis_detected:
-        parts.append("Crisis detected.")
-    if state.flow_id:
-        parts.append(f"Flow: {state.flow_id}.")
-    parts.append(f"Turns: {turn_count}.")
-    return " ".join(parts)
+# ============================================================================
+# LANGRAPH NODE FUNCTION
+# ============================================================================
 
 async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
     """
@@ -88,45 +70,31 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
             )
             return {"error": "Missing conversation_id or bot response"}
 
-        km = get_key_manager()
-        message_to_store = (
-            await km.encrypt(conversation_id, bot_response)
-            if km.is_encryption_enabled()
-            else bot_response
+        # ----------------------------------------------------------------
+        # Language format classification (mirrors store_message_node)
+        # ----------------------------------------------------------------
+        format_type = classify_language_format(bot_response, state.language or "en-IN")
+        logger.info(
+            "store_bot_response: language format=%s lang=%s | conversation_id=%s",
+            format_type, state.language, conversation_id,
         )
+
+        km = get_key_manager()
+        if km.is_encryption_enabled():
+            message_to_store = await km.encrypt(conversation_id, bot_response)
+            romanised = None
+            canonical = None
+            mixed = None
+        else:
+            message_to_store = bot_response
+            romanised = bot_response if format_type == ROMANISED else None
+            canonical = bot_response if format_type == CANONICAL else None
+            mixed = bot_response if format_type == MIXED else None
 
         async with data_db.get_session() as session:
             # ----------------------------------------------------------------
             # 1. Count existing turns → determine turn_index
             # ----------------------------------------------------------------
-    try:
-        conversation_id = state.conversation_id
-        bot_response = state.response_draft
-        if not conversation_id or not bot_response:
-            return {"error": "Missing conversation_id or bot response"}
-
-        # Classify language format
-        format_type = classify_language_format(bot_response, state.language or 'en-IN')
-        logger.info("[LanguageClassifier] Bot response format: %s (lang: %s)", format_type, state.language)
-        romanised = bot_response if format_type == ROMANISED else None
-        canonical = bot_response if format_type == CANONICAL else None
-        mixed = bot_response if format_type == MIXED else None
-
-        km = get_key_manager()
-        encryption_enabled = km.is_encryption_enabled()
-        if encryption_enabled:
-            # Encrypt main message and any populated format-specific content
-            message_to_store = await km.encrypt(conversation_id, bot_response)
-            if romanised is not None:
-                romanised = await km.encrypt(conversation_id, romanised)
-            if canonical is not None:
-                canonical = await km.encrypt(conversation_id, canonical)
-            if mixed is not None:
-                mixed = await km.encrypt(conversation_id, mixed)
-        else:
-            message_to_store = bot_response
-
-        async with data_db.get_session() as session:
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(
                 ConversationTurn.session_id == conversation_id
             )
@@ -160,14 +128,13 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
         # ----------------------------------------------------------------
         # 4. Background tasks (cognito users only — need user_id)
         # ----------------------------------------------------------------
-        await cache_service.invalidate_conversation_history(conversation_id)
         if state.supabase_uid:
             user_id = state.supabase_uid
             dominant_mode = state.chat_mode or "default"
             risk_level = state.risk_level or "low"
 
-            # Session start time — derive from sb_conversations.started_at if available
-            # For now we pass None; insight_scoring handles None gracefully
+            # Session start time — derive from sb_conversations.started_at if available.
+            # For now we pass None; insight_scoring handles None gracefully.
             session_duration: Optional[float] = None
 
             # 4a. Rule-based insight scoring (every turn, no LLM)
@@ -182,9 +149,11 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                 )
             )
 
-            # 4b. Incremental summarization every N turns (LLM, fire-and-forget)
-            bot_turn_number = total_turns // 2  # approx bot turns = half of all turns
-            if bot_turn_number > 0 and bot_turn_number % _INCREMENTAL_SUMMARY_EVERY_N_TURNS == 0:
+            # 4b. Incremental summarization every N bot turns (LLM, fire-and-forget)
+            # total_turns counts both user and bot turns; bot turns are ~half.
+            # We trigger when the bot-turn estimate crosses a multiple of N.
+            bot_turn_estimate = total_turns // 2
+            if bot_turn_estimate > 0 and bot_turn_estimate % _INCREMENTAL_SUMMARY_EVERY_N_TURNS == 0:
                 asyncio.create_task(
                     summarize_session_incremental(
                         conversation_id=conversation_id,
@@ -194,9 +163,8 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                     )
                 )
 
-            # 4c. Lazy finalisation of the PREVIOUS session (if is_new_session flag is set)
-            # is_new_session is set by load_user_context_node when a new conversation_id
-            # is detected but the prior session has no final summary yet.
+            # 4c. Lazy finalisation of the PREVIOUS session (if is_new_session flag is set).
+            # is_new_session is set by load_user_context_node when no prior history exists.
             if state.is_new_session:
                 prev_session_id = await _get_previous_unfinalised_session(user_id, conversation_id)
                 if prev_session_id:
@@ -207,7 +175,7 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                             conversation_id=prev_id,
                             user_id=user_id,
                             dominant_mode=dominant_mode,
-                            turn_count=0,  # turn_count unknown here; service fetches from DB
+                            turn_count=0,  # service fetches actual count from DB
                         )
                         if final:
                             await update_user_memory(
@@ -219,6 +187,7 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                     asyncio.create_task(_finalise_prev_session(prev_session_id))
 
         return {}
+
     except Exception as e:
         logger.error(
             "store_bot_response: failed | conversation_id=%r error=%s",
@@ -252,23 +221,6 @@ async def _get_previous_unfinalised_session(
                     SessionSummary.user_id == user_uuid,
                     SessionSummary.session_id != current_uuid,
                     SessionSummary.is_finalised == False,  # noqa: E712
-        logger.error("store_bot_response: failed | conversation_id=%r error=%s", state.conversation_id, e)
-        return {"error": f"Error storing bot response: {str(e)}"}
-
-async def _upsert_conversation_summary(state: ConversationState, turn_count: int) -> None:
-    try:
-        summary_text = _build_summary(state, turn_count)
-        user_uuid = uuid.UUID(state.supabase_uid)
-        conv_uuid = uuid.UUID(state.conversation_id)
-        now = datetime.now(timezone.utc)
-
-        async with data_db.get_session() as session:
-            stmt = (
-                pg_insert(UserConversationSummary)
-                .values(user_id=user_uuid, summary=summary_text, last_conversation_id=conv_uuid, updated_at=now)
-                .on_conflict_do_update(
-                    index_elements=["user_id"],
-                    set_={"summary": summary_text, "last_conversation_id": conv_uuid, "updated_at": now}
                 )
                 .order_by(SessionSummary.updated_at.desc())
                 .limit(1)
@@ -282,8 +234,3 @@ async def _upsert_conversation_summary(state: ConversationState, turn_count: int
             "store_bot_response: prev session lookup failed | user_id=%s error=%s", user_id, exc
         )
         return None
-            await session.execute(stmt)
-            await session.commit()
-        await cache_service.set_conversation_summary(state.supabase_uid, summary_text)
-    except Exception as exc:
-        logger.warning("summary upsert failed (non-fatal) | supabase_uid=%s error=%s", state.supabase_uid, exc)

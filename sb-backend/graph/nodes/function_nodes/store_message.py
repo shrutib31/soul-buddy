@@ -39,6 +39,11 @@ logger = logging.getLogger(__name__)
 
 data_db = SQLAlchemyDataDB()
 
+
+# ============================================================================
+# LANGRAPH NODE FUNCTION
+# ============================================================================
+
 async def store_message_node(state: ConversationState) -> Dict[str, Any]:
     """
     Store user message, language content columns, mode/emotion context,
@@ -63,20 +68,11 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
         km = get_key_manager()
         if km.is_encryption_enabled():
             # Encrypt raw message; leave format columns NULL to avoid plaintext storage.
-        
-        # Classify language format
-        format_type = classify_language_format(user_message, state.language or 'en-IN')
-        logger.info("[LanguageClassifier] User message format: %s (lang: %s)", format_type, state.language)
-
-        km = get_key_manager()
-        if km.is_encryption_enabled():
-            # When encryption is enabled, do not store plaintext in format-specific columns.
             message_to_store = await km.encrypt(conversation_id, user_message)
             romanised = None
             canonical = None
             mixed = None
         else:
-            # When encryption is disabled, store the classified plaintext in the appropriate column.
             message_to_store = user_message
             romanised = user_message if format_type == ROMANISED else None
             canonical = user_message if format_type == CANONICAL else None
@@ -98,9 +94,6 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
             turn = ConversationTurn(
                 session_id=conversation_id,
                 turn_index=turn_index,
-            turn = ConversationTurn(
-                session_id=conversation_id,
-                turn_index=turn_count,
                 speaker="user",
                 message=message_to_store,
                 language=state.language,
@@ -140,7 +133,6 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
         # 5. Invalidate cached history
         # ----------------------------------------------------------------
         await cache_service.invalidate_conversation_history(conversation_id)
-            await cache_service.invalidate_conversation_history(conversation_id)
 
         return {}
 
@@ -217,5 +209,3 @@ async def _update_mode_segments(
             "store_message: mode segment update failed | conversation_id=%r error=%s",
             conversation_id, exc,
         )
-        logger.error("store_message: failed | conversation_id=%r error=%s", state.conversation_id, e)
-        return {"error": f"Error storing message: {str(e)}"}

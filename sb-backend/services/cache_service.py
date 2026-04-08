@@ -25,9 +25,6 @@ Key schema
   conv:<conversationId>:session_summary — current session summary JSONB (TTL_PROFILE = 2h)
   config:<configKey>                  — global config entry (TTL_CONFIG)
 
-Deprecated keys (kept for transition period):
-  user:<userId>:conversation_summary  — replaced by conv:<id>:session_summary
-
 TTLs (seconds, overrideable via env vars)
 -----------------------------------------
   REDIS_TTL_PROFILE      default 7 200   (2 h)
@@ -197,11 +194,6 @@ class CacheService:
         return f"user:{user_id}:profile"
 
     @staticmethod
-    def _key_conversation_summary(user_id: str) -> str:
-        # Deprecated — kept for transition period only
-        return f"user:{user_id}:conversation_summary"
-
-    @staticmethod
     def _key_user_memory(user_id: str) -> str:
         return f"user:{user_id}:user_memory"
 
@@ -250,19 +242,6 @@ class CacheService:
 
     async def invalidate_user_profile(self, user_id: str) -> None:
         await self._delete(self._key_profile(user_id))
-
-    # ------------------------------------------------------------------
-    # Conversation summary
-    # ------------------------------------------------------------------
-
-    async def get_conversation_summary(self, user_id: str) -> Optional[str]:
-        return await self._get(self._key_conversation_summary(user_id))
-
-    async def set_conversation_summary(self, user_id: str, summary: str) -> None:
-        await self._set(self._key_conversation_summary(user_id), summary, self.TTL_CONVERSATION)
-
-    async def invalidate_conversation_summary(self, user_id: str) -> None:
-        await self._delete(self._key_conversation_summary(user_id))
 
     # ------------------------------------------------------------------
     # Session summary  (conv:<conversationId>:session_summary, TTL 2h)

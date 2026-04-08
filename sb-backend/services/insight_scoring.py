@@ -88,11 +88,14 @@ async def score_session(
         })
 
         # 4. Mode preference (dominant mode this session)
+        # metric_value stores the dominant mode as a numeric index for trend tracking;
+        # the human-readable label and full distribution are in metadata.
         mode_dist = _mode_distribution(contexts)
+        _mode_index = {"default": 0.0, "reflection": 1.0, "venting": 2.0, "therapist": 3.0}
         metrics.append({
             "metric_type": "behavioral",
             "metric_name": "mode_preference",
-            "metric_value": None,
+            "metric_value": _mode_index.get(dominant_mode, 0.0),
             "metadata": {"dominant_mode": dominant_mode, "mode_distribution": mode_dist},
         })
 
