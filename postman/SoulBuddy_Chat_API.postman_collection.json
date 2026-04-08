@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "SoulBuddy Chat API",
-    "description": "Postman collection for SoulBuddy backend chat endpoints.\n\n**Setup:**\n1. Import this collection.\n2. Import `SoulBuddy.postman_environment.json` and select it as the active environment.\n3. For cognito requests, set `supabase_token` in the environment to a valid Supabase JWT.",
+    "description": "Postman collection for the SoulBuddy backend.\n\n**Folders:**\n- **Health** — server health check\n- **Chat — Incognito** — anonymous chat (no auth required)\n- **Chat — Cognito** — authenticated chat (Supabase JWT required)\n- **Conversations** — retrieve message history (auth required)\n- **Insights** — per-session metrics, summaries, weekly growth, user memory (auth required)\n- **Classify** — standalone message classification (auth required)\n- **Guardrail** — out-of-scope / guardrail detection (auth required)\n- **Examples** — saved example requests and responses for every endpoint\n\n**Setup:**\n1. Import this collection.\n2. Import `SoulBuddy.postman_environment.json` and select it as the active environment.\n3. For cognito / auth-required requests, set `supabase_token` to a valid Supabase JWT.\n4. Set `conversation_id` to a UUID returned by a previous `/chat` response to continue a session or test per-session endpoints.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [],
@@ -10,7 +10,7 @@
       "name": "Health",
       "item": [
         {
-          "name": "Health Check",
+          "name": "GET /health",
           "request": {
             "method": "GET",
             "header": [],
@@ -19,7 +19,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["health"]
             },
-            "description": "Returns server status and connectivity of all services (data DB, auth DB, Supabase)."
+            "description": "Returns server status and connectivity of all services (data DB, auth DB, Supabase, Redis)."
           },
           "response": [
             {
@@ -35,7 +35,7 @@
     },
     {
       "name": "Chat — Incognito (anonymous)",
-      "description": "No Authorization header required. `is_incognito` must be `true`. Conversation history is session-scoped — pass the `sb_conv_id` returned in the first response to continue the same conversation.",
+      "description": "No Authorization header required. `is_incognito` must be `true`. Conversation history is session-scoped — pass the `conversation_id` returned in the first response as `sb_conv_id` to continue the same session.\n\n**New fields (all optional with defaults):**\n- `chat_mode`: `default` | `reflection` | `venting` | `therapist` (default: `default`)\n- `chat_preference`: `general` | ... (default: `general`)\n- `language`: BCP-47 tag (e.g. `en-IN`, `hi-IN`, `ta-IN`) — default: `en-in`",
       "item": [
         {
           "name": "POST /chat — new incognito session",
@@ -46,7 +46,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -75,7 +75,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"chat_mode\": \"venting\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -97,7 +97,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -105,7 +105,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "chat", "stream"]
             },
-            "description": "Streaming version of the incognito chat endpoint. Returns server-sent events (SSE). Each event is a `data:` line containing a JSON chunk. The stream ends with a final `data: [DONE]` event.\n\nNote: Postman renders SSE responses in the response body as each chunk arrives."
+            "description": "Streaming version of the incognito chat endpoint. Returns server-sent events (SSE). Each event is a `data:` line containing a JSON chunk. The stream ends with a final `data: [DONE]` event."
           },
           "response": [
             {
@@ -127,7 +127,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"chat_mode\": \"reflection\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -143,7 +143,7 @@
     },
     {
       "name": "Chat — Cognito (authenticated)",
-      "description": "Requires a valid Supabase JWT in the `Authorization: Bearer` header. `is_incognito` must be `false`. The `supabase_uid` is always derived from the token — never pass it in the request body.",
+      "description": "Requires a valid Supabase JWT in the `Authorization: Bearer` header. `is_incognito` must be `false`. The `supabase_uid` is always derived from the token — never pass it in the request body.\n\n**New fields (all optional with defaults):**\n- `chat_mode`: `default` | `reflection` | `venting` | `therapist` (default: `default`)\n- `chat_preference`: `general` | ... (default: `general`)\n- `language`: BCP-47 tag (e.g. `en-IN`, `hi-IN`, `ta-IN`) — default: `en-in`",
       "item": [
         {
           "name": "POST /chat — new cognito session",
@@ -155,7 +155,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -167,18 +167,18 @@
           },
           "response": [
             {
-              "name": "401 — missing token",
-              "status": "Unauthorized",
-              "code": 401,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"detail\": \"Authorization header required for cognito mode\"\n}"
-            },
-            {
               "name": "200 OK — authenticated session",
               "status": "OK",
               "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"success\": true,\n  \"conversation_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"response\": \"Welcome back! How can I help you today?\",\n  \"intent\": \"greeting\",\n  \"domain\": \"student\"\n}"
+            },
+            {
+              "name": "401 — missing token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Authorization header required for cognito mode\"\n}"
             }
           ]
         },
@@ -192,7 +192,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"chat_mode\": \"therapist\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -215,7 +215,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"Hello, how are you?\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -238,7 +238,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"I'm feeling stressed about my exams.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"{{conversation_id}}\",\n  \"domain\": \"student\",\n  \"chat_mode\": \"reflection\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -249,6 +249,367 @@
             "description": "Continue an existing authenticated conversation with streaming."
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "description": "Retrieve conversation history and decrypted messages. All endpoints require a valid Supabase JWT. Messages stored with encryption are transparently decrypted before being returned.",
+      "item": [
+        {
+          "name": "GET /chat/conversations/messages — all conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/conversations/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "conversations", "messages"]
+            },
+            "description": "Retrieve all conversations for the authenticated user, each with its full decrypted message list. Ordered newest-first."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversations\": [\n    {\n      \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n      \"mode\": \"cognito\",\n      \"started_at\": \"2026-03-08T10:15:00+00:00\",\n      \"ended_at\": null,\n      \"messages\": [\n        {\n          \"id\": \"a1b2c3d4-1111-2222-3333-444455556666\",\n          \"turn_index\": 0,\n          \"speaker\": \"user\",\n          \"message\": \"I haven't slept properly in two weeks.\",\n          \"created_at\": \"2026-03-08T10:15:01+00:00\"\n        },\n        {\n          \"id\": \"e5f6a7b8-7777-8888-9999-aaaabbbbcccc\",\n          \"turn_index\": 1,\n          \"speaker\": \"bot\",\n          \"message\": \"Thank you for trusting me with this. Are you having any thoughts of hurting yourself?\",\n          \"created_at\": \"2026-03-08T10:15:02+00:00\"\n        }\n      ]\n    }\n  ]\n}"
+            },
+            {
+              "name": "401 — missing or invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /chat/conversations/:conversation_id/messages — single conversation",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat/conversations/{{conversation_id}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat", "conversations", "{{conversation_id}}", "messages"]
+            },
+            "description": "Retrieve all decrypted messages for a specific conversation. Set `{{conversation_id}}` in the environment to the target UUID. Returns 404 if the conversation does not exist or belongs to another user."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"messages\": [\n    {\n      \"id\": \"a1b2c3d4-1111-2222-3333-444455556666\",\n      \"turn_index\": 0,\n      \"speaker\": \"user\",\n      \"message\": \"I haven't slept properly in two weeks.\",\n      \"created_at\": \"2026-03-08T10:15:01+00:00\"\n    },\n    {\n      \"id\": \"e5f6a7b8-7777-8888-9999-aaaabbbbcccc\",\n      \"turn_index\": 1,\n      \"speaker\": \"bot\",\n      \"message\": \"Thank you for trusting me with this.\",\n      \"created_at\": \"2026-03-08T10:15:02+00:00\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 — invalid conversation_id",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Invalid conversation_id — must be a UUID\"\n}"
+            },
+            {
+              "name": "401 — missing or invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+            },
+            {
+              "name": "404 — not found or wrong user",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Conversation not found\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Insights",
+      "description": "Intelligence-layer data: per-session metrics, session summaries, weekly growth trend, and long-term user memory. All endpoints require a valid Supabase JWT. Per-session endpoints verify that the conversation belongs to the authenticated user before returning data.",
+      "item": [
+        {
+          "name": "GET /insights/session/:conversation_id — session metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/insights/session/{{conversation_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "insights", "session", "{{conversation_id}}"]
+            },
+            "description": "Return all insight metrics computed for a session: `emotional_stability_score`, `engagement_score`, `progress_score`, `risk_score`, `mode_preference`. Returns 404 if the conversation does not belong to the authenticated user."
+          },
+          "response": [
+            {
+              "name": "200 OK — metrics returned",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"metrics\": [\n    {\n      \"metric_type\": \"session\",\n      \"metric_name\": \"emotional_stability_score\",\n      \"metric_value\": 0.72,\n      \"metadata\": null,\n      \"computed_at\": \"2026-03-08T10:20:00+00:00\"\n    },\n    {\n      \"metric_type\": \"session\",\n      \"metric_name\": \"engagement_score\",\n      \"metric_value\": 0.85,\n      \"metadata\": null,\n      \"computed_at\": \"2026-03-08T10:20:00+00:00\"\n    },\n    {\n      \"metric_type\": \"session\",\n      \"metric_name\": \"progress_score\",\n      \"metric_value\": 0.60,\n      \"metadata\": null,\n      \"computed_at\": \"2026-03-08T10:20:00+00:00\"\n    },\n    {\n      \"metric_type\": \"session\",\n      \"metric_name\": \"risk_score\",\n      \"metric_value\": 0.20,\n      \"metadata\": null,\n      \"computed_at\": \"2026-03-08T10:20:00+00:00\"\n    },\n    {\n      \"metric_type\": \"session\",\n      \"metric_name\": \"mode_preference\",\n      \"metric_value\": 2.0,\n      \"metadata\": {\"mode_distribution\": {\"venting\": 0.6, \"reflection\": 0.4}},\n      \"computed_at\": \"2026-03-08T10:20:00+00:00\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 — invalid conversation_id",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Invalid conversation_id — must be a UUID\"\n}"
+            },
+            {
+              "name": "401 — missing or invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+            },
+            {
+              "name": "404 — not found or wrong user",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Conversation not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /insights/session/:conversation_id/summary — session summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/insights/session/{{conversation_id}}/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "insights", "session", "{{conversation_id}}", "summary"]
+            },
+            "description": "Return the session summary for a conversation. Returns the final holistic summary if the session is finalised, otherwise the latest incremental summary. Checks Redis cache first (TTL 30 min).\n\nSummaries are generated every 5 bot turns (incremental) and finalised when a new session starts."
+          },
+          "response": [
+            {
+              "name": "200 OK — incremental summary",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"summary\": {\n    \"session_story\": \"The user shared feelings of exhaustion and emptiness after two weeks of poor sleep. They denied self-harm ideation and engaged reflectively.\",\n    \"key_takeaways\": [\"Sleep deprivation is a major stressor\", \"User is open to support\"],\n    \"recommended_next_step\": \"Try a short breathing exercise before bed tonight.\",\n    \"risk_level\": \"low\"\n  },\n  \"is_finalised\": false,\n  \"source\": \"db\"\n}"
+            },
+            {
+              "name": "200 OK — no summary yet",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"summary\": null,\n  \"message\": \"No summary yet — summaries are generated every 5 turns\"\n}"
+            },
+            {
+              "name": "400 — invalid conversation_id",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Invalid conversation_id — must be a UUID\"\n}"
+            },
+            {
+              "name": "401 — missing or invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+            },
+            {
+              "name": "404 — not found or wrong user",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Conversation not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /insights/user/weekly — weekly growth",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/insights/user/weekly",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "insights", "user", "weekly"]
+            },
+            "description": "Return the most recent weekly growth score for the authenticated user. The score is a linear regression slope over the last 7 session `progress_score` values — positive = improving, negative = worsening, near-zero = stable."
+          },
+          "response": [
+            {
+              "name": "200 OK — growth data available",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"weekly_growth_score\": 0.032,\n  \"trend\": \"improving\",\n  \"sessions_analysed\": 5,\n  \"computed_at\": \"2026-03-08T06:00:00+00:00\"\n}"
+            },
+            {
+              "name": "200 OK — not enough data",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"weekly_growth_score\": null,\n  \"trend\": null,\n  \"message\": \"Not enough data yet\"\n}"
+            },
+            {
+              "name": "401 — missing or invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /insights/user/memory — user memory",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/insights/user/memory",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "insights", "user", "memory"]
+            },
+            "description": "Return the authenticated user's long-term memory record: `growth_summary`, `recurring_themes`, `behavioral_patterns`, `emotional_baseline`, `preferred_modes`, `risk_signals`. Checks Redis cache first (TTL 2 h).\n\nUsed by the frontend profile page to display the user's growth journey."
+          },
+          "response": [
+            {
+              "name": "200 OK — memory record found",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"memory\": {\n    \"growth_summary\": \"Over the past few weeks you've shown steady progress in managing exam anxiety. Your engagement has been consistent and your emotional stability is improving.\",\n    \"recurring_themes\": [\"exam_anxiety\", \"sleep_issues\", \"self_doubt\"],\n    \"behavioral_patterns\": [\"opens sessions with venting\", \"responds well to reframing\"],\n    \"emotional_baseline\": \"mild_anxiety\",\n    \"preferred_modes\": [\"venting\", \"reflection\"],\n    \"risk_signals\": [],\n    \"last_updated\": \"2026-03-08T06:05:00+00:00\"\n  },\n  \"source\": \"cache\"\n}"
+            },
+            {
+              "name": "200 OK — no memory yet",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"memory\": null,\n  \"message\": \"No memory record yet — start chatting to build your profile\"\n}"
+            },
+            {
+              "name": "401 — missing or invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Classify",
+      "description": "Standalone message classification endpoint. Runs the SoulBuddyClassifier model to return intent, situation, severity, and risk score without generating a chat response. Requires a valid Supabase JWT.",
+      "item": [
+        {
+          "name": "POST /classify",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I'm feeling really stressed about my exams and I can't sleep.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/classify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "classify"]
+            },
+            "description": "Classify a user message into intent, situation, severity, and risk categories. Uses the SoulBuddyClassifier ML model. Useful for testing the classifier in isolation without going through the full chat graph."
+          },
+          "response": [
+            {
+              "name": "200 OK — classification result",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"I'm feeling really stressed about my exams and I can't sleep.\",\n  \"classifications\": {\n    \"intent\": \"venting\",\n    \"situation\": \"EXAM_ANXIETY\",\n    \"severity\": \"medium\",\n    \"risk_score\": 0.15\n  }\n}"
+            },
+            {
+              "name": "401 — missing or invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+            },
+            {
+              "name": "500 — classification failed",
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"I'm feeling really stressed about my exams and I can't sleep.\",\n  \"classifications\": {},\n  \"error\": \"Classification failed: model weights not loaded\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Guardrail",
+      "description": "Out-of-scope and guardrail detection endpoint. Determines whether a message is within the mental wellness domain or should be blocked / redirected. Requires a valid Supabase JWT.",
+      "item": [
+        {
+          "name": "POST /guardrail",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What is the capital of France?\",\n  \"domain\": \"student\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/guardrail",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "guardrail"]
+            },
+            "description": "Evaluate a message against the out-of-scope guardrail for the given domain. Returns a `guardrail` object indicating whether the message is in-scope, out-of-scope, or requires special handling. Useful for testing guardrail logic in isolation."
+          },
+          "response": [
+            {
+              "name": "200 OK — out of scope (general knowledge)",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"What is the capital of France?\",\n  \"guardrail\": {\n    \"is_out_of_scope\": true,\n    \"reason\": \"general_knowledge\"\n  }\n}"
+            },
+            {
+              "name": "200 OK — in scope (mental wellness)",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"I've been feeling really anxious lately.\",\n  \"guardrail\": {\n    \"is_out_of_scope\": false,\n    \"reason\": null\n  }\n}"
+            },
+            {
+              "name": "401 — missing or invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+            }
+          ]
         }
       ]
     },
@@ -293,7 +654,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I have exams next week and I feel completely overwhelmed. I don't even know where to start.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"I have exams next week and I feel completely overwhelmed. I don't even know where to start.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"venting\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -310,7 +671,7 @@
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"message\": \"I have exams next week and I feel completely overwhelmed. I don't even know where to start.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+                  "raw": "{\n  \"message\": \"I have exams next week and I feel completely overwhelmed. I don't even know where to start.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"venting\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
@@ -333,7 +694,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"Mostly maths. I keep blanking on formulas under pressure.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"Mostly maths. I keep blanking on formulas under pressure.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"domain\": \"student\",\n  \"chat_mode\": \"therapist\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -350,7 +711,7 @@
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"message\": \"Mostly maths. I keep blanking on formulas under pressure.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+                  "raw": "{\n  \"message\": \"Mostly maths. I keep blanking on formulas under pressure.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"domain\": \"student\",\n  \"chat_mode\": \"therapist\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
@@ -367,6 +728,24 @@
           ]
         },
         {
+          "name": "Incognito — Romanised Hindi (hi-IN)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Mujhe bahut stress ho raha hai aajkal, kuch samajh nahi aa raha.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"venting\",\n  \"chat_preference\": \"general\",\n  \"language\": \"hi-IN\",\n  \"metadata\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "chat"]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Incognito — Stream new conversation (SSE)",
           "request": {
             "method": "POST",
@@ -376,7 +755,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I feel like I'm not good enough and everyone else is handling things better than me.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"I feel like I'm not good enough and everyone else is handling things better than me.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"reflection\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -396,7 +775,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"message\": \"I feel like I'm not good enough and everyone else is handling things better than me.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+                  "raw": "{\n  \"message\": \"I feel like I'm not good enough and everyone else is handling things better than me.\",\n  \"is_incognito\": true,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"reflection\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
@@ -413,7 +792,7 @@
           ]
         },
         {
-          "name": "Cognito — New conversation (authenticated, crisis risk)",
+          "name": "Cognito — New conversation (crisis risk detected)",
           "request": {
             "method": "POST",
             "header": [
@@ -422,7 +801,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I haven't slept properly in two weeks and I'm starting to feel like nothing matters anymore.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"I haven't slept properly in two weeks and I'm starting to feel like nothing matters anymore.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -442,7 +821,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"message\": \"I haven't slept properly in two weeks and I'm starting to feel like nothing matters anymore.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+                  "raw": "{\n  \"message\": \"I haven't slept properly in two weeks and I'm starting to feel like nothing matters anymore.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
@@ -463,7 +842,7 @@
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"message\": \"I haven't slept properly in two weeks.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+                  "raw": "{\n  \"message\": \"I haven't slept properly in two weeks.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
@@ -489,7 +868,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"No, I don't want to hurt myself. I just feel really exhausted and empty.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"No, I don't want to hurt myself. I just feel really exhausted and empty.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"domain\": \"student\",\n  \"chat_mode\": \"therapist\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -509,7 +888,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"message\": \"No, I don't want to hurt myself. I just feel really exhausted and empty.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+                  "raw": "{\n  \"message\": \"No, I don't want to hurt myself. I just feel really exhausted and empty.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"domain\": \"student\",\n  \"chat_mode\": \"therapist\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
@@ -536,7 +915,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"I've been skipping classes because I get panic attacks on the way to campus.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+              "raw": "{\n  \"message\": \"I've been skipping classes because I get panic attacks on the way to campus.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -557,7 +936,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"message\": \"I've been skipping classes because I get panic attacks on the way to campus.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"metadata\": null\n}",
+                  "raw": "{\n  \"message\": \"I've been skipping classes because I get panic attacks on the way to campus.\",\n  \"is_incognito\": false,\n  \"sb_conv_id\": null,\n  \"domain\": \"student\",\n  \"chat_mode\": \"default\",\n  \"chat_preference\": \"general\",\n  \"language\": \"en-IN\",\n  \"metadata\": null\n}",
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
@@ -574,7 +953,7 @@
           ]
         },
         {
-          "name": "Messages — Get all conversations with messages",
+          "name": "Conversations — All conversations with messages",
           "request": {
             "method": "GET",
             "header": [
@@ -603,166 +982,281 @@
               "status": "OK",
               "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"conversations\": [\n    {\n      \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n      \"mode\": \"cognito\",\n      \"started_at\": \"2026-03-08T10:15:00+00:00\",\n      \"ended_at\": null,\n      \"messages\": [\n        {\n          \"id\": \"a1b2c3d4-1111-2222-3333-444455556666\",\n          \"turn_index\": 0,\n          \"speaker\": \"user\",\n          \"message\": \"I haven't slept properly in two weeks and I'm starting to feel like nothing matters anymore.\",\n          \"created_at\": \"2026-03-08T10:15:01+00:00\"\n        },\n        {\n          \"id\": \"e5f6a7b8-7777-8888-9999-aaaabbbbcccc\",\n          \"turn_index\": 1,\n          \"speaker\": \"bot\",\n          \"message\": \"Thank you for trusting me with this. Two weeks without proper sleep and feeling like nothing matters sounds really serious, and I want to make sure you're safe. Are you having any thoughts of hurting yourself?\",\n          \"created_at\": \"2026-03-08T10:15:02+00:00\"\n        },\n        {\n          \"id\": \"d1e2f3a4-cccc-dddd-eeee-ffff00001111\",\n          \"turn_index\": 2,\n          \"speaker\": \"user\",\n          \"message\": \"No, I don't want to hurt myself. I just feel really exhausted and empty.\",\n          \"created_at\": \"2026-03-08T10:16:00+00:00\"\n        },\n        {\n          \"id\": \"b5c6d7e8-2222-3333-4444-555566667777\",\n          \"turn_index\": 3,\n          \"speaker\": \"bot\",\n          \"message\": \"I'm relieved to hear that. Exhaustion and emptiness after prolonged stress are very real, and they deserve attention.\",\n          \"created_at\": \"2026-03-08T10:16:01+00:00\"\n        }\n      ]\n    },\n    {\n      \"conversation_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n      \"mode\": \"cognito\",\n      \"started_at\": \"2026-03-07T09:00:00+00:00\",\n      \"ended_at\": \"2026-03-07T09:12:00+00:00\",\n      \"messages\": [\n        {\n          \"id\": \"f9e8d7c6-aaaa-bbbb-cccc-ddddeeee0000\",\n          \"turn_index\": 0,\n          \"speaker\": \"user\",\n          \"message\": \"I have exams next week and I feel completely overwhelmed.\",\n          \"created_at\": \"2026-03-07T09:00:01+00:00\"\n        },\n        {\n          \"id\": \"01234567-ffff-eeee-dddd-ccccbbbb9999\",\n          \"turn_index\": 1,\n          \"speaker\": \"bot\",\n          \"message\": \"That sounds really tough. Exam pressure can feel all-consuming. Let's take it one step at a time — what subject feels the most daunting right now?\",\n          \"created_at\": \"2026-03-07T09:00:02+00:00\"\n        }\n      ]\n    }\n  ]\n}"
-            },
-            {
-              "name": "401 — missing or invalid token",
-              "originalRequest": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/api/v1/chat/conversations/messages",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["api", "v1", "chat", "conversations", "messages"]
-                }
-              },
-              "status": "Unauthorized",
-              "code": 401,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
+              "body": "{\n  \"conversations\": [\n    {\n      \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n      \"mode\": \"cognito\",\n      \"started_at\": \"2026-03-08T10:15:00+00:00\",\n      \"ended_at\": null,\n      \"messages\": [\n        {\n          \"id\": \"a1b2c3d4-1111-2222-3333-444455556666\",\n          \"turn_index\": 0,\n          \"speaker\": \"user\",\n          \"message\": \"I haven't slept properly in two weeks.\",\n          \"created_at\": \"2026-03-08T10:15:01+00:00\"\n        },\n        {\n          \"id\": \"e5f6a7b8-7777-8888-9999-aaaabbbbcccc\",\n          \"turn_index\": 1,\n          \"speaker\": \"bot\",\n          \"message\": \"Thank you for trusting me with this.\",\n          \"created_at\": \"2026-03-08T10:15:02+00:00\"\n        }\n      ]\n    }\n  ]\n}"
             }
           ]
         },
         {
-          "name": "Messages — Get single conversation messages",
+          "name": "Insights — Session metrics",
           "request": {
             "method": "GET",
             "header": [
               { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/chat/conversations/7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b/messages",
+              "raw": "{{baseUrl}}/api/v1/insights/session/{{conversation_id}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "chat", "conversations", "7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b", "messages"]
+              "path": ["api", "v1", "insights", "session", "{{conversation_id}}"]
             }
           },
           "response": [
             {
-              "name": "200 OK — decrypted messages",
+              "name": "200 OK — metrics",
               "originalRequest": {
                 "method": "GET",
                 "header": [
                   { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/api/v1/chat/conversations/7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b/messages",
+                  "raw": "{{baseUrl}}/api/v1/insights/session/7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b",
                   "host": ["{{baseUrl}}"],
-                  "path": ["api", "v1", "chat", "conversations", "7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b", "messages"]
+                  "path": ["api", "v1", "insights", "session", "7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b"]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"messages\": [\n    {\n      \"id\": \"a1b2c3d4-1111-2222-3333-444455556666\",\n      \"turn_index\": 0,\n      \"speaker\": \"user\",\n      \"message\": \"I haven't slept properly in two weeks and I'm starting to feel like nothing matters anymore.\",\n      \"created_at\": \"2026-03-08T10:15:01+00:00\"\n    },\n    {\n      \"id\": \"e5f6a7b8-7777-8888-9999-aaaabbbbcccc\",\n      \"turn_index\": 1,\n      \"speaker\": \"bot\",\n      \"message\": \"Thank you for trusting me with this. Two weeks without proper sleep and feeling like nothing matters sounds really serious, and I want to make sure you're safe. Are you having any thoughts of hurting yourself?\",\n      \"created_at\": \"2026-03-08T10:15:02+00:00\"\n    },\n    {\n      \"id\": \"d1e2f3a4-cccc-dddd-eeee-ffff00001111\",\n      \"turn_index\": 2,\n      \"speaker\": \"user\",\n      \"message\": \"No, I don't want to hurt myself. I just feel really exhausted and empty.\",\n      \"created_at\": \"2026-03-08T10:16:00+00:00\"\n    },\n    {\n      \"id\": \"b5c6d7e8-2222-3333-4444-555566667777\",\n      \"turn_index\": 3,\n      \"speaker\": \"bot\",\n      \"message\": \"I'm relieved to hear that. Exhaustion and emptiness after prolonged stress are very real, and they deserve attention.\",\n      \"created_at\": \"2026-03-08T10:16:01+00:00\"\n    }\n  ]\n}"
-            },
-            {
-              "name": "400 — invalid UUID",
-              "originalRequest": {
-                "method": "GET",
-                "header": [
-                  { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/api/v1/chat/conversations/not-a-uuid/messages",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["api", "v1", "chat", "conversations", "not-a-uuid", "messages"]
-                }
-              },
-              "status": "Bad Request",
-              "code": 400,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"detail\": \"Invalid conversation_id — must be a UUID\"\n}"
-            },
-            {
-              "name": "401 — missing or invalid token",
-              "originalRequest": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/api/v1/chat/conversations/7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b/messages",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["api", "v1", "chat", "conversations", "7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b", "messages"]
-                }
-              },
-              "status": "Unauthorized",
-              "code": 401,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"detail\": \"Supabase token verification failed: Invalid JWT\"\n}"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Messages",
-      "description": "Endpoints to retrieve conversation messages. All require a valid Supabase JWT. Messages encrypted at rest are transparently decrypted before being returned.",
-      "item": [
-        {
-          "name": "GET /chat/conversations/messages — all conversations",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/chat/conversations/messages",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "chat", "conversations", "messages"]
-            },
-            "description": "Retrieve all conversations for the authenticated user, each with its full decrypted message list. Ordered newest-first."
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"conversations\": [\n    {\n      \"conversation_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n      \"mode\": \"cognito\",\n      \"started_at\": \"2026-03-08T10:00:00+00:00\",\n      \"ended_at\": null,\n      \"messages\": [\n        {\n          \"id\": \"a1b2c3d4-...\",\n          \"turn_index\": 0,\n          \"speaker\": \"user\",\n          \"message\": \"Hello, how are you?\",\n          \"created_at\": \"2026-03-08T10:00:01+00:00\"\n        },\n        {\n          \"id\": \"e5f6a7b8-...\",\n          \"turn_index\": 1,\n          \"speaker\": \"bot\",\n          \"message\": \"Hi! I'm here to help. What's on your mind?\",\n          \"created_at\": \"2026-03-08T10:00:02+00:00\"\n        }\n      ]\n    }\n  ]\n}"
-            },
-            {
-              "name": "401 — missing or invalid token",
-              "status": "Unauthorized",
-              "code": 401,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"detail\": \"Supabase token verification failed: ...\"\n}"
+              "body": "{\n  \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"metrics\": [\n    {\"metric_type\": \"session\", \"metric_name\": \"emotional_stability_score\", \"metric_value\": 0.72, \"metadata\": null, \"computed_at\": \"2026-03-08T10:20:00+00:00\"},\n    {\"metric_type\": \"session\", \"metric_name\": \"engagement_score\", \"metric_value\": 0.85, \"metadata\": null, \"computed_at\": \"2026-03-08T10:20:00+00:00\"},\n    {\"metric_type\": \"session\", \"metric_name\": \"progress_score\", \"metric_value\": 0.60, \"metadata\": null, \"computed_at\": \"2026-03-08T10:20:00+00:00\"},\n    {\"metric_type\": \"session\", \"metric_name\": \"risk_score\", \"metric_value\": 0.20, \"metadata\": null, \"computed_at\": \"2026-03-08T10:20:00+00:00\"},\n    {\"metric_type\": \"session\", \"metric_name\": \"mode_preference\", \"metric_value\": 2.0, \"metadata\": {\"mode_distribution\": {\"venting\": 0.6, \"reflection\": 0.4}}, \"computed_at\": \"2026-03-08T10:20:00+00:00\"}\n  ]\n}"
             }
           ]
         },
         {
-          "name": "GET /chat/conversations/:conversation_id/messages — single conversation",
+          "name": "Insights — Session summary",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{supabase_token}}", "description": "Supabase JWT — required" }
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/chat/conversations/{{conversation_id}}/messages",
+              "raw": "{{baseUrl}}/api/v1/insights/session/{{conversation_id}}/summary",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "chat", "conversations", "{{conversation_id}}", "messages"]
-            },
-            "description": "Retrieve all decrypted messages for a specific conversation. Set `{{conversation_id}}` in the environment to the target UUID."
+              "path": ["api", "v1", "insights", "session", "{{conversation_id}}", "summary"]
+            }
           },
           "response": [
             {
-              "name": "200 OK",
+              "name": "200 OK — summary returned",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/insights/session/7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b/summary",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "insights", "session", "7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b", "summary"]
+                }
+              },
               "status": "OK",
               "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"conversation_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"messages\": [\n    {\n      \"id\": \"a1b2c3d4-...\",\n      \"turn_index\": 0,\n      \"speaker\": \"user\",\n      \"message\": \"Hello, how are you?\",\n      \"created_at\": \"2026-03-08T10:00:01+00:00\"\n    },\n    {\n      \"id\": \"e5f6a7b8-...\",\n      \"turn_index\": 1,\n      \"speaker\": \"bot\",\n      \"message\": \"Hi! I'm here to help. What's on your mind?\",\n      \"created_at\": \"2026-03-08T10:00:02+00:00\"\n    }\n  ]\n}"
-            },
+              "body": "{\n  \"conversation_id\": \"7cb12d34-8891-4abc-a1b2-3c4d5e6f7a8b\",\n  \"summary\": {\n    \"session_story\": \"The user shared feelings of exhaustion and emptiness after two weeks of poor sleep. They denied self-harm ideation and engaged reflectively.\",\n    \"key_takeaways\": [\"Sleep deprivation is a major stressor\", \"User is open to support\"],\n    \"recommended_next_step\": \"Try a short breathing exercise before bed tonight.\",\n    \"risk_level\": \"low\"\n  },\n  \"is_finalised\": true,\n  \"source\": \"db\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Insights — Weekly growth",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/insights/user/weekly",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "insights", "user", "weekly"]
+            }
+          },
+          "response": [
             {
-              "name": "400 — invalid conversation_id",
-              "status": "Bad Request",
-              "code": 400,
+              "name": "200 OK — improving trend",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/insights/user/weekly",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "insights", "user", "weekly"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"detail\": \"Invalid conversation_id — must be a UUID\"\n}"
-            },
+              "body": "{\n  \"weekly_growth_score\": 0.032,\n  \"trend\": \"improving\",\n  \"sessions_analysed\": 5,\n  \"computed_at\": \"2026-03-08T06:00:00+00:00\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Insights — User memory",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/insights/user/memory",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "insights", "user", "memory"]
+            }
+          },
+          "response": [
             {
-              "name": "401 — missing or invalid token",
-              "status": "Unauthorized",
-              "code": 401,
+              "name": "200 OK — memory record",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/insights/user/memory",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "insights", "user", "memory"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"detail\": \"Supabase token verification failed: ...\"\n}"
+              "body": "{\n  \"memory\": {\n    \"growth_summary\": \"Over the past few weeks you've shown steady progress in managing exam anxiety.\",\n    \"recurring_themes\": [\"exam_anxiety\", \"sleep_issues\", \"self_doubt\"],\n    \"behavioral_patterns\": [\"opens sessions with venting\", \"responds well to reframing\"],\n    \"emotional_baseline\": \"mild_anxiety\",\n    \"preferred_modes\": [\"venting\", \"reflection\"],\n    \"risk_signals\": [],\n    \"last_updated\": \"2026-03-08T06:05:00+00:00\"\n  },\n  \"source\": \"db\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Classify — Exam stress message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I'm feeling really stressed about my exams and I can't sleep.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/classify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "classify"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK — classified",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"I'm feeling really stressed about my exams and I can't sleep.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/classify",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "classify"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"I'm feeling really stressed about my exams and I can't sleep.\",\n  \"classifications\": {\n    \"intent\": \"venting\",\n    \"situation\": \"EXAM_ANXIETY\",\n    \"severity\": \"medium\",\n    \"risk_score\": 0.15\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Guardrail — Out of scope (general knowledge)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What is the capital of France?\",\n  \"domain\": \"student\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/guardrail",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "guardrail"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK — out of scope",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"What is the capital of France?\",\n  \"domain\": \"student\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/guardrail",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "guardrail"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"What is the capital of France?\",\n  \"guardrail\": {\n    \"is_out_of_scope\": true,\n    \"reason\": \"general_knowledge\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Guardrail — In scope (mental wellness)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I've been feeling really anxious lately and I don't know why.\",\n  \"domain\": \"student\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/guardrail",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "guardrail"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK — in scope",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{supabase_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"I've been feeling really anxious lately and I don't know why.\",\n  \"domain\": \"student\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/guardrail",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "v1", "guardrail"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"I've been feeling really anxious lately and I don't know why.\",\n  \"guardrail\": {\n    \"is_out_of_scope\": false,\n    \"reason\": null\n  }\n}"
             }
           ]
         }
