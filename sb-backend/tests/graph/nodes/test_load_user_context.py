@@ -12,7 +12,8 @@ from graph.nodes.function_nodes.load_user_context import (
     load_user_context_node,
     _fetch_personality_profile_from_db,
     _fetch_user_profile_from_db,
-    _fetch_conversation_summary_from_db,
+    _fetch_session_summary_from_db,
+    _fetch_user_memory_from_db,
     _fetch_conversation_history_from_db,
     _fetch_domain_config_from_db,
 )
@@ -64,6 +65,36 @@ def _one_or_none_result(row):
     return result
 
 
+def _all_cache_mocks_miss(cs):
+    """Configure all cache_service get_* calls to return None (full cache miss)."""
+    cs.get_personality_profile = AsyncMock(return_value=None)
+    cs.set_personality_profile = AsyncMock()
+    cs.get_user_profile = AsyncMock(return_value=None)
+    cs.set_user_profile = AsyncMock()
+    cs.get_session_summary = AsyncMock(return_value=None)
+    cs.set_session_summary = AsyncMock()
+    cs.get_user_memory = AsyncMock(return_value=None)
+    cs.set_user_memory = AsyncMock()
+    cs.get_conversation_history = AsyncMock(return_value=None)
+    cs.set_conversation_history = AsyncMock()
+    cs.get_ui_state = AsyncMock(return_value=None)
+    cs.set_ui_state = AsyncMock()
+    cs.get_config = AsyncMock(return_value=None)
+    cs.set_config = AsyncMock()
+
+
+def _all_db_mocks_none():
+    """Return patch context for all DB helpers returning None."""
+    return [
+        patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db", return_value=None),
+        patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db", return_value=None),
+        patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None),
+        patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db", return_value=None),
+        patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db", return_value=None),
+        patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None),
+    ]
+
+
 # ============================================================================
 # load_user_context_node — mode routing
 # ============================================================================
@@ -72,49 +103,37 @@ class TestLoadUserContextNodeModeRouting:
 
     @pytest.mark.asyncio
     async def test_incognito_mode_skips_cognito_sections(self):
-        """Non-cognito mode must not call any personality/profile/summary fetches."""
+        """Non-cognito mode must not call any personality/profile/memory fetches."""
         state = _make_state(mode="incognito", supabase_uid=None)
 
-        with patch("graph.nodes.function_nodes.load_user_context.cache_service") as mock_cache:
-            mock_cache.get_conversation_history = AsyncMock(return_value=None)
-            mock_cache.set_conversation_history = AsyncMock()
-            mock_cache.get_config = AsyncMock(return_value=None)
-            mock_cache.set_config = AsyncMock()
+        with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
+            _all_cache_mocks_miss(cs)
+            result = await load_user_context_node(state)
 
-            with patch(
-                "graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db",
-                return_value=None,
-            ) as mock_hist:
-                result = await load_user_context_node(state)
-
-            mock_cache.get_personality_profile.assert_not_called() if hasattr(
-                mock_cache, "get_personality_profile"
-            ) else None
-            # The main assertion: result has no personality/profile/summary keys
-            assert "user_personality_profile" not in result
-            assert "user_preferences" not in result
-            assert "conversation_summary" not in result
+        assert "user_personality_profile" not in result
+        assert "user_preferences" not in result
+        assert "session_summary" not in result
+        assert "user_memory" not in result
 
     @pytest.mark.asyncio
     async def test_cognito_mode_with_no_supabase_uid_skips_cognito_sections(self):
         """mode=cognito but supabase_uid=None — is_cognito is False, skip user-specific sections."""
         state = _make_state(mode="cognito", supabase_uid=None)
 
-        with patch("graph.nodes.function_nodes.load_user_context.cache_service") as mock_cache:
-            mock_cache.get_conversation_history = AsyncMock(return_value=None)
-            mock_cache.set_conversation_history = AsyncMock()
-            mock_cache.get_config = AsyncMock(return_value=None)
-            mock_cache.set_config = AsyncMock()
-
-            with patch(
-                "graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db",
-                return_value=None,
-            ):
-                result = await load_user_context_node(state)
+        with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
+            _all_cache_mocks_miss(cs)
+            result = await load_user_context_node(state)
 
         assert "user_personality_profile" not in result
         assert "user_preferences" not in result
-        assert "conversation_summary" not in result
+        assert "session_summary" not in result
+        assert "user_memory" not in result
 
 
 # ============================================================================
@@ -130,14 +149,16 @@ class TestLoadUserContextNodeCacheHits:
 
         cached_personality = {"openness": 0.8}
         cached_profile = {"full_name": "Alice"}
-        cached_summary = "Prior context summary."
+        cached_session_summary = {"summary_text": "Prior context summary.", "mode": "default"}
+        cached_user_memory = {"growth_summary": "Growing well", "risk_signals": []}
         cached_history = [{"speaker": "user", "message": "hi", "turn_index": 0}]
         cached_ui = {"page": "dashboard"}
 
         with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db") as fp, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db") as fup, \
-             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_summary_from_db") as fs, \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db") as fs, \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db") as fm, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db") as fh, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db") as fd:
 
@@ -145,8 +166,10 @@ class TestLoadUserContextNodeCacheHits:
             cs.set_personality_profile = AsyncMock()
             cs.get_user_profile = AsyncMock(return_value=cached_profile)
             cs.set_user_profile = AsyncMock()
-            cs.get_conversation_summary = AsyncMock(return_value=cached_summary)
-            cs.set_conversation_summary = AsyncMock()
+            cs.get_session_summary = AsyncMock(return_value=cached_session_summary)
+            cs.set_session_summary = AsyncMock()
+            cs.get_user_memory = AsyncMock(return_value=cached_user_memory)
+            cs.set_user_memory = AsyncMock()
             cs.get_conversation_history = AsyncMock(return_value=cached_history)
             cs.set_conversation_history = AsyncMock()
             cs.get_ui_state = AsyncMock(return_value=cached_ui)
@@ -160,11 +183,13 @@ class TestLoadUserContextNodeCacheHits:
         fp.assert_not_called()
         fup.assert_not_called()
         fs.assert_not_called()
+        fm.assert_not_called()
         fh.assert_not_called()
 
         assert result["user_personality_profile"] == cached_personality
         assert result["user_preferences"] == cached_profile
-        assert result["conversation_summary"] == cached_summary
+        assert result["session_summary"] == cached_session_summary
+        assert result["user_memory"] == cached_user_memory
         assert result["conversation_history"] == cached_history
 
 
@@ -183,23 +208,11 @@ class TestLoadUserContextNodeCacheMissDB:
              patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db",
                    return_value=db_profile) as fp, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db", return_value=None), \
-             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
-
-            cs.get_personality_profile = AsyncMock(return_value=None)
-            cs.set_personality_profile = AsyncMock()
-            cs.get_user_profile = AsyncMock(return_value=None)
-            cs.set_user_profile = AsyncMock()
-            cs.get_conversation_summary = AsyncMock(return_value=None)
-            cs.set_conversation_summary = AsyncMock()
-            cs.get_conversation_history = AsyncMock(return_value=None)
-            cs.set_conversation_history = AsyncMock()
-            cs.get_ui_state = AsyncMock(return_value=None)
-            cs.set_ui_state = AsyncMock()
-            cs.get_config = AsyncMock(return_value=None)
-            cs.set_config = AsyncMock()
-
+            _all_cache_mocks_miss(cs)
             result = await load_user_context_node(state)
 
         fp.assert_called_once_with(state.supabase_uid)
@@ -214,24 +227,12 @@ class TestLoadUserContextNodeCacheMissDB:
         with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db", return_value=None), \
-             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db",
                    return_value=db_history) as fh, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
-
-            cs.get_personality_profile = AsyncMock(return_value=None)
-            cs.set_personality_profile = AsyncMock()
-            cs.get_user_profile = AsyncMock(return_value=None)
-            cs.set_user_profile = AsyncMock()
-            cs.get_conversation_summary = AsyncMock(return_value=None)
-            cs.set_conversation_summary = AsyncMock()
-            cs.get_conversation_history = AsyncMock(return_value=None)
-            cs.set_conversation_history = AsyncMock()
-            cs.get_ui_state = AsyncMock(return_value=None)
-            cs.set_ui_state = AsyncMock()
-            cs.get_config = AsyncMock(return_value=None)
-            cs.set_config = AsyncMock()
-
+            _all_cache_mocks_miss(cs)
             result = await load_user_context_node(state)
 
         fh.assert_called_once_with(state.conversation_id)
@@ -245,24 +246,49 @@ class TestLoadUserContextNodeCacheMissDB:
         with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db", return_value=None), \
-             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db") as fh, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
-
-            cs.get_personality_profile = AsyncMock(return_value=None)
-            cs.set_personality_profile = AsyncMock()
-            cs.get_user_profile = AsyncMock(return_value=None)
-            cs.set_user_profile = AsyncMock()
-            cs.get_conversation_summary = AsyncMock(return_value=None)
-            cs.set_conversation_summary = AsyncMock()
-            cs.get_ui_state = AsyncMock(return_value=None)
-            cs.set_ui_state = AsyncMock()
-            cs.get_config = AsyncMock(return_value=None)
-            cs.set_config = AsyncMock()
-
+            _all_cache_mocks_miss(cs)
             await load_user_context_node(state)
 
         fh.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_new_session_flag_set_when_no_history(self):
+        """is_new_session=True when conversation_id is present but history is empty."""
+        state = _make_state()
+
+        with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
+            _all_cache_mocks_miss(cs)
+            result = await load_user_context_node(state)
+
+        assert result.get("is_new_session") is True
+
+    @pytest.mark.asyncio
+    async def test_new_session_flag_not_set_when_history_exists(self):
+        """is_new_session should NOT be set when conversation history is found."""
+        state = _make_state()
+        db_history = [{"speaker": "user", "message": "hi", "turn_index": 0}]
+
+        with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db", return_value=db_history), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
+            _all_cache_mocks_miss(cs)
+            result = await load_user_context_node(state)
+
+        assert "is_new_session" not in result
 
 
 # ============================================================================
@@ -280,23 +306,11 @@ class TestLoadUserContextNodeUIState:
         with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db", return_value=None), \
-             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
-
-            cs.get_personality_profile = AsyncMock(return_value=None)
-            cs.set_personality_profile = AsyncMock()
-            cs.get_user_profile = AsyncMock(return_value=None)
-            cs.set_user_profile = AsyncMock()
-            cs.get_conversation_summary = AsyncMock(return_value=None)
-            cs.set_conversation_summary = AsyncMock()
-            cs.get_conversation_history = AsyncMock(return_value=None)
-            cs.set_conversation_history = AsyncMock()
-            cs.get_ui_state = AsyncMock(return_value=None)
-            cs.set_ui_state = AsyncMock()
-            cs.get_config = AsyncMock(return_value=None)
-            cs.set_config = AsyncMock()
-
+            _all_cache_mocks_miss(cs)
             result = await load_user_context_node(state)
 
         cs.set_ui_state.assert_awaited_once_with(state.supabase_uid, page)
@@ -312,23 +326,12 @@ class TestLoadUserContextNodeUIState:
         with patch("graph.nodes.function_nodes.load_user_context.cache_service") as cs, \
              patch("graph.nodes.function_nodes.load_user_context._fetch_personality_profile_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_user_profile_from_db", return_value=None), \
-             patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_session_summary_from_db", return_value=None), \
+             patch("graph.nodes.function_nodes.load_user_context._fetch_user_memory_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_conversation_history_from_db", return_value=None), \
              patch("graph.nodes.function_nodes.load_user_context._fetch_domain_config_from_db", return_value=None):
-
-            cs.get_personality_profile = AsyncMock(return_value=None)
-            cs.set_personality_profile = AsyncMock()
-            cs.get_user_profile = AsyncMock(return_value=None)
-            cs.set_user_profile = AsyncMock()
-            cs.get_conversation_summary = AsyncMock(return_value=None)
-            cs.set_conversation_summary = AsyncMock()
-            cs.get_conversation_history = AsyncMock(return_value=None)
-            cs.set_conversation_history = AsyncMock()
+            _all_cache_mocks_miss(cs)
             cs.get_ui_state = AsyncMock(return_value=cached_ui)
-            cs.set_ui_state = AsyncMock()
-            cs.get_config = AsyncMock(return_value=None)
-            cs.set_config = AsyncMock()
-
             result = await load_user_context_node(state)
 
         assert result.get("page_context") == cached_ui
@@ -464,25 +467,39 @@ class TestFetchUserProfileFromDb:
 
 
 # ============================================================================
-# _fetch_conversation_summary_from_db
+# _fetch_session_summary_from_db
 # ============================================================================
 
-class TestFetchConversationSummaryFromDb:
+class TestFetchSessionSummaryFromDb:
 
     @pytest.mark.asyncio
-    async def test_row_exists_returns_summary(self):
+    async def test_row_with_final_summary_returns_final(self):
         session = _make_mock_session()
         row = MagicMock()
-        row.summary = "Prior context: exam anxiety, 3 turns."
+        row.final_summary = {"summary_text": "Final summary.", "mode": "default"}
+        row.incremental_summary = {"summary_text": "Incremental.", "mode": "default"}
         session.execute.return_value = _scalar_result(row)
 
         with patch("graph.nodes.function_nodes.load_user_context._data_db") as db:
             db.get_session.return_value = session
-            result = await _fetch_conversation_summary_from_db(
-                "550e8400-e29b-41d4-a716-446655440000"
-            )
+            result = await _fetch_session_summary_from_db("550e8400-e29b-41d4-a716-446655440000")
 
-        assert result == "Prior context: exam anxiety, 3 turns."
+        # Prefers final_summary over incremental
+        assert result == row.final_summary
+
+    @pytest.mark.asyncio
+    async def test_row_without_final_returns_incremental(self):
+        session = _make_mock_session()
+        row = MagicMock()
+        row.final_summary = None
+        row.incremental_summary = {"summary_text": "Incremental.", "mode": "default"}
+        session.execute.return_value = _scalar_result(row)
+
+        with patch("graph.nodes.function_nodes.load_user_context._data_db") as db:
+            db.get_session.return_value = session
+            result = await _fetch_session_summary_from_db("550e8400-e29b-41d4-a716-446655440000")
+
+        assert result == row.incremental_summary
 
     @pytest.mark.asyncio
     async def test_no_row_returns_none(self):
@@ -491,16 +508,70 @@ class TestFetchConversationSummaryFromDb:
 
         with patch("graph.nodes.function_nodes.load_user_context._data_db") as db:
             db.get_session.return_value = session
-            result = await _fetch_conversation_summary_from_db(
-                "550e8400-e29b-41d4-a716-446655440000"
-            )
+            result = await _fetch_session_summary_from_db("550e8400-e29b-41d4-a716-446655440000")
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_invalid_uuid_returns_none(self):
-        """Passing a non-UUID string raises ValueError which is caught and returns None."""
-        result = await _fetch_conversation_summary_from_db("not-a-valid-uuid")
+        """Non-UUID conversation_id raises ValueError, caught and returns None."""
+        result = await _fetch_session_summary_from_db("not-a-valid-uuid")
+        assert result is None
+
+
+# ============================================================================
+# _fetch_user_memory_from_db
+# ============================================================================
+
+class TestFetchUserMemoryFromDb:
+
+    @pytest.mark.asyncio
+    async def test_row_exists_returns_memory_dict(self):
+        session = _make_mock_session()
+        row = MagicMock()
+        row.growth_summary = "Growing well."
+        row.recurring_themes = ["anxiety", "work-life balance"]
+        row.behavioral_patterns = {"avoidance": True}
+        row.risk_signals = []
+        row.emotional_baseline = "moderate"
+        row.last_updated = None
+        session.execute.return_value = _scalar_result(row)
+
+        with patch("graph.nodes.function_nodes.load_user_context._data_db") as db:
+            db.get_session.return_value = session
+            result = await _fetch_user_memory_from_db("550e8400-e29b-41d4-a716-446655440000")
+
+        assert result is not None
+        assert result["growth_summary"] == "Growing well."
+        assert result["recurring_themes"] == ["anxiety", "work-life balance"]
+        assert result["risk_signals"] == []
+        assert result["emotional_baseline"] == "moderate"
+
+    @pytest.mark.asyncio
+    async def test_no_row_returns_none(self):
+        session = _make_mock_session()
+        session.execute.return_value = _scalar_result(None)
+
+        with patch("graph.nodes.function_nodes.load_user_context._data_db") as db:
+            db.get_session.return_value = session
+            result = await _fetch_user_memory_from_db("550e8400-e29b-41d4-a716-446655440000")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_invalid_uuid_returns_none(self):
+        result = await _fetch_user_memory_from_db("not-a-uuid")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_db_exception_returns_none(self):
+        session = _make_mock_session()
+        session.execute.side_effect = Exception("DB error")
+
+        with patch("graph.nodes.function_nodes.load_user_context._data_db") as db:
+            db.get_session.return_value = session
+            result = await _fetch_user_memory_from_db("550e8400-e29b-41d4-a716-446655440000")
+
         assert result is None
 
 
@@ -508,24 +579,29 @@ class TestFetchConversationSummaryFromDb:
 # _fetch_conversation_history_from_db
 # ============================================================================
 
+def _make_turn(speaker, message, turn_index, canonical=None, romanised=None, mixed=None):
+    """Build a mock ConversationTurn with explicit content column values."""
+    turn = MagicMock()
+    turn.speaker = speaker
+    turn.message = message
+    turn.turn_index = turn_index
+    turn.canonical_content = canonical
+    turn.romanised_content = romanised
+    turn.mixed_content = mixed
+    return turn
+
+
 class TestFetchConversationHistoryFromDb:
 
     @pytest.mark.asyncio
-    async def test_rows_returned_oldest_first_with_decryption(self):
+    async def test_rows_returned_oldest_first(self):
+        """DB returns desc (newest first); code reverses to chronological order."""
         session = _make_mock_session()
 
-        turn1 = MagicMock()
-        turn1.speaker = "user"
-        turn1.message = "hello"
-        turn1.turn_index = 0
-
-        turn2 = MagicMock()
-        turn2.speaker = "bot"
-        turn2.message = "hi there"
-        turn2.turn_index = 1
-
-        # Returned desc from DB (turn2 first), reversed to chronological by code
-        session.execute.return_value = _scalars_all_result([turn2, turn1])
+        turn_old = _make_turn("user", "first msg", 0)
+        turn_new = _make_turn("bot", "reply", 1)
+        # DB returns desc (newest first)
+        session.execute.return_value = _scalars_all_result([turn_new, turn_old])
 
         km = MagicMock()
         km.decrypt = AsyncMock(side_effect=lambda cid, msg: msg)
@@ -537,30 +613,43 @@ class TestFetchConversationHistoryFromDb:
 
         assert result is not None
         assert len(result) == 2
-        # reversed([turn2, turn1]) gives turn1 first (index 0), turn2 second (index 1)
-        assert result[0]["speaker"] == "user"   # turn1
-        assert result[1]["speaker"] == "bot"    # turn2
+        assert result[0]["turn_index"] == 0  # oldest first
+        assert result[1]["turn_index"] == 1
 
     @pytest.mark.asyncio
-    async def test_rows_ordered_oldest_first(self):
+    async def test_prefers_canonical_content_when_set(self):
+        """canonical_content is used as message when present."""
         session = _make_mock_session()
-
-        turn_old = MagicMock(speaker="user", message="first msg", turn_index=0)
-        turn_new = MagicMock(speaker="bot", message="reply", turn_index=1)
-
-        # DB returns desc (newest first), code reverses to chronological
-        session.execute.return_value = _scalars_all_result([turn_new, turn_old])
+        turn = _make_turn("user", "ENC:opaque", 0, canonical="Hello in English")
+        session.execute.return_value = _scalars_all_result([turn])
 
         km = MagicMock()
-        km.decrypt = AsyncMock(side_effect=lambda cid, msg: msg)
+        km.decrypt = AsyncMock()
 
         with patch("graph.nodes.function_nodes.load_user_context._data_db") as db, \
              patch("services.key_manager.get_key_manager", return_value=km):
             db.get_session.return_value = session
             result = await _fetch_conversation_history_from_db("conv-123")
 
-        assert result[0]["turn_index"] == 0  # oldest first
-        assert result[1]["turn_index"] == 1
+        assert result[0]["message"] == "Hello in English"
+        km.decrypt.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_romanised_when_no_canonical(self):
+        session = _make_mock_session()
+        turn = _make_turn("user", "ENC:opaque", 0, romanised="Namaste bhai")
+        session.execute.return_value = _scalars_all_result([turn])
+
+        km = MagicMock()
+        km.decrypt = AsyncMock()
+
+        with patch("graph.nodes.function_nodes.load_user_context._data_db") as db, \
+             patch("services.key_manager.get_key_manager", return_value=km):
+            db.get_session.return_value = session
+            result = await _fetch_conversation_history_from_db("conv-123")
+
+        assert result[0]["message"] == "Namaste bhai"
+        km.decrypt.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_no_rows_returns_none(self):
@@ -579,9 +668,10 @@ class TestFetchConversationHistoryFromDb:
 
     @pytest.mark.asyncio
     async def test_decryption_failure_falls_back_to_raw_message(self):
-        """If km.decrypt raises, the raw message is used instead."""
+        """If km.decrypt raises, the raw message column is used instead."""
         session = _make_mock_session()
-        turn = MagicMock(speaker="user", message="ENC:v1:opaque", turn_index=0)
+        # No content columns set → falls through to km.decrypt
+        turn = _make_turn("user", "ENC:v1:opaque", 0)
         session.execute.return_value = _scalars_all_result([turn])
 
         km = MagicMock()

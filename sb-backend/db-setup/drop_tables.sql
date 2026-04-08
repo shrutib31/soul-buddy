@@ -1,7 +1,15 @@
 -- DROP TABLES SCRIPT --
 -- Drop tables in reverse order of dependencies to avoid foreign key constraint errors
 
--- User data tables
+-- Intelligence layer tables (depend on conversation_turns and sb_conversations)
+DROP TABLE IF EXISTS intervention_outcomes;
+DROP TABLE IF EXISTS user_insights;
+DROP TABLE IF EXISTS user_memory;
+DROP TABLE IF EXISTS session_summaries;
+DROP TABLE IF EXISTS session_mode_segments;
+DROP TABLE IF EXISTS conversation_context;
+
+-- Legacy table (replaced by session_summaries)
 DROP TABLE IF EXISTS user_conversation_summaries;
 
 -- Runtime tables

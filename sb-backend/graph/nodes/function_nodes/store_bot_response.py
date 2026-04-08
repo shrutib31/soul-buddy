@@ -2,78 +2,54 @@
 Store Bot Response Node for LangGraph
 
 Persists the bot's generated response as a ConversationTurn row (speaker="bot"),
-then:
-  1. Invalidates the Redis conversation-history cache so the next
-     load_user_context call fetches fresh data from the database.
-  2. Builds a structured conversation summary from the current state and
-     upserts it into user_conversation_summaries (cognito users only),
-     then refreshes the Redis summary cache.
+then fires off async background tasks (non-blocking):
 
-The summary is built entirely from fields already in the state — no extra
-LLM call — so it adds no latency to the critical path.
+  Every turn:
+    - Invalidate conversation-history cache
+    - InsightScoringService: compute rule-based metrics (emotional stability,
+      engagement, progress, mode preference, risk) → user_insights table
+
+  Every 5 turns (cognito only):
+    - SummarizationService.summarize_session_incremental() → lightweight
+      mode-aware JSON snapshot upserted into session_summaries
+
+  On new-session detection (cognito only):
+    - SummarizationService.summarize_session_final() on the PREVIOUS session
+      (if it exists and is not yet finalised)
+    - SummarizationService.update_user_memory() chained after final summary
+
+All background tasks use asyncio.create_task() — zero latency impact on the
+critical path. Failures are fully contained and logged by each service.
 
 Graph position: runs after response_generator, before render.
 """
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy import select, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-
 from graph.state import ConversationState
-from orm.models import ConversationTurn, UserConversationSummary
+from orm.models import ConversationTurn, SessionSummary
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
 from services.key_manager import get_key_manager
+from services.summarization_service import (
+    summarize_session_incremental,
+    summarize_session_final,
+    update_user_memory,
+)
+from services.insight_scoring import score_session
 import logging
 
-# Logger setup
 logger = logging.getLogger(__name__)
 
-# Initialize database connection
 data_db = SQLAlchemyDataDB()
 
-
-# ============================================================================
-# SUMMARY BUILDER
-# ============================================================================
-
-def _build_summary(state: ConversationState, turn_count: int) -> str:
-    """
-    Build a compact structured summary string from the current conversation state.
-
-    Format (example):
-        [2026-03-02] Domain: student. Situation: EXAM_ANXIETY (medium severity).
-        Intent: VENTING. Risk: low. Flow: FLOW_GENERAL_OVERWHELM. Turns: 6.
-
-    All fields are optional — missing classification data is simply omitted.
-    The output is designed to be injected as prior-context for the response
-    generator in future conversations.
-    """
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    parts = [f"[{date_str}]", f"Domain: {state.domain}."]
-
-    if state.situation:
-        severity_str = f" ({state.severity} severity)" if state.severity else ""
-        parts.append(f"Situation: {state.situation}{severity_str}.")
-
-    if state.intent:
-        parts.append(f"Intent: {state.intent}.")
-
-    if state.risk_level:
-        parts.append(f"Risk: {state.risk_level}.")
-
-    if state.is_crisis_detected:
-        parts.append("Crisis detected.")
-
-    if state.flow_id:
-        parts.append(f"Flow: {state.flow_id}.")
-
-    parts.append(f"Turns: {turn_count}.")
-
-    return " ".join(parts)
+# How often to generate an incremental summary (every N bot turns)
+_INCREMENTAL_SUMMARY_EVERY_N_TURNS = 5
 
 
 # ============================================================================
@@ -82,40 +58,29 @@ def _build_summary(state: ConversationState, turn_count: int) -> str:
 
 async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
     """
-    Store the bot's response and update the user's conversation summary.
-
-    Steps:
-      1. Count existing turns to determine turn_index.
-      2. Insert the bot ConversationTurn row.
-      3. Invalidate conversation-history cache.
-      4. If cognito (supabase_uid present): build summary, upsert to DB, refresh cache.
-
-    Args:
-        state: Current conversation state
-
-    Returns:
-        Dict with any updates or error
+    Store bot response and fire background intelligence tasks.
     """
     try:
         conversation_id = state.conversation_id
         bot_response = state.response_draft
-        logger.info(f"Storing bot response for conversation_id: {conversation_id}")
 
         if not conversation_id or not bot_response:
             logger.error(
                 "store_bot_response: missing required fields | conversation_id=%r has_response=%s",
-                conversation_id, bool(bot_response)
+                conversation_id, bool(bot_response),
             )
-            return {
-                "error": "Missing conversation_id or bot response",
-            }
+            return {"error": "Missing conversation_id or bot response"}
 
         km = get_key_manager()
-        message_to_store = await km.encrypt(conversation_id, bot_response) if km.is_encryption_enabled() else bot_response
+        message_to_store = (
+            await km.encrypt(conversation_id, bot_response)
+            if km.is_encryption_enabled()
+            else bot_response
+        )
 
         async with data_db.get_session() as session:
             # ----------------------------------------------------------------
-            # 1. Get current turn count to assign turn_index
+            # 1. Count existing turns → determine turn_index
             # ----------------------------------------------------------------
             turn_count_stmt = select(func.count(ConversationTurn.id)).where(
                 ConversationTurn.session_id == conversation_id
@@ -124,16 +89,19 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
             turn_count = result.scalar() or 0
 
             # ----------------------------------------------------------------
-            # 2. Persist bot response as a ConversationTurn row
+            # 2. Persist bot response
             # ----------------------------------------------------------------
             turn = ConversationTurn(
                 session_id=conversation_id,
                 turn_index=turn_count,
                 speaker="bot",
-                message=message_to_store
+                message=message_to_store,
             )
             session.add(turn)
             await session.commit()
+
+        # turn_count after the bot turn is now turn_count + 1
+        total_turns = turn_count + 1
 
         # ----------------------------------------------------------------
         # 3. Invalidate conversation-history cache
@@ -141,88 +109,110 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
         await cache_service.invalidate_conversation_history(conversation_id)
 
         # ----------------------------------------------------------------
-        # 4. Build + persist conversation summary  (cognito users only)
+        # 4. Background tasks (cognito users only — need user_id)
         # ----------------------------------------------------------------
         if state.supabase_uid:
-            await _upsert_conversation_summary(state, turn_count + 1)
+            user_id = state.supabase_uid
+            dominant_mode = state.chat_mode or "default"
+            risk_level = state.risk_level or "low"
+
+            # Session start time — derive from sb_conversations.started_at if available
+            # For now we pass None; insight_scoring handles None gracefully
+            session_duration: Optional[float] = None
+
+            # 4a. Rule-based insight scoring (every turn, no LLM)
+            asyncio.create_task(
+                score_session(
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    turn_count=total_turns,
+                    session_duration_seconds=session_duration,
+                    risk_level=risk_level,
+                    dominant_mode=dominant_mode,
+                )
+            )
+
+            # 4b. Incremental summarization every N turns (LLM, fire-and-forget)
+            bot_turn_number = total_turns // 2  # approx bot turns = half of all turns
+            if bot_turn_number > 0 and bot_turn_number % _INCREMENTAL_SUMMARY_EVERY_N_TURNS == 0:
+                asyncio.create_task(
+                    summarize_session_incremental(
+                        conversation_id=conversation_id,
+                        user_id=user_id,
+                        dominant_mode=dominant_mode,
+                        turn_count=total_turns,
+                    )
+                )
+
+            # 4c. Lazy finalisation of the PREVIOUS session (if is_new_session flag is set)
+            # is_new_session is set by load_user_context_node when a new conversation_id
+            # is detected but the prior session has no final summary yet.
+            if state.is_new_session:
+                prev_session_id = await _get_previous_unfinalised_session(user_id, conversation_id)
+                if prev_session_id:
+                    existing_memory = state.user_memory  # already loaded into state
+
+                    async def _finalise_prev_session(prev_id: str) -> None:
+                        final = await summarize_session_final(
+                            conversation_id=prev_id,
+                            user_id=user_id,
+                            dominant_mode=dominant_mode,
+                            turn_count=0,  # turn_count unknown here; service fetches from DB
+                        )
+                        if final:
+                            await update_user_memory(
+                                user_id=user_id,
+                                new_session_summary=final,
+                                existing_memory=existing_memory,
+                            )
+
+                    asyncio.create_task(_finalise_prev_session(prev_session_id))
 
         return {}
 
     except Exception as e:
-        logger.error("store_bot_response: failed | conversation_id=%r error=%s", state.conversation_id, e, exc_info=True)
-        return {
-            "error": f"Error storing bot response: {str(e)}"
-        }
+        logger.error(
+            "store_bot_response: failed | conversation_id=%r error=%s",
+            state.conversation_id, e, exc_info=True,
+        )
+        return {"error": f"Error storing bot response: {str(e)}"}
 
 
 # ============================================================================
-# SUMMARY UPSERT HELPER
+# HELPERS
 # ============================================================================
 
-async def _upsert_conversation_summary(
-    state: ConversationState,
-    turn_count: int,
-) -> None:
+async def _get_previous_unfinalised_session(
+    user_id: str, current_conversation_id: str
+) -> Optional[str]:
     """
-    Build the summary string from state, upsert it into user_conversation_summaries,
-    and refresh the Redis cache entry.
+    Find the most recent session_summaries row for this user that:
+    - is NOT the current conversation
+    - is NOT yet finalised
 
-    Fails silently — a summary write failure must never break the main flow.
+    Returns the conversation_id string, or None if no such session exists.
     """
     try:
-        summary_text = _build_summary(state, turn_count)
-        user_uuid = uuid.UUID(state.supabase_uid)
-        conv_uuid = uuid.UUID(state.conversation_id)
-        now = datetime.now(timezone.utc)
-
-        logger.debug(
-            "summary upsert start | supabase_uid=%s conversation_id=%s turns=%d",
-            state.supabase_uid,
-            state.conversation_id,
-            turn_count,
-        )
+        user_uuid = uuid.UUID(user_id)
+        current_uuid = uuid.UUID(current_conversation_id)
 
         async with data_db.get_session() as session:
             stmt = (
-                pg_insert(UserConversationSummary)
-                .values(
-                    user_id=user_uuid,
-                    summary=summary_text,
-                    last_conversation_id=conv_uuid,
-                    updated_at=now,
+                select(SessionSummary.session_id)
+                .where(
+                    SessionSummary.user_id == user_uuid,
+                    SessionSummary.session_id != current_uuid,
+                    SessionSummary.is_finalised == False,  # noqa: E712
                 )
-                .on_conflict_do_update(
-                    index_elements=["user_id"],
-                    set_={
-                        "summary": summary_text,
-                        "last_conversation_id": conv_uuid,
-                        "updated_at": now,
-                    },
-                )
+                .order_by(SessionSummary.updated_at.desc())
+                .limit(1)
             )
-            await session.execute(stmt)
-            await session.commit()
-
-        logger.debug(
-            "summary DB upsert ok | supabase_uid=%s conversation_id=%s",
-            state.supabase_uid,
-            state.conversation_id,
-        )
-
-        # Keep Redis in sync so the next load_user_context hits cache
-        await cache_service.set_conversation_summary(state.supabase_uid, summary_text)
-
-        logger.debug(
-            "summary cache refresh ok | supabase_uid=%s turns=%d summary=%r",
-            state.supabase_uid,
-            turn_count,
-            summary_text,
-        )
+            result = await session.execute(stmt)
+            row = result.scalar_one_or_none()
+            return str(row) if row else None
 
     except Exception as exc:
         logger.warning(
-            "summary upsert failed (non-fatal) | supabase_uid=%s error=%s",
-            state.supabase_uid,
-            exc,
+            "store_bot_response: prev session lookup failed | user_id=%s error=%s", user_id, exc
         )
-
+        return None

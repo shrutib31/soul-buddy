@@ -1,7 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import asyncio
+
+from api.supabase_auth import verify_supabase_token
 
 router = APIRouter(prefix="/guardrail")
 
@@ -12,7 +14,7 @@ class GuardrailRequest(BaseModel):
 
 
 @router.post("")
-async def guardrail_message(req: GuardrailRequest):
+async def guardrail_message(req: GuardrailRequest, _user=Depends(verify_supabase_token)):
     try:
         from graph.nodes.function_nodes.out_of_scope import detect_out_of_scope
 

@@ -1,4 +1,4 @@
-import type { ChatRequest, ChatResponse, Conversation } from '../types'
+import type { ChatRequest, ChatResponse, Conversation, UserMemory, SessionSummary, Metric, WeeklyGrowth } from '../types'
 
 const API_BASE = '/api/v1'
 
@@ -64,4 +64,35 @@ export async function getConversations(token: string): Promise<Conversation[]> {
   if (!res.ok) return []
   const data = await res.json() as { conversations?: Conversation[] }
   return data.conversations ?? []
+}
+
+export async function getUserMemory(token: string): Promise<UserMemory | null> {
+  const headers = await getAuthHeaders(token)
+  const res = await fetch(`${API_BASE}/insights/user/memory`, { headers })
+  if (!res.ok) return null
+  const data = await res.json() as { memory?: UserMemory }
+  return data.memory ?? null
+}
+
+export async function getSessionSummary(token: string, conversationId: string): Promise<SessionSummary | null> {
+  const headers = await getAuthHeaders(token)
+  const res = await fetch(`${API_BASE}/insights/session/${conversationId}/summary`, { headers })
+  if (!res.ok) return null
+  const data = await res.json() as { summary?: SessionSummary }
+  return data.summary ?? null
+}
+
+export async function getSessionMetrics(token: string, conversationId: string): Promise<Metric[]> {
+  const headers = await getAuthHeaders(token)
+  const res = await fetch(`${API_BASE}/insights/session/${conversationId}`, { headers })
+  if (!res.ok) return []
+  const data = await res.json() as { metrics?: Metric[] }
+  return data.metrics ?? []
+}
+
+export async function getWeeklyGrowth(token: string): Promise<WeeklyGrowth | null> {
+  const headers = await getAuthHeaders(token)
+  const res = await fetch(`${API_BASE}/insights/user/weekly`, { headers })
+  if (!res.ok) return null
+  return res.json() as Promise<WeeklyGrowth>
 }

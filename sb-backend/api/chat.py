@@ -39,6 +39,7 @@ class ChatRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     chat_preference: str = Field("general", description="Chat preference, defaults to 'general' for backward compatibility")
     chat_mode: str = Field("default", description="Interaction mode: default | reflection | venting | therapist")
+    language: str = Field("en-IN", description="BCP-47 language tag from Sarvam STT (e.g. en-IN, hi-IN, ta-IN)")
 
 
 # ============================================================================
@@ -69,6 +70,7 @@ async def create_initial_state(
     chat_mode: str = "default",
     conversation_id: Optional[str] = None,
     supabase_uid: Optional[str] = None,
+    language: str = "en-IN",
 ) -> ConversationState:
     # Reject non-UUID values (e.g. Swagger default "string") — treat as new session
     valid_conv_id = conversation_id if (conversation_id and _is_valid_uuid(conversation_id)) else None
@@ -87,6 +89,7 @@ async def create_initial_state(
         supabase_uid=supabase_uid,
         chat_preference=chat_preference,
         chat_mode=chat_mode,
+        language=language,
     )
 
 
@@ -117,6 +120,7 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
             supabase_uid=supabase_uid,
             chat_preference=req.chat_preference,
             chat_mode=req.chat_mode,
+            language=req.language,
         )
         logging.debug(
             "*****  Initial Conversation State | conv_id=%s mode=%s domain=%s message=%s chat_preference=%s chat_mode=%s *****",
@@ -205,6 +209,7 @@ async def chat_stream(req: ChatRequest, user=Depends(optional_supabase_token)):
             supabase_uid=supabase_uid,
             chat_preference=req.chat_preference,
             chat_mode=req.chat_mode,
+            language=req.language,
         )
 
         async def event_stream():

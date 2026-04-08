@@ -1,8 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 import asyncio
+
+from api.supabase_auth import verify_supabase_token
 
 router = APIRouter(prefix="/classify")
 
@@ -12,7 +14,7 @@ class ClassificationRequest(BaseModel):
 
 
 @router.post("")
-async def classify_message(req: ClassificationRequest):
+async def classify_message(req: ClassificationRequest, _user=Depends(verify_supabase_token)):
     """
     Classify a user message into intent, situation, severity, and risk categories.
     

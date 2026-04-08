@@ -4,6 +4,7 @@ import { BuddyProvider } from './contexts/BuddyContext'
 import LoginPage from './pages/LoginPage'
 import OnboardingPage from './pages/OnboardingPage'
 import ChatPage from './pages/ChatPage'
+import HomePage from './pages/HomePage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -41,6 +42,7 @@ function AppRoutes() {
         }
       />
       <Route path="/chat" element={<ChatPage />} />
+      <Route path="/home" element={<HomePage />} />
       <Route path="/" element={<Navigate to={user ? '/chat' : '/login'} replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

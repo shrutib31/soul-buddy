@@ -239,6 +239,10 @@ class TestGetClassificationsUnit:
     def test_out_of_scope_detection_disables_llm_fallback(self):
         import graph.nodes.agentic_nodes.classification_node as mod
 
+        # Use a message long enough (>4 words) to bypass the short-message guard
+        # so execution reaches the ML model check and raises RuntimeError.
+        test_message = "I am feeling completely overwhelmed with everything in my life right now"
+
         with patch.object(mod, "detect_greeting", return_value=False):
             with patch.object(mod, "detect_crisis", return_value={"is_crisis": False}):
                 with patch.object(
@@ -246,21 +250,22 @@ class TestGetClassificationsUnit:
                     "detect_out_of_scope",
                     return_value={"is_out_of_scope": False},
                 ) as mock_detect_out_of_scope:
-                    with patch.object(mod, "load_model"):
-                        orig_loaded, orig_model, orig_tok = mod._model_loaded, mod._model, mod._tokenizer
-                        mod._model_loaded = False
-                        mod._model = None
-                        mod._tokenizer = None
-                        try:
-                            with pytest.raises(RuntimeError, match="Classification model failed to load"):
-                                get_classifications("Some ambiguous non-support prompt")
-                        finally:
-                            mod._model_loaded = orig_loaded
-                            mod._model = orig_model
-                            mod._tokenizer = orig_tok
+                    with patch.object(mod, "detect_positive_message", return_value=False):
+                        with patch.object(mod, "load_model"):
+                            orig_loaded, orig_model, orig_tok = mod._model_loaded, mod._model, mod._tokenizer
+                            mod._model_loaded = False
+                            mod._model = None
+                            mod._tokenizer = None
+                            try:
+                                with pytest.raises(RuntimeError, match="Classification model failed to load"):
+                                    get_classifications(test_message)
+                            finally:
+                                mod._model_loaded = orig_loaded
+                                mod._model = orig_model
+                                mod._tokenizer = orig_tok
 
         mock_detect_out_of_scope.assert_called_once_with(
-            "Some ambiguous non-support prompt",
+            test_message,
             domain="general",
             allow_llm_fallback=False,
         )

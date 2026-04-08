@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Heart, Eye, EyeOff, Loader2, Mail, Lock, ArrowRight, Sparkles } from 'lucide-react'
+import '../styles.css'
 
 type Mode = 'login' | 'signup'
 
@@ -64,20 +65,20 @@ export default function LoginPage() {
 
   if (signupDone) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-buddy-50 via-indigo-50 to-purple-50 px-4">
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl shadow-buddy-100 border border-white p-10 max-w-sm w-full text-center">
-          <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl">
+      <div className="centered min-h-screen" style={{ background: 'var(--background)' }}>
+        <div className="card max-w-sm w-full text-center" style={{ borderRadius: 'var(--border-radius)' }}>
+          <div style={{ width: 64, height: 64, background: '#e6ffed', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 32 }}>
             📬
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your inbox</h2>
-          <p className="text-gray-500 text-sm leading-relaxed mb-8">
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>Check your inbox</h2>
+          <p className="text-muted" style={{ fontSize: '1rem', marginBottom: 32 }}>
             We sent a confirmation link to{' '}
-            <span className="font-semibold text-gray-700">{email}</span>.
+            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{email}</span>.
             Verify your email then sign in.
           </p>
           <button
             onClick={() => { setMode('login'); setSignupDone(false) }}
-            className="w-full py-3 bg-buddy-600 text-white rounded-2xl font-semibold hover:bg-buddy-700 active:scale-[0.98] transition-all"
+            className="btn-primary w-full"
           >
             Go to Sign In
           </button>
@@ -87,202 +88,163 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-buddy-50 via-indigo-50 to-purple-50 relative overflow-hidden">
-      {/* Decorative background orbs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-buddy-200 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-[pulse_8s_ease-in-out_infinite]" />
-        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-[pulse_10s_ease-in-out_infinite_2s]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-[pulse_12s_ease-in-out_infinite_4s]" />
+    <div className="centered min-h-screen" style={{ background: 'var(--background)' }}>
+      {/* Decorative background orbs removed for simplicity and performance */}
+
+      {/* Branding */}
+      <div className="centered mb-8">
+        <div style={{ width: 48, height: 48, background: 'var(--primary)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow)', marginBottom: 12 }}>
+          <Heart className="w-6 h-6" style={{ color: '#fff' }} fill="currentColor" />
+        </div>
+        <h1 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)' }}>SoulBuddy</h1>
+        <p className="text-muted" style={{ marginTop: 4 }}>Your mental wellness companion</p>
       </div>
 
-      {/* Left panel — branding (hidden on small screens) */}
-      <div className="hidden lg:flex flex-col justify-between w-[420px] shrink-0 p-12 relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-buddy-600 rounded-xl flex items-center justify-center shadow-lg shadow-buddy-300">
-            <Heart className="w-5 h-5 text-white" fill="currentColor" />
-          </div>
-          <span className="text-xl font-bold text-gray-900">SoulBuddy</span>
-        </div>
-
-        <div>
-          <div className="mb-8">
-            <div className="inline-flex items-center gap-2 bg-buddy-100 text-buddy-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
-              <Sparkles className="w-3.5 h-3.5" />
-              AI-powered wellness
-            </div>
-            <h2 className="text-4xl font-bold text-gray-900 leading-tight mb-4">
-              Your personal<br />
-              <span className="text-buddy-600">mental wellness</span><br />
-              companion
-            </h2>
-            <p className="text-gray-500 text-base leading-relaxed">
-              Talk freely. Get support. Feel better — with a companion that listens, understands, and grows with you.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {[
-              { emoji: '🧠', text: 'Intelligent, empathetic conversations' },
-              { emoji: '🔒', text: 'Private & secure by design' },
-              { emoji: '✨', text: 'Personalised to your journey' },
-            ].map(({ emoji, text }) => (
-              <div key={text} className="flex items-center gap-3 text-sm text-gray-600">
-                <span className="text-base">{emoji}</span>
-                {text}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="text-xs text-gray-400">© 2025 SoulBuddy. All rights reserved.</p>
-      </div>
-
-      {/* Right panel — auth form */}
-      <div className="flex-1 flex items-center justify-center px-4 py-12 relative z-10">
-        <div className="w-full max-w-[400px]">
-          {/* Mobile logo */}
-          <div className="flex flex-col items-center mb-8 lg:hidden">
-            <div className="w-14 h-14 bg-buddy-600 rounded-2xl flex items-center justify-center shadow-lg shadow-buddy-300 mb-3">
-              <Heart className="w-7 h-7 text-white" fill="currentColor" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">SoulBuddy</h1>
-            <p className="text-gray-400 text-sm mt-1">Your mental wellness companion</p>
-          </div>
-
-          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl shadow-gray-200/60 border border-white/60 p-8">
-            {/* Heading */}
-            <div className="mb-7">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {mode === 'login' ? 'Welcome back' : 'Create account'}
-              </h2>
-              <p className="text-gray-500 text-sm mt-1">
-                {mode === 'login'
-                  ? 'Sign in to continue your journey'
-                  : 'Start your wellness journey today'}
-              </p>
-            </div>
-
-            {/* Google — primary CTA */}
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={loading || googleLoading}
-              className="w-full flex items-center justify-center gap-3 py-3 bg-white border-2 border-gray-100 rounded-2xl text-sm font-semibold text-gray-700 hover:border-gray-200 hover:shadow-md hover:shadow-gray-100 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              {googleLoading ? <Spinner /> : <GoogleIcon />}
-              Continue with Google
-            </button>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-gray-100" />
-              <span className="text-xs font-medium text-gray-400">or continue with email</span>
-              <div className="flex-1 h-px bg-gray-100" />
-            </div>
-
-            {/* Tab switcher */}
-            <div className="flex rounded-2xl bg-gray-50 p-1 mb-5 border border-gray-100">
-              {(['login', 'signup'] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => { setMode(m); setError(null) }}
-                  className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all duration-200 ${
-                    mode === m
-                      ? 'bg-white text-buddy-700 shadow-sm shadow-gray-200'
-                      : 'text-gray-400 hover:text-gray-600'
-                  }`}
-                >
-                  {m === 'login' ? 'Sign In' : 'Sign Up'}
-                </button>
-              ))}
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="relative">
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 ml-1">
-                  Email address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-buddy-400 focus:border-transparent text-sm transition-all placeholder:text-gray-300"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 ml-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 6 characters"
-                    className="w-full pl-10 pr-11 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-buddy-400 focus:border-transparent text-sm transition-all placeholder:text-gray-300"
-                  />
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {error && (
-                <div className="flex items-start gap-2 text-red-600 bg-red-50 border border-red-100 px-3.5 py-2.5 rounded-xl text-sm">
-                  <span className="mt-0.5 shrink-0">⚠️</span>
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading || googleLoading}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-buddy-600 text-white rounded-2xl font-semibold hover:bg-buddy-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-buddy-200 mt-1"
-              >
-                {loading ? (
-                  <Spinner />
-                ) : (
-                  <>
-                    {mode === 'login' ? 'Sign In' : 'Create Account'}
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Incognito link */}
-            <div className="mt-5 text-center">
-              <button
-                onClick={() => navigate('/chat')}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Continue without an account (Incognito)
-              </button>
-            </div>
-          </div>
-
-          <p className="text-center text-xs text-gray-400 mt-5">
-            By continuing, you agree to our{' '}
-            <span className="underline underline-offset-2 cursor-pointer hover:text-gray-600 transition-colors">Terms</span>
-            {' & '}
-            <span className="underline underline-offset-2 cursor-pointer hover:text-gray-600 transition-colors">Privacy Policy</span>
+      <div className="card" style={{ maxWidth: 400, width: '100%', borderRadius: 'var(--border-radius)' }}>
+        <div className="mb-7">
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)' }}>
+            {mode === 'login' ? 'Welcome back' : 'Create account'}
+          </h2>
+          <p className="text-muted" style={{ marginTop: 4 }}>
+            {mode === 'login'
+              ? 'Sign in to continue your journey'
+              : 'Start your wellness journey today'}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={loading || googleLoading}
+          className="btn-primary w-full"
+          style={{ background: '#fff', color: 'var(--text-main)', border: '1px solid #e0e0e0', marginBottom: 16 }}
+        >
+          {googleLoading ? <Spinner /> : <GoogleIcon />}
+          Continue with Google
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+          <div style={{ flex: 1, height: 1, background: '#eee' }} />
+          <span className="text-muted" style={{ fontSize: 12 }}>or continue with email</span>
+          <div style={{ flex: 1, height: 1, background: '#eee' }} />
+        </div>
+        <div style={{ display: 'flex', background: '#f5f6fa', borderRadius: 16, padding: 4, marginBottom: 20, border: '1px solid #eee' }}>
+          {(['login', 'signup'] as Mode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setError(null) }}
+              className={mode === m ? 'btn-primary' : 'text-muted'}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                background: mode === m ? 'var(--primary)' : 'transparent',
+                color: mode === m ? '#fff' : 'var(--text-muted)',
+                fontWeight: 600,
+                fontSize: 14,
+                padding: '10px 0',
+                boxShadow: mode === m ? 'var(--shadow)' : 'none',
+                border: 'none',
+                transition: 'all 0.2s',
+              }}
+            >
+              {m === 'login' ? 'Sign In' : 'Sign Up'}
+            </button>
+          ))}
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ textAlign: 'left' }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)', marginBottom: 6, display: 'block' }}>
+              Email address
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Mail style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px 12px 40px',
+                  borderRadius: 16,
+                  border: '1px solid #e0e0e0',
+                  background: '#fff',
+                  fontSize: 15,
+                  marginBottom: 0,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)', marginBottom: 6, display: 'block' }}>
+              Password
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Lock style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min. 6 characters"
+                style={{
+                  width: '100%',
+                  padding: '12px 40px 12px 40px',
+                  borderRadius: 16,
+                  border: '1px solid #e0e0e0',
+                  background: '#fff',
+                  fontSize: 15,
+                  marginBottom: 0,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword((v) => !v)}
+                style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+              </button>
+            </div>
+          </div>
+          {error && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#d32f2f', background: '#fff0f0', border: '1px solid #ffd6d6', padding: '12px 16px', borderRadius: 16, fontSize: 14 }}>
+              <span style={{ marginTop: 2 }}>⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={loading || googleLoading}
+            className="btn-primary w-full"
+            style={{ marginTop: 4 }}
+          >
+            {loading ? (
+              <Spinner />
+            ) : (
+              <>
+                {mode === 'login' ? 'Sign In' : 'Create Account'}
+                <ArrowRight style={{ width: 16, height: 16, marginLeft: 6 }} />
+              </>
+            )}
+          </button>
+        </form>
+        <div style={{ marginTop: 20, textAlign: 'center' }}>
+          <button
+            onClick={() => navigate('/chat')}
+            style={{ fontSize: 13, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            Continue without an account (Incognito)
+          </button>
+        </div>
+        <p className="text-muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 20 }}>
+          By continuing, you agree to our{' '}
+          <span style={{ textDecoration: 'underline', cursor: 'pointer' }}>Terms</span>
+          {' & '}
+          <span style={{ textDecoration: 'underline', cursor: 'pointer' }}>Privacy Policy</span>
+        </p>
       </div>
     </div>
   )

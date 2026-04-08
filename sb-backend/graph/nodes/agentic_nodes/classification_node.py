@@ -892,6 +892,49 @@ def get_classifications(message: str) -> Dict[str, Any]:
 # LANGGRAPH NODE
 # ============================================================================
 
+def _escalate_risk_with_user_memory(
+    risk_level: str,
+    risk_score: float,
+    user_memory: Dict[str, Any],
+) -> str:
+    """
+    Adjust the ML-derived risk_level upward when the user's cross-session
+    memory contains known risk signals.
+
+    Rules (conservative — only escalate, never de-escalate):
+      - risk_signals present (non-empty) + current risk_level == "medium"
+        → escalate to "high"
+      - emotional_baseline == "high_distress" + current risk_level == "low"
+        → escalate to "medium"
+
+    This prevents under-detecting risk in users who have a documented history
+    of high-risk disclosures but whose current message looks mild in isolation.
+    """
+    if not user_memory:
+        return risk_level
+
+    risk_signals = user_memory.get("risk_signals")
+    emotional_baseline = user_memory.get("emotional_baseline", "")
+
+    # Escalate medium → high when there are known risk signals
+    if risk_signals and risk_level == "medium":
+        logger.info(
+            "Risk escalated medium→high based on user_memory risk_signals | score=%.3f",
+            risk_score,
+        )
+        return "high"
+
+    # Escalate low → medium when baseline is documented as high distress
+    if emotional_baseline == "high_distress" and risk_level == "low":
+        logger.info(
+            "Risk escalated low→medium based on user_memory emotional_baseline=high_distress | score=%.3f",
+            risk_score,
+        )
+        return "medium"
+
+    return risk_level
+
+
 def classification_node(state: ConversationState) -> Dict[str, Any]:
     """LangGraph node: classify the user message and update state."""
     try:
@@ -900,6 +943,21 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             return {"error": "No user message to classify"}
 
         classifications = get_classifications(message)
+
+        risk_score = classifications["risk_score"]
+        raw_risk_level = (
+            "high" if risk_score > 0.7 else "medium" if risk_score > 0.3 else "low"
+        )
+
+        # Apply user memory risk escalation for cognito users
+        user_memory = getattr(state, "user_memory", None) or {}
+        final_risk_level = _escalate_risk_with_user_memory(raw_risk_level, risk_score, user_memory)
+
+        # Derive emotion_intensity from risk_score (0.0–1.0).
+        # risk_score is a sigmoid output that captures emotional distress intensity —
+        # a reasonable proxy until a dedicated emotion intensity model is added.
+        emotion_intensity = round(risk_score, 3)
+
         return {
             "intent": classifications["intent"],
             "situation": classifications["situation"],
@@ -908,7 +966,8 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
             "is_out_of_scope": classifications.get("is_out_of_scope", False),
             "out_of_scope_reason": classifications.get("out_of_scope_reason"),
-            "risk_level": "high" if classifications["risk_score"] > 0.7 else "medium" if classifications["risk_score"] > 0.3 else "low",
+            "risk_level": final_risk_level,
+            "emotion_intensity": emotion_intensity,
         }
 
     except Exception as e:

@@ -38,6 +38,54 @@ elif not OLLAMA_FLAG and not OPENAI_FLAG:
 
 
 # ============================================================================
+# CROSS-SESSION CONTEXT BUILDER
+# ============================================================================
+
+def _build_cross_session_context(
+    user_memory: Optional[Dict[str, Any]],
+    session_summary: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    """
+    Build a compact cross-session context string injected into the LLM system
+    prompt only on the first turn of a new session.
+
+    Token budget: ~250 tokens total
+      - growth_summary  (~100 tokens): evolving user narrative from user_memory
+      - last session    (~150 tokens): key highlights from the previous session
+
+    Returns None if neither source has useful content.
+    """
+    parts = []
+
+    if user_memory:
+        growth_summary = user_memory.get("growth_summary")
+        if growth_summary:
+            parts.append(f"[Your journey so far]\n{growth_summary}")
+
+    if session_summary:
+        # Prefer the richer holistic final_summary fields if present
+        key_takeaways = session_summary.get("key_takeaways")
+        session_story = session_summary.get("session_story")
+        emotional_arc = session_summary.get("emotional_arc")
+
+        last_session_lines = []
+        if session_story:
+            last_session_lines.append(session_story)
+        if emotional_arc:
+            last_session_lines.append(f"Emotional arc: {emotional_arc}")
+        if key_takeaways:
+            if isinstance(key_takeaways, list):
+                last_session_lines.append("Key takeaways: " + "; ".join(key_takeaways))
+            else:
+                last_session_lines.append(f"Key takeaways: {key_takeaways}")
+
+        if last_session_lines:
+            parts.append("[Last session]\n" + "\n".join(last_session_lines))
+
+    return "\n\n".join(parts) if parts else None
+
+
+# ============================================================================
 # LANGRAPH NODE FUNCTION
 # ============================================================================
 
@@ -73,7 +121,20 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         out_of_scope_reason = getattr(state, "out_of_scope_reason", None)
         chat_preference = preference_style
         conversation_history = state.conversation_history or []
-        conversation_summary = state.conversation_summary
+
+        # ── Cross-session context (token-optimised, first turn only) ─────────
+        # Injected only when a new conversation has just started.
+        # Injects at most ~250 tokens: growth_summary (~100) + last session (~150).
+        # Mid-session turns use conversation_history exclusively — zero extra tokens.
+        cross_session_context: Optional[str] = None
+        if state.is_new_session:
+            cross_session_context = _build_cross_session_context(
+                user_memory=state.user_memory,
+                session_summary=state.session_summary,
+            )
+
+        # Keep backward-compat variable name for passing into LLM helpers
+        conversation_summary = cross_session_context
 
         if not user_message:
             return {"error": "Missing user message for response generation"}
