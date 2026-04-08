@@ -13,6 +13,7 @@ class ConversationState(BaseModel):
     domain: str                  # student / employee / general
     user_message: str
     language: str = "en-IN"             # BCP-47 language tag sent by Sarvam STT / frontend
+    language: str = "en-IN"
     supabase_uid: Optional[str] = None  # supabase user ID (cognito only)
     chat_preference: str = "general"
     chat_mode: str = "default"          # default / reflection / venting / therapist

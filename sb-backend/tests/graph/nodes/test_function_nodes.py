@@ -284,10 +284,16 @@ class TestStoreBotResponseNodeUnit:
             mock_db.get_session.return_value = mock_session
             result = await store_bot_response_node(state_for_store_bot_response)
         assert "error" not in result
-        km.encrypt.assert_awaited_once_with(
-            state_for_store_bot_response.conversation_id,
-            state_for_store_bot_response.response_draft,
-        )
+        # The code encrypts the main message and, depending on the classifier, possibly romanised/canonical/mixed
+        # For the default fixture, response_draft is English, so only main and canonical are encrypted
+        expected_calls = [
+            ((state_for_store_bot_response.conversation_id, state_for_store_bot_response.response_draft),),
+            ((state_for_store_bot_response.conversation_id, state_for_store_bot_response.response_draft),)
+        ]
+        actual_calls = km.encrypt.await_args_list
+        assert len(actual_calls) == len(expected_calls)
+        for call, expected in zip(actual_calls, expected_calls):
+            assert call.args == expected[0]
 
 
 # ============================================================================

@@ -118,6 +118,8 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         is_crisis_detected = state.is_crisis_detected
         is_greeting = state.is_greeting
         is_out_of_scope = getattr(state, "is_out_of_scope", False)
+        language = getattr(state, "language", "en-in") or "en-in"
+
         out_of_scope_reason = getattr(state, "out_of_scope_reason", None)
         chat_preference = preference_style
         conversation_history = state.conversation_history or []
@@ -183,6 +185,8 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
 
         args = (user_message, chat_preference, situation, severity, intent, response_draft,
                 chat_mode_instructions, trimmed_history, conversation_summary)
+        args = (user_message, situation, severity, intent, response_draft, language)
+        args = (user_message, chat_preference, situation, severity, intent, response_draft)
 
         if COMPARE_RESULTS:
             # Call both in parallel and pick the best response.
@@ -259,6 +263,7 @@ async def generate_response_ollama(
     chat_mode_instructions: Optional[str] = None,
     conversation_history: Optional[list] = None,
     conversation_summary: Optional[str] = None,
+    language: str = "en-IN"
 ) -> str:
     """
     Generate a compassionate response using Ollama.
@@ -317,6 +322,16 @@ Rules:
 - Use natural, everyday language — no clinical or counselor-speak
 - Tailor tone to Chat Preference if provided
 - Never use phrases like "It's completely normal to feel", "I understand that", "That sounds really hard", or "Would you like to tell me more about..."
+Guidelines:
+- Respond in the SAME language as the user's message. (e.g., if user speaks in Bengali, you MUST respond in Bengali).
+- Use the provided language context ({language}) as a preference, but prioritize matching the user's spoken language for natural conversation.
+- Be warm, empathetic, and non-judgmental
+- Validate their feelings and experiences
+- Ask clarifying questions if needed
+- Offer practical support or resources when appropriate
+- Keep response concise (2-3 sentences)
+- Avoid being prescriptive or dismissive
+-Tailor your response according to Chat Preference 
 
 Response:"""
 
@@ -373,6 +388,7 @@ async def generate_response_gpt(
     chat_mode_instructions: Optional[str] = None,
     conversation_history: Optional[list] = None,
     conversation_summary: Optional[str] = None,
+    language: str = "en-IN"
 ) -> str:
     """
     Generate a compassionate response using GPT-4o-mini.
@@ -433,6 +449,29 @@ async def generate_response_gpt(
         # Current user turn with classification metadata appended
         current_content = f"{user_message}{context_info}" if context_info else user_message
         messages.append({"role": "user", "content": current_content})
+        
+        messages = [
+            {
+                "role": "system",
+                "content": f"""You are a compassionate mental health support chatbot.
+Your role is to provide empathetic, supportive responses that validate the user's feelings.
+
+Guidelines:
+- Respond in the SAME language as the user's message. (e.g., if user speaks in Bengali, you MUST respond in Bengali).
+- Use the provided language context ({language}) as a preference, but prioritize matching the user's spoken language for natural conversation.
+- Be warm, empathetic, and non-judgmental
+- Validate their feelings and experiences
+- Ask clarifying questions if needed
+- Offer practical support or resources when appropriate
+- Keep response concise (2-3 sentences)
+- Avoid being prescriptive or dismissive
+-Tailor your response according to Chat Preference """
+            },
+            {
+                "role": "user",
+                "content": f"User message: \"{user_message}\"{context_info}\n\nProvide a compassionate response:"
+            }
+        ]
         
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
