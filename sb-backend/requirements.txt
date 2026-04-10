@@ -53,3 +53,5 @@ redis[asyncio]>=5.0.0
 cryptography>=42.0.0
 google-cloud-kms>=2.22.0
 
+#AI Evaluation
+deepeval>=0.21.0

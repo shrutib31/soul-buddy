@@ -1,0 +1,32 @@
+.env
+__pycache__
+.venv
+conversations*/
+evaluations*/
+publication_data/
+logging/
+logs/
+tmp_tests/
+**/.DS_Store
+.ipynb_checkpoints/
+*.ipynb
+.vscode
+spring_scripts/
+.claude/
+
+# Testing artifacts
+.pytest_cache/
+.coverage
+coverage.json
+htmlcov/
+!tests/fixtures/conversations/
+
+# Claude Code - local helper files
+.claude/settings.local.json
+.claude/hooks/local/
+.claude/commands/local/
+.claude/logs/
+
+# scoring artifacts
+publication_evaluations/vera_mh_v1_scores/
+publication_conversations/vera_mh_v1_scores_conversations/
