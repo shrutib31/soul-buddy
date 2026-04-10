@@ -12,8 +12,11 @@ from api.classify import router as classify_router
 
 @pytest.fixture
 def app():
+    from api.supabase_auth import verify_supabase_token
     app = FastAPI()
     app.include_router(classify_router, prefix="/api/v1", tags=["Classification"])
+    # Override auth dependency so unit tests don't need a real Supabase token
+    app.dependency_overrides[verify_supabase_token] = lambda: {"id": "test-user-id"}
     return app
 
 

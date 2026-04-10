@@ -39,6 +39,7 @@ def state_no_conv_id():
         mode="incognito",
         domain="general",
         user_message="Hello",
+        chat_preference="general",
     )
 
 
@@ -49,6 +50,7 @@ def state_with_conv_id():
         mode="incognito",
         domain="general",
         user_message="Hello",
+        chat_preference="general",
     )
 
 
@@ -59,6 +61,7 @@ def state_for_store_message():
         mode="incognito",
         domain="general",
         user_message="I need to talk",
+        chat_preference="general",
     )
 
 
@@ -70,6 +73,7 @@ def state_for_store_bot_response():
         domain="general",
         user_message="Hi",
         response_draft="I'm here for you.",
+        chat_preference="general",
     )
 
 
@@ -85,6 +89,7 @@ def state_for_render():
         severity="low",
         risk_level="low",
         response_draft="Hello! How can I support you today?",
+        chat_preference="general",
     )
 
 
@@ -92,6 +97,7 @@ def state_for_render():
 def mock_session():
     session = MagicMock()
     session.add = MagicMock()
+    session.flush = AsyncMock()  # store_message_node awaits session.flush()
     session.commit = AsyncMock()
     session.execute = AsyncMock()
     session.__aenter__ = AsyncMock(return_value=session)
@@ -161,6 +167,7 @@ class TestStoreMessageNodeUnit:
             mode="incognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         result = await store_message_node(state)
         assert "error" in result
@@ -173,6 +180,7 @@ class TestStoreMessageNodeUnit:
             mode="incognito",
             domain="general",
             user_message="",
+            chat_preference="general",
         )
         result = await store_message_node(state)
         assert "error" in result
@@ -184,7 +192,9 @@ class TestStoreMessageNodeUnit:
         mock_session.execute.return_value = mock_result
         km = _make_km(encryption_enabled=False)
         with patch("graph.nodes.function_nodes.store_message.data_db") as mock_db, \
-             patch("graph.nodes.function_nodes.store_message.get_key_manager", return_value=km):
+             patch("graph.nodes.function_nodes.store_message.get_key_manager", return_value=km), \
+             patch("graph.nodes.function_nodes.store_message.cache_service") as mock_cache:
+            mock_cache.invalidate_conversation_history = AsyncMock()
             mock_db.get_session.return_value = mock_session
             result = await store_message_node(state_for_store_message)
         assert "error" not in result
@@ -199,7 +209,9 @@ class TestStoreMessageNodeUnit:
         mock_session.execute.return_value = mock_result
         km = _make_km(encryption_enabled=True)
         with patch("graph.nodes.function_nodes.store_message.data_db") as mock_db, \
-             patch("graph.nodes.function_nodes.store_message.get_key_manager", return_value=km):
+             patch("graph.nodes.function_nodes.store_message.get_key_manager", return_value=km), \
+             patch("graph.nodes.function_nodes.store_message.cache_service") as mock_cache:
+            mock_cache.invalidate_conversation_history = AsyncMock()
             mock_db.get_session.return_value = mock_session
             result = await store_message_node(state_for_store_message)
         assert "error" not in result
@@ -224,6 +236,7 @@ class TestStoreBotResponseNodeUnit:
             domain="general",
             user_message="Hi",
             response_draft="Reply",
+            chat_preference="general",
         )
         result = await store_bot_response_node(state)
         assert "error" in result
@@ -237,6 +250,7 @@ class TestStoreBotResponseNodeUnit:
             domain="general",
             user_message="Hi",
             response_draft="",
+            chat_preference="general",
         )
         result = await store_bot_response_node(state)
         assert "error" in result
@@ -270,6 +284,8 @@ class TestStoreBotResponseNodeUnit:
             mock_db.get_session.return_value = mock_session
             result = await store_bot_response_node(state_for_store_bot_response)
         assert "error" not in result
+        # When encryption is enabled, only the main message column is encrypted;
+        # format-specific columns (canonical/romanised/mixed) are set to NULL.
         km.encrypt.assert_awaited_once_with(
             state_for_store_bot_response.conversation_id,
             state_for_store_bot_response.response_draft,
@@ -303,6 +319,7 @@ class TestRenderNodeUnit:
             domain="general",
             user_message="Hi",
             response_draft="",
+            chat_preference="general",
         )
         result = await render_node(state)
         assert result["api_response"]["success"] is False
@@ -317,6 +334,7 @@ class TestRenderNodeUnit:
             user_message="Hi",
             response_draft="",
             error="Something went wrong",
+            chat_preference="general",
         )
         result = await render_node(state)
         assert "error" in result["api_response"]["metadata"]
@@ -347,6 +365,7 @@ class TestGetMessagesNodeUnit:
             mode="incognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         result = await get_messages_node(state)
         assert result == {"conversation_history": []}
@@ -359,6 +378,7 @@ class TestGetMessagesNodeUnit:
             mode="cognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         result = await get_messages_node(state)
         assert "error" in result
@@ -381,6 +401,7 @@ class TestGetMessagesNodeUnit:
             mode="cognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         with patch("graph.nodes.function_nodes.get_messages._data_db") as mock_db, \
              patch("graph.nodes.function_nodes.get_messages.get_key_manager", return_value=km):
@@ -407,6 +428,7 @@ class TestGetMessagesNodeUnit:
             mode="cognito",
             domain="general",
             user_message="Hi",
+            chat_preference="general",
         )
         with patch("graph.nodes.function_nodes.get_messages._data_db") as mock_db, \
              patch("services.key_manager.get_key_manager", return_value=km):

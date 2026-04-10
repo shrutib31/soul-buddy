@@ -55,6 +55,7 @@ from config.sqlalchemy_db import SQLAlchemyDataDB, SQLAlchemyAuthDB
 from config.supabase import test_connection as test_supabase_connection
 from config.redis import RedisConfig
 from services.cache_service import cache_service
+from services.insight_scheduler import start_scheduler, stop_scheduler
 import os
 
 # Load environment variables
@@ -126,13 +127,17 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 80)
     logger.info("")
     
+    # Start background intelligence cron jobs (daily aggregation + weekly growth)
+    start_scheduler()
+
     yield  # Application runs here
-    
+
     # ========================================================================
     # SHUTDOWN PHASE: Clean up resources
     # ========================================================================
-    
+
     logger.info("🛑 Server shutdown initiated. Cleaning up resources...")
+    await stop_scheduler()
     await cleanup_all_resources()
     logger.info("✅ All resources cleaned up. Server shutdown complete.")
 
@@ -471,10 +476,12 @@ app.add_middleware(
 from api.chat import router as chat_router
 from api.classify import router as classify_router
 from api.guardrail import router as guardrail_router
+from api.insights import router as insights_router
 
 app.include_router(chat_router, prefix="/api/v1", tags=["Chat"])
 app.include_router(classify_router, prefix="/api/v1", tags=["Classification"])
 app.include_router(guardrail_router, prefix="/api/v1", tags=["Guardrail"])
+app.include_router(insights_router, prefix="/api/v1", tags=["Insights"])
 
 
 # ============================================================================

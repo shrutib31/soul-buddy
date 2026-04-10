@@ -18,10 +18,11 @@ Key schema
 ----------
   user:<userId>:personality_profile   — personality traits (TTL_PROFILE)
   user:<userId>:profile               — user profile / preferences (TTL_PROFILE)
-  user:<userId>:conversation_summary  — latest conversation summary (TTL_CONV)
+  user:<userId>:user_memory           — long-term user memory / narrative (TTL_CONFIG = 24h)
   user:<userId>:ui_state              — last UI / navigation state (TTL_CONV)
   user:<userId>:config:<configKey>    — per-user config entry (TTL_CONFIG)
   conv:<conversationId>:history       — last N conversation turns (TTL_CONV)
+  conv:<conversationId>:session_summary — current session summary JSONB (TTL_PROFILE = 2h)
   config:<configKey>                  — global config entry (TTL_CONFIG)
 
 TTLs (seconds, overrideable via env vars)
@@ -193,8 +194,12 @@ class CacheService:
         return f"user:{user_id}:profile"
 
     @staticmethod
-    def _key_conversation_summary(user_id: str) -> str:
-        return f"user:{user_id}:conversation_summary"
+    def _key_user_memory(user_id: str) -> str:
+        return f"user:{user_id}:user_memory"
+
+    @staticmethod
+    def _key_session_summary(conversation_id: str) -> str:
+        return f"conv:{conversation_id}:session_summary"
 
     @staticmethod
     def _key_ui_state(user_id: str) -> str:
@@ -239,17 +244,32 @@ class CacheService:
         await self._delete(self._key_profile(user_id))
 
     # ------------------------------------------------------------------
-    # Conversation summary
+    # Session summary  (conv:<conversationId>:session_summary, TTL 2h)
+    # Stores the JSONB summary dict for the current session.
     # ------------------------------------------------------------------
 
-    async def get_conversation_summary(self, user_id: str) -> Optional[str]:
-        return await self._get(self._key_conversation_summary(user_id))
+    async def get_session_summary(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        return await self._get(self._key_session_summary(conversation_id))
 
-    async def set_conversation_summary(self, user_id: str, summary: str) -> None:
-        await self._set(self._key_conversation_summary(user_id), summary, self.TTL_CONVERSATION)
+    async def set_session_summary(self, conversation_id: str, summary: Dict[str, Any]) -> None:
+        await self._set(self._key_session_summary(conversation_id), summary, self.TTL_PROFILE)
 
-    async def invalidate_conversation_summary(self, user_id: str) -> None:
-        await self._delete(self._key_conversation_summary(user_id))
+    async def invalidate_session_summary(self, conversation_id: str) -> None:
+        await self._delete(self._key_session_summary(conversation_id))
+
+    # ------------------------------------------------------------------
+    # User memory  (user:<userId>:user_memory, TTL 24h)
+    # Stores the full user_memory row dict (growth_summary, themes, etc.)
+    # ------------------------------------------------------------------
+
+    async def get_user_memory(self, user_id: str) -> Optional[Dict[str, Any]]:
+        return await self._get(self._key_user_memory(user_id))
+
+    async def set_user_memory(self, user_id: str, memory: Dict[str, Any]) -> None:
+        await self._set(self._key_user_memory(user_id), memory, self.TTL_CONFIG)
+
+    async def invalidate_user_memory(self, user_id: str) -> None:
+        await self._delete(self._key_user_memory(user_id))
 
     # ------------------------------------------------------------------
     # Conversation history (last N turns)

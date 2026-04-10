@@ -37,6 +37,7 @@ venv.bak/
 
 # UV
 .uv/
+uv.lock
 
 # Environment Variables
 config/serviceAccountKey.json
@@ -63,6 +64,7 @@ logs/
 .coverage
 htmlcov/
 .tox/
+tests/TEST_GAPS.md
 
 # Type Checking
 .mypy_cache/
