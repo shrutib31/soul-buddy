@@ -85,10 +85,34 @@ def evaluate_case(case: dict, metric):
         retrieval_context=case.get("context", []),
     )
 
-    evaluate(
+    result = evaluate(
         test_cases=[test_case],
         metrics=[metric],
     )
+
+    if not result.test_results:
+        pytest.fail("DeepEval returned no test results")
+
+    failed_metrics = []
+    for test_result in result.test_results:
+        metrics_data = test_result.metrics_data or []
+        if not metrics_data and not test_result.success:
+            failed_metrics.append(f"{test_result.name} failed without metric data")
+            continue
+
+        for metric_data in metrics_data:
+            if metric_data.success:
+                continue
+
+            score = "None" if metric_data.score is None else f"{metric_data.score:.3f}"
+            threshold = f"{metric_data.threshold:.3f}"
+            reason = metric_data.error or metric_data.reason or "No reason provided"
+            failed_metrics.append(
+                f"{metric_data.name} failed "
+                f"(score={score}, threshold={threshold}): {reason}"
+            )
+
+    assert not failed_metrics, "\n\n".join(failed_metrics)
 
 
 def test_empathy_case_fixture_has_required_coverage():

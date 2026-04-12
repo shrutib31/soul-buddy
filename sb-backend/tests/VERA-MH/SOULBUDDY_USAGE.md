@@ -70,7 +70,6 @@ uv run uvicorn server:app --reload --host 0.0.0.0 --port 8000
 ```bash
 cd tests/VERA-MH
 source .venv/bin/activate
-export MPLCONFIGDIR=/tmp/matplotlib
 python run_pipeline.py \
   --user-agent gemini-2.5-pro \
   --provider-agent endpoint-app \
