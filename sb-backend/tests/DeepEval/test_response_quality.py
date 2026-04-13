@@ -145,7 +145,7 @@ def test_appropriateness_case_fixture_has_required_coverage():
 @pytest.mark.parametrize("case", EMPATHY_CASES, ids=lambda case: case["input"][:60])
 def test_response_quality_empathy(case):
     skip_if_eval_is_not_configured()
-    from tests.eval.metrics import empathy_metric
+    from tests.DeepEval.metrics import empathy_metric
 
     evaluate_case(case, empathy_metric)
 
@@ -153,6 +153,6 @@ def test_response_quality_empathy(case):
 @pytest.mark.parametrize("case", APPROPRIATENESS_CASES, ids=lambda case: case["input"][:60])
 def test_response_quality_appropriateness(case):
     skip_if_eval_is_not_configured()
-    from tests.eval.metrics import appropriateness_metric
+    from tests.DeepEval.metrics import appropriateness_metric
 
     evaluate_case(case, appropriateness_metric)
