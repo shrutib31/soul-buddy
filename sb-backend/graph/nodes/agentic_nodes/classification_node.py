@@ -216,6 +216,23 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
 
     message_lower = message.lower().strip()
 
+    # Normalize informal contractions so patterns like "don't" match "dont"
+    _contractions = {
+        "dont": "don't", "doesnt": "doesn't", "didnt": "didn't",
+        "wont": "won't", "wouldnt": "wouldn't", "cant": "can't",
+        "couldnt": "couldn't", "shouldnt": "shouldn't", "isnt": "isn't",
+        "arent": "aren't", "wasnt": "wasn't", "werent": "weren't",
+        "havent": "haven't", "hasnt": "hasn't", "hadnt": "hadn't",
+        "im": "i'm", "ive": "i've", "ill": "i'll", "id": "i'd",
+        "thats": "that's", "whats": "what's", "hes": "he's",
+        "shes": "she's", "theyre": "they're", "youre": "you're",
+    }
+    message_lower = re.sub(
+        r"\b(" + "|".join(re.escape(k) for k in _contractions) + r")\b",
+        lambda m: _contractions[m.group()],
+        message_lower,
+    )
+
     if is_true_negation(message_lower):
         return {
             "is_crisis": False, "intent": "unclear", "situation": "NO_SITUATION",
@@ -281,8 +298,31 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
                 r"what's the point of living", r"tired of living", r"tired of life",
                 r"don't want to be here anymore", r"do not want to be here anymore",
                 r"don't want to exist", r"do not want to exist",
-                r"wish i could disappear", r"want to disappear",
-                r"would be better if i wasn't here", r"would be easier if i was gone"
+                # Flexible disappear pattern — catches "wish i could just disappear" etc.
+                r"wish i could (just\s+)?disappear",
+                r"want to (just\s+)?disappear",
+                r"just (want[s]?|wish)\s+(to\s+)?(disappear|vanish|not exist|cease to exist)",
+                r"would be better if i wasn't here", r"would be easier if i was gone",
+                # "I wish I was never born / wasn't here"
+                r"wish i (was|were)(n'?t)? (never\s+)?born",
+                r"wish i (was|were)(n'?t)? here",
+                r"wish i didn'?t exist",
+                # "I don't see the point anymore"
+                r"(don'?t|do not)\s+see\s+(any|the)?\s*point\s*(anymore|left|in (living|life|going on))",
+                r"no\s+(point|reason|purpose)\s+(left\s+)?(in|to)\s+(living|life|going on|continue)",
+                # "Life / everything feels pointless / meaningless"
+                r"(life|everything|it all)\s+(feel[s]?|is|seems)\s+(so\s+)?(pointless|meaningless)",
+                r"(life|everything)\s+is\s+(so\s+)?(pointless|meaningless|hopeless)",
+                # "Fed up / sick / done with everything / life"
+                r"(so\s+)?(tired|fed up|sick|done)\s+(of|with)\s+(it\s+all|everything|life|living|being\s+alive)",
+                # "Can't go on / keep going anymore"
+                r"can'?t\s+(keep going|go on|do this|handle it|hold on)\s+anymore",
+                r"can'?t\s+(keep going|go on)\s+much\s+longer",
+                # "Want this / it all to end"
+                r"(want|wish|need)\s+(this|it|everything)\s+to\s+(end|stop|be over|just end)",
+                r"just\s+want\s+(it|this|everything)\s+(all\s+)?to\s+end",
+                # "No will / desire to continue"
+                r"no\s+(will|desire|reason|strength)\s+to\s+(keep going|continue|live|go on|carry on)",
             ],
             "intent": "crisis_disclosure", "situation": "PASSIVE_DEATH_WISH", "severity": "high",
             "risk_level": "high", "risk_score": 0.8, "requires_immediate_response": True,
@@ -485,12 +525,22 @@ _INTENT_PATTERNS = [
     ("venting", [
         r"\bi('m| am) (so |really |just )?(stressed|overwhelmed|exhausted|tired|frustrated|angry|upset|sad|anxious|depressed|lonely|lost|confused|hurt|devastated|broken|numb)\b",
         r"\bi feel (so |really |very |just )?(bad|awful|terrible|horrible|miserable|empty|hopeless|worthless|useless|like a failure)\b",
+        r"\bi feel (so |really |very |just )?(stressed|overwhelmed|exhausted|tired|frustrated|angry|upset|sad|anxious|depressed|lonely|lost|confused|hurt|devastated|broken|numb)\b",
+        r"\b(feeling|i feel) (really )?(anxious|stressed|depressed|sad|upset|overwhelmed|tired|angry|lonely|lost|scared|worried|down|low|empty|numb)\b",
+        r"\bi('m| am) feeling (really )?(anxious|stressed|depressed|sad|upset|overwhelmed|tired|angry|lonely|lost|scared|worried|down|low|empty|numb)\b",
+        r"\bi('m| am) (anxious|stressed|depressed|sad|upset|overwhelmed|tired|angry|lonely|confused|hurt|devastated|broken|numb|worried|scared|drained|burned out|burnt out)\b",
+        r"\bi('m| am) (not doing|not feeling) (well|good|great|okay|ok)\b",
+        r"\bi('m| am) having a (bad|rough|tough|hard|terrible|horrible) (day|week|time|month|year)\b",
         r"\beverything (is|feels|seems) (wrong|bad|terrible|falling apart|too much)\b",
         r"\bi (can't|cannot) (do this|cope|handle|take it|go on)\b",
         r"\bit('s| is) (so hard|too hard|really hard|too much)\b",
         r"\bi('ve| have) been (struggling|having a hard time|going through)\b",
         r"\bi just wanted to (vent|talk|share|say)\b",
         r"\bnobody (cares|understands|listens)\b",
+        r"\bi('m| am) (going through|dealing with) (a lot|so much|too much)\b",
+        r"\blife (is|has been|feels) (hard|tough|exhausting|draining|overwhelming)\b",
+        r"\bi (just )?(can't|cannot) (sleep|eat|focus|concentrate|think|stop crying)\b",
+        r"\bi (don't|do not) (feel like|want to) (doing anything|getting up|going out|talking to anyone)\b",
     ]),
 ]
 
@@ -563,6 +613,33 @@ _SITUATION_PATTERNS = [
         r"\b(overwhelmed|burned? out|burnt out)\b",
         r"\btoo (much|many) (things|tasks|responsibilities|problems)\b",
         r"\b(can't keep up|falling apart|too much at once)\b",
+    ]),
+    ("ANXIETY", [
+        r"\b(anxious|anxiety|panic|panicking|panicked)\b",
+        r"\b(nervous|nervousness|on edge|restless)\b",
+        r"\bconstant(ly)? (worry|worrying|worried)\b",
+        r"\b(racing thoughts|can't stop thinking|overthinking)\b",
+        r"\b(heart racing|chest tight|can't breathe|hyperventilat)\b",
+    ]),
+    ("SLEEP_ISSUES", [
+        r"\b(can't|cannot|couldn't|unable to) (sleep|fall asleep|stay asleep)\b",
+        r"\b(insomnia|sleepless|sleep deprived?)\b",
+        r"\b(nightmares?|bad dreams?|night terrors?)\b",
+        r"\bwake up (in the middle|at night|too early|multiple times)\b",
+        r"\b(exhausted|tired) (but|and) (can't|cannot) sleep\b",
+    ]),
+    ("BURNOUT", [
+        r"\b(burnout|burned? out|burnt out)\b",
+        r"\b(emotionally|mentally|physically) (drained|exhausted|depleted)\b",
+        r"\b(nothing|no energy) left\b",
+        r"\b(running on empty|running on fumes)\b",
+        r"\b(dread|dreading) (going to|starting) (work|school|class)\b",
+    ]),
+    ("GRIEF_LOSS", [
+        r"\b(someone|my .{0,20}) (died|passed away|passed|gone)\b",
+        r"\b(grief|grieving|mourning|bereavement)\b",
+        r"\b(lost|loss of) (my|a) (parent|mother|father|mom|dad|friend|sibling|brother|sister|grandparent|pet|loved one)\b",
+        r"\bmiss (him|her|them|my) (so much|every day|terribly)\b",
     ]),
 ]
 
@@ -774,6 +851,7 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "risk_score": crisis_result["risk_score"],
             "risk_level": crisis_result["risk_level"],
             "is_crisis_detected": True,
+            "crisis_category": crisis_result.get("crisis_category"),
             "raw_scores": {
                 "situation": 0.0,
                 "severity": 1.0 if crisis_result["severity"] == "high" else 0.0,
@@ -888,6 +966,46 @@ def get_classifications(message: str) -> Dict[str, Any]:
             classifications["situation"] = "unclear"
             classifications["severity"] = "low"
 
+        # ── Rule-based fallback for low-confidence ML results ────────────
+        # When the model weights are untrained or confidence is low, use
+        # rule-based classifiers to provide meaningful labels instead of "unclear".
+        if classifications["intent"] == "unclear":
+            rule_intent = classify_intent(message)
+            if rule_intent != "unclear":
+                classifications["intent"] = rule_intent
+                logger.info("ML intent unclear, rule-based fallback: %s", rule_intent)
+
+        # Always check rule-based situation — the ML model may have untrained
+        # weights producing random high-confidence outputs for wrong labels.
+        rule_situation = classify_situation(message)
+        if rule_situation != "NO_SITUATION":
+            if classifications["situation"] == "unclear" or classifications["situation"] != rule_situation:
+                logger.info("Rule-based situation override: %s -> %s", classifications["situation"], rule_situation)
+                classifications["situation"] = rule_situation
+        else:
+            # Rule-based found nothing (NO_SITUATION). If the untrained ML model produced
+            # a crisis-related situation label, that label is almost certainly a false positive.
+            # detect_crisis() would have already caught any real crisis. Reset to "unclear"
+            # so the LLM prompt doesn't get confused by a dangerous-sounding but wrong label.
+            _CRISIS_SPECIFIC_SITUATIONS = {
+                "PASSIVE_DEATH_WISH", "SUICIDAL", "SELF_HARM",
+                "SEVERE_HOPELESSNESS", "SEVERE_BURDEN", "SEVERE_DISTRESS",
+                "GIVING_AWAY", "SAYING_GOODBYE"
+            }
+            if classifications["situation"] in _CRISIS_SPECIFIC_SITUATIONS:
+                logger.info(
+                    "Rule-based found NO_SITUATION; ML crisis label cleared to avoid false positive: %s",
+                    classifications["situation"]
+                )
+                classifications["situation"] = "unclear"
+
+        # Apply rule-based severity when it detects something stronger
+        rule_severity = classify_severity(message)
+        if rule_severity == "high" or (rule_severity == "medium" and classifications["severity"] == "low"):
+            if classifications["severity"] != rule_severity:
+                logger.info("Rule-based severity override: %s -> %s", classifications["severity"], rule_severity)
+                classifications["severity"] = rule_severity
+
         logger.info(
             "ML model classification: intent=%s severity=%s",
             classifications["intent"], classifications["severity"]
@@ -975,6 +1093,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "severity": classifications["severity"],
             "is_greeting": classifications.get("is_greeting", False),
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
+            "crisis_category": classifications.get("crisis_category", None),
             "is_out_of_scope": classifications.get("is_out_of_scope", False),
             "out_of_scope_reason": classifications.get("out_of_scope_reason"),
             "risk_level": final_risk_level,
