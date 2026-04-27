@@ -16,23 +16,23 @@ supabase_url = settings.supabase.url
 supabase_service_key = settings.supabase.service_role_key
 supabase_anon_key = settings.supabase.anon_key
 
-if not supabase_url:
-    raise ValueError('SUPABASE_URL is required in environment variables')
+_supabase_available = bool(supabase_url and supabase_service_key and supabase_anon_key)
 
-if not supabase_service_key:
-    raise ValueError('SUPABASE_SERVICE_ROLE_KEY is required in environment variables')
+if not _supabase_available:
+    logger.warning(
+        "Supabase env vars not set (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY). "
+        "Supabase auth is disabled — incognito mode still works, cognito routes will return 401."
+    )
+    supabase_admin = None
+    supabase = None
+else:
+    # Supabase Admin Client (Service Role)
+    # Use this for server-side operations that bypass RLS
+    supabase_admin: Client = create_client(supabase_url, supabase_service_key)
 
-if not supabase_anon_key:
-    raise ValueError('SUPABASE_ANON_KEY is required in environment variables')
-
-
-# Supabase Admin Client (Service Role)
-# Use this for server-side operations that bypass RLS
-supabase_admin: Client = create_client(supabase_url, supabase_service_key)
-
-# Supabase Client (Anon Key)
-# Use this for operations that respect Row Level Security
-supabase: Client = create_client(supabase_url, supabase_anon_key)
+    # Supabase Client (Anon Key)
+    # Use this for operations that respect Row Level Security
+    supabase: Client = create_client(supabase_url, supabase_anon_key)
 
 
 async def create_user(email: str, password: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -106,6 +106,8 @@ async def verify_token(token: str) -> Dict[str, Any]:
     Returns:
         Decoded user data
     """
+    if supabase_admin is None:
+        raise Exception('Supabase not configured — cognito auth unavailable')
     try:
         response = supabase_admin.auth.get_user(token)
 
@@ -177,8 +179,11 @@ async def test_connection() -> bool:
     Test Supabase connection
 
     Returns:
-        True if connection successful
+        True if connection successful, False if not configured
     """
+    if supabase_admin is None:
+        logger.debug('[!] Supabase not configured — skipping connection test')
+        return False
     try:
         response = supabase_admin.auth.admin.list_users(page=1, per_page=1)
         logger.debug('[+] Supabase connection successful')

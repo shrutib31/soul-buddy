@@ -1,4 +1,4 @@
-from typing import Dict, Any
+﻿from typing import Dict, Any
 import os
 import logging
 import re
@@ -103,19 +103,19 @@ def load_model():
 def detect_greeting(message: str) -> bool:
     """
     Detect if a message is a conversation-initiating greeting. Covers:
-    - Common words:      hi, hello, hey, namaste, yo, sup, hiya …
+    - Common words:      hi, hello, hey, namaste, yo, sup, hiya ΓÇª
     - Enthusiastic form: hiii, heyyy (repeated trailing chars normalised)
     - Time-based:        good morning/afternoon/evening/night/day, gm, gn
-    - Phrases:           hi there, hello there, nice to meet you …
-    - Informal:          what's up, wassup, howdy, hola …
-    - Check-in openers:  how are you, how r u, how have you been …
-    - Casual variants:   what is up baby, what's up bro, whats up buddy …
+    - Phrases:           hi there, hello there, nice to meet you ΓÇª
+    - Informal:          what's up, wassup, howdy, hola ΓÇª
+    - Check-in openers:  how are you, how r u, how have you been ΓÇª
+    - Casual variants:   what is up baby, what's up bro, whats up buddy ΓÇª
     """
     message_lower = message.lower().strip()
     if not message_lower:
         return False
 
-    # Normalise repeated trailing characters so "hiii" → "hii", "heyyy" → "heyy"
+    # Normalise repeated trailing characters so "hiii" ΓåÆ "hii", "heyyy" ΓåÆ "heyy"
     message_lower = re.sub(r'(.)\1{2,}', r'\1\1', message_lower)
 
     # Strip punctuation for clean word comparison
@@ -216,23 +216,6 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
 
     message_lower = message.lower().strip()
 
-    # Normalize informal contractions so patterns like "don't" match "dont"
-    _contractions = {
-        "dont": "don't", "doesnt": "doesn't", "didnt": "didn't",
-        "wont": "won't", "wouldnt": "wouldn't", "cant": "can't",
-        "couldnt": "couldn't", "shouldnt": "shouldn't", "isnt": "isn't",
-        "arent": "aren't", "wasnt": "wasn't", "werent": "weren't",
-        "havent": "haven't", "hasnt": "hasn't", "hadnt": "hadn't",
-        "im": "i'm", "ive": "i've", "ill": "i'll", "id": "i'd",
-        "thats": "that's", "whats": "what's", "hes": "he's",
-        "shes": "she's", "theyre": "they're", "youre": "you're",
-    }
-    message_lower = re.sub(
-        r"\b(" + "|".join(re.escape(k) for k in _contractions) + r")\b",
-        lambda m: _contractions[m.group()],
-        message_lower,
-    )
-
     if is_true_negation(message_lower):
         return {
             "is_crisis": False, "intent": "unclear", "situation": "NO_SITUATION",
@@ -298,31 +281,15 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
                 r"what's the point of living", r"tired of living", r"tired of life",
                 r"don't want to be here anymore", r"do not want to be here anymore",
                 r"don't want to exist", r"do not want to exist",
-                # Flexible disappear pattern — catches "wish i could just disappear" etc.
-                r"wish i could (just\s+)?disappear",
-                r"want to (just\s+)?disappear",
-                r"just (want[s]?|wish)\s+(to\s+)?(disappear|vanish|not exist|cease to exist)",
+                r"wish i could disappear", r"want to disappear",
                 r"would be better if i wasn't here", r"would be easier if i was gone",
-                # "I wish I was never born / wasn't here"
-                r"wish i (was|were)(n'?t)? (never\s+)?born",
-                r"wish i (was|were)(n'?t)? here",
-                r"wish i didn'?t exist",
-                # "I don't see the point anymore"
-                r"(don'?t|do not)\s+see\s+(any|the)?\s*point\s*(anymore|left|in (living|life|going on))",
-                r"no\s+(point|reason|purpose)\s+(left\s+)?(in|to)\s+(living|life|going on|continue)",
-                # "Life / everything feels pointless / meaningless"
-                r"(life|everything|it all)\s+(feel[s]?|is|seems)\s+(so\s+)?(pointless|meaningless)",
-                r"(life|everything)\s+is\s+(so\s+)?(pointless|meaningless|hopeless)",
-                # "Fed up / sick / done with everything / life"
-                r"(so\s+)?(tired|fed up|sick|done)\s+(of|with)\s+(it\s+all|everything|life|living|being\s+alive)",
-                # "Can't go on / keep going anymore"
-                r"can'?t\s+(keep going|go on|do this|handle it|hold on)\s+anymore",
-                r"can'?t\s+(keep going|go on)\s+much\s+longer",
-                # "Want this / it all to end"
-                r"(want|wish|need)\s+(this|it|everything)\s+to\s+(end|stop|be over|just end)",
-                r"just\s+want\s+(it|this|everything)\s+(all\s+)?to\s+end",
-                # "No will / desire to continue"
-                r"no\s+(will|desire|reason|strength)\s+to\s+(keep going|continue|live|go on|carry on)",
+                # "Better off without me" family
+                r"everyone would be better off without me", r"everyone('?d| would) be better off",
+                r"better off without me", r"world would be better without me",
+                r"they('?d| would) be better off without me",
+                r"no one would miss me", r"nobody would miss me",
+                r"(i('?m| am))?\s*a burden", r"i('?m| am) just a burden",
+                r"don'?t deserve to (be here|live|exist)"
             ],
             "intent": "crisis_disclosure", "situation": "PASSIVE_DEATH_WISH", "severity": "high",
             "risk_level": "high", "risk_score": 0.8, "requires_immediate_response": True,
@@ -433,7 +400,7 @@ _POSITIVE_WORDS = {
     "nice", "good", "cool", "sweet", "rad", "yay", "woah", "wow",
 }
 
-# Multi-word positive phrases — tested against the full normalised text, not token-by-token
+# Multi-word positive phrases ΓÇö tested against the full normalised text, not token-by-token
 _POSITIVE_PHRASES = {"of course", "good news", "good day", "great day", "best day"}
 
 _DISTRESS_WORDS = {
@@ -444,7 +411,7 @@ _DISTRESS_WORDS = {
     "dead", "kill", "harm", "cut", "hate",
 }
 
-# Multi-word distress phrases — tested against the full normalised text
+# Multi-word distress phrases ΓÇö tested against the full normalised text
 _DISTRESS_PHRASES = {"give up", "gave up"}
 
 
@@ -469,7 +436,7 @@ def detect_positive_message(message: str) -> bool:
         return False
     positive_count = sum(1 for w in words if w in _POSITIVE_WORDS)
     positive_count += sum(1 for phrase in _POSITIVE_PHRASES if phrase in normalised)
-    # Short messages (≤ 6 words): one positive word/phrase is enough
+    # Short messages (Γëñ 6 words): one positive word/phrase is enough
     # Longer messages: require at least two positive words/phrases
     threshold = 1 if len(words) <= 6 else 2
     return positive_count >= threshold
@@ -479,7 +446,7 @@ def detect_positive_message(message: str) -> bool:
 # RULE-BASED INTENT CLASSIFICATION
 # ============================================================================
 
-# Evaluated in order — first match wins (more specific intents first)
+# Evaluated in order ΓÇö first match wins (more specific intents first)
 _INTENT_PATTERNS = [
     ("open_to_solution", [
         r"\bwhat should i (do|try)\b",
@@ -525,22 +492,12 @@ _INTENT_PATTERNS = [
     ("venting", [
         r"\bi('m| am) (so |really |just )?(stressed|overwhelmed|exhausted|tired|frustrated|angry|upset|sad|anxious|depressed|lonely|lost|confused|hurt|devastated|broken|numb)\b",
         r"\bi feel (so |really |very |just )?(bad|awful|terrible|horrible|miserable|empty|hopeless|worthless|useless|like a failure)\b",
-        r"\bi feel (so |really |very |just )?(stressed|overwhelmed|exhausted|tired|frustrated|angry|upset|sad|anxious|depressed|lonely|lost|confused|hurt|devastated|broken|numb)\b",
-        r"\b(feeling|i feel) (really )?(anxious|stressed|depressed|sad|upset|overwhelmed|tired|angry|lonely|lost|scared|worried|down|low|empty|numb)\b",
-        r"\bi('m| am) feeling (really )?(anxious|stressed|depressed|sad|upset|overwhelmed|tired|angry|lonely|lost|scared|worried|down|low|empty|numb)\b",
-        r"\bi('m| am) (anxious|stressed|depressed|sad|upset|overwhelmed|tired|angry|lonely|confused|hurt|devastated|broken|numb|worried|scared|drained|burned out|burnt out)\b",
-        r"\bi('m| am) (not doing|not feeling) (well|good|great|okay|ok)\b",
-        r"\bi('m| am) having a (bad|rough|tough|hard|terrible|horrible) (day|week|time|month|year)\b",
         r"\beverything (is|feels|seems) (wrong|bad|terrible|falling apart|too much)\b",
         r"\bi (can't|cannot) (do this|cope|handle|take it|go on)\b",
         r"\bit('s| is) (so hard|too hard|really hard|too much)\b",
         r"\bi('ve| have) been (struggling|having a hard time|going through)\b",
         r"\bi just wanted to (vent|talk|share|say)\b",
         r"\bnobody (cares|understands|listens)\b",
-        r"\bi('m| am) (going through|dealing with) (a lot|so much|too much)\b",
-        r"\blife (is|has been|feels) (hard|tough|exhausting|draining|overwhelming)\b",
-        r"\bi (just )?(can't|cannot) (sleep|eat|focus|concentrate|think|stop crying)\b",
-        r"\bi (don't|do not) (feel like|want to) (doing anything|getting up|going out|talking to anyone)\b",
     ]),
 ]
 
@@ -559,7 +516,7 @@ def classify_intent(message: str) -> str:
 # RULE-BASED SITUATION CLASSIFICATION
 # ============================================================================
 
-# Evaluated in order — first match wins
+# Evaluated in order ΓÇö first match wins
 _SITUATION_PATTERNS = [
     ("EXAM_ANXIETY", [
         r"\b(exam|test|finals|quiz|midterm|assessment|board exam)\b",
@@ -613,33 +570,6 @@ _SITUATION_PATTERNS = [
         r"\b(overwhelmed|burned? out|burnt out)\b",
         r"\btoo (much|many) (things|tasks|responsibilities|problems)\b",
         r"\b(can't keep up|falling apart|too much at once)\b",
-    ]),
-    ("ANXIETY", [
-        r"\b(anxious|anxiety|panic|panicking|panicked)\b",
-        r"\b(nervous|nervousness|on edge|restless)\b",
-        r"\bconstant(ly)? (worry|worrying|worried)\b",
-        r"\b(racing thoughts|can't stop thinking|overthinking)\b",
-        r"\b(heart racing|chest tight|can't breathe|hyperventilat)\b",
-    ]),
-    ("SLEEP_ISSUES", [
-        r"\b(can't|cannot|couldn't|unable to) (sleep|fall asleep|stay asleep)\b",
-        r"\b(insomnia|sleepless|sleep deprived?)\b",
-        r"\b(nightmares?|bad dreams?|night terrors?)\b",
-        r"\bwake up (in the middle|at night|too early|multiple times)\b",
-        r"\b(exhausted|tired) (but|and) (can't|cannot) sleep\b",
-    ]),
-    ("BURNOUT", [
-        r"\b(burnout|burned? out|burnt out)\b",
-        r"\b(emotionally|mentally|physically) (drained|exhausted|depleted)\b",
-        r"\b(nothing|no energy) left\b",
-        r"\b(running on empty|running on fumes)\b",
-        r"\b(dread|dreading) (going to|starting) (work|school|class)\b",
-    ]),
-    ("GRIEF_LOSS", [
-        r"\b(someone|my .{0,20}) (died|passed away|passed|gone)\b",
-        r"\b(grief|grieving|mourning|bereavement)\b",
-        r"\b(lost|loss of) (my|a) (parent|mother|father|mom|dad|friend|sibling|brother|sister|grandparent|pet|loved one)\b",
-        r"\bmiss (him|her|them|my) (so much|every day|terribly)\b",
     ]),
 ]
 
@@ -710,16 +640,16 @@ def classify_severity(message: str) -> str:
 #
 # KEY DESIGN RULE: patterns must combine a REQUEST VERB directed at the bot
 # AND an off-domain topic in a single phrase.  Bare topic words (recipe, code, law)
-# must NOT appear as standalone patterns — that would incorrectly flag personal
+# must NOT appear as standalone patterns ΓÇö that would incorrectly flag personal
 # narratives like "I told my friend about a recipe" or "I was coding all night".
 
 _OUT_OF_SCOPE_PATTERNS = [
-    # ── Cooking / Food ────────────────────────────────────────────────────────
+    # ΓöÇΓöÇ Cooking / Food ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\b(give|tell|share|send|show|write|suggest|recommend)\s+(me\s+)?(a\s+|an\s+|some\s+)?(recipe|recipes|ingredients?|cooking instructions?|how to cook|how to make|how to bake|dish|meal plan)\b",
     r"\b(how\s+(do|can|should)\s+i\s+(cook|bake|prepare|make)\b)",
     r"\bwhat\s+(should\s+i\s+(cook|bake|eat|make)|can\s+i\s+cook|can\s+i\s+make)\b",
 
-    # ── Programming / Tech ────────────────────────────────────────────────────
+    # ΓöÇΓöÇ Programming / Tech ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\b(write|create|build|generate|make|fix|debug|code|implement)\s+(me\s+)?(a\s+|an\s+|some\s+)?(code|function|script|program|app|application|algorithm|class|module|snippet)\b",
     r"\b(write|create|build|fix|debug)\s+me\s+.{0,20}(code|function|script|program|app)\b",
     r"\bhelp\s+me\s+(write|build|create|fix|debug).{0,30}(code|function|script|program|app|bug)\b",
@@ -728,13 +658,13 @@ _OUT_OF_SCOPE_PATTERNS = [
     r"\bwrite\s+(me\s+)?(a\s+)?(python|javascript|java|sql|html|css|typescript|react|node)\b",
     r"\b(what\s+is|explain)\s+the\s+(syntax|code|algorithm|data structure|design pattern)\s+(for|of|in)\b",
 
-    # ── Legal ─────────────────────────────────────────────────────────────────
+    # ΓöÇΓöÇ Legal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\b(give|provide|tell|explain)\s+(me\s+)?(legal\s+(advice|guidance|opinion|help)|your\s+legal\s+opinion)\b",
     r"\bwhat\s+(is\s+the\s+law|are\s+my\s+legal\s+rights|should\s+i\s+do\s+legally)\b",
     r"\b(draft|write|prepare)\s+(me\s+)?(a\s+|an\s+)?(legal\s+document|contract|will|lawsuit|legal\s+letter)\b",
     r"\bam\s+i\s+(legally|liable|entitled\s+to)\b",
 
-    # ── Financial / Investment ────────────────────────────────────────────────
+    # ΓöÇΓöÇ Financial / Investment ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\b(give|provide|tell)\s+(me\s+)?(financial\s+(advice|tips|planning|guidance)|investment\s+(advice|tips|recommendations?))\b",
     r"\b(should\s+i\s+invest|how\s+(do|should)\s+i\s+invest|where\s+to\s+invest)\b",
     r"\b(best\s+)?(stocks?|crypto|mutual\s+funds?|etf)\s+to\s+(buy|invest|pick)\b",
@@ -742,27 +672,27 @@ _OUT_OF_SCOPE_PATTERNS = [
     r"\bshould\s+i\s+(buy|invest\s+in|pick)\s+(stocks?|crypto|shares?|etf|mutual\s+funds?)\b",
     r"\b(help\s+me\s+)?(file\s+(my\s+)?tax(es)?|do\s+(my\s+)?taxes|calculate\s+(my\s+)?tax)\b",
 
-    # ── Entertainment recommendations ─────────────────────────────────────────
+    # ΓöÇΓöÇ Entertainment recommendations ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\b(recommend|suggest|tell\s+me)\s+(a\s+|an\s+|some\s+)?(good\s+)?(movie|film|show|series|anime|book|novel|song|playlist|game)\s+to\s+(watch|read|play|listen)\b",
     r"\b(what\s+(movies?|shows?|books?|games?|songs?|anime)\s+should\s+i\s+(watch|read|play|listen))\b",
 
-    # ── Travel / Logistics ────────────────────────────────────────────────────
+    # ΓöÇΓöÇ Travel / Logistics ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\b(plan|book|suggest|help\s+me\s+plan)\s+(my\s+|a\s+|an\s+)?(trip|vacation|holiday|travel|itinerary|flight|hotel)\b",
     r"\b(best\s+places?\s+to\s+visit|where\s+should\s+i\s+(travel|go\s+for\s+vacation))\b",
 
-    # ── Academic / Homework (non-wellness) ────────────────────────────────────
+    # ΓöÇΓöÇ Academic / Homework (non-wellness) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\b(solve|answer|do|complete|help\s+me\s+(with|solve|do|answer))\s+(my\s+|this\s+|the\s+)?(homework|assignment|math\s+problem|physics\s+problem|chemistry\s+problem|essay)\b",
     r"\b(write\s+(my|the|an?)\s+(essay|report|thesis|assignment|homework))\b",
     r"\b(solve\s+this\s+(equation|problem|question|sum))\b",
 
-    # ── Math / Calculations ───────────────────────────────────────────────────
+    # ΓöÇΓöÇ Math / Calculations ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\bwhat\s+is\s+(the\s+)?(average|mean|median|mode|sum|total|product|difference|quotient|square\s+root|percentage)\s+of\b",
     r"\b(calculate|compute|find|evaluate)\s+(the\s+|my\s+)?(average|mean|median|mode|sum|total|percentage|interest|profit|loss|gpa|cgpa|discount|tax\s+amount)\b",
     r"\bwhat\s+is\s+\d+\s*[\+\-\*\/\^]\s*\d+\b",    # "what is 5 + 3", "what is 10 / 2"
     r"\bwhat\s+is\s+\d+\s*percent\s+of\b",           # "what is 20 percent of 150"
     r"\b(convert|how\s+many)\s+.{0,20}\s+to\s+(km|miles|kg|pounds|celsius|fahrenheit|dollars|rupees|euros)\b",
 
-    # ── Weather / News / Sports ───────────────────────────────────────────────
+    # ΓöÇΓöÇ Weather / News / Sports ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     r"\b(what'?s\s+the\s+weather|weather\s+(today|tomorrow|this\s+week|forecast))\b",
     r"\b(latest\s+news|breaking\s+news|what'?s\s+happening\s+in\s+the\s+news)\b",
     r"\b(cricket|football|soccer|basketball|nfl|nba|ipl)\s+(score|match|result|schedule|live)\b",
@@ -776,9 +706,9 @@ def classify_out_of_scope(message: str) -> bool:
     a general-knowledge query / nonsensical input.
 
     Personal narratives that merely *mention* off-domain topics are NOT flagged:
-      ✗ out-of-scope  →  "Can you give me a recipe for pasta?"
-      ✓ in-scope      →  "I spoke to my friend about a recipe today"
-      ✓ in-scope      →  "I was coding all night and I'm stressed"
+      Γ£ù out-of-scope  ΓåÆ  "Can you give me a recipe for pasta?"
+      Γ£ô in-scope      ΓåÆ  "I spoke to my friend about a recipe today"
+      Γ£ô in-scope      ΓåÆ  "I was coding all night and I'm stressed"
     """
     if not message or not isinstance(message, str):
         return False
@@ -800,11 +730,11 @@ def get_classifications(message: str) -> Dict[str, Any]:
     Classify a message.
 
     Evaluation order:
-    1. Empty message  → unclear / NO_SITUATION / low
-    2. Greeting       → greeting intent, no situation, low risk
-    3. Out-of-scope   → redirect template, no model call
-    4. Crisis         → crisis_disclosure, specific situation, high risk
-    5. ML model       → SoulBuddyClassifier for intent / situation / severity
+    1. Empty message  ΓåÆ unclear / NO_SITUATION / low
+    2. Greeting       ΓåÆ greeting intent, no situation, low risk
+    3. Out-of-scope   ΓåÆ redirect template, no model call
+    4. Crisis         ΓåÆ crisis_disclosure, specific situation, high risk
+    5. ML model       ΓåÆ SoulBuddyClassifier for intent / situation / severity
     """
     if not message or message.strip() == "":
         logger.warning("Received empty message for classification")
@@ -851,7 +781,6 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "risk_score": crisis_result["risk_score"],
             "risk_level": crisis_result["risk_level"],
             "is_crisis_detected": True,
-            "crisis_category": crisis_result.get("crisis_category"),
             "raw_scores": {
                 "situation": 0.0,
                 "severity": 1.0 if crisis_result["severity"] == "high" else 0.0,
@@ -883,13 +812,13 @@ def get_classifications(message: str) -> Dict[str, Any]:
             }
         }
 
-    # ── Positive emotion short-circuit ───────────────────────────────────────
+    # ΓöÇΓöÇ Positive emotion short-circuit ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     # Prevents the ML model from misclassifying joyful / affirmative messages.
     # "yes so much", "that was amazing", "I'm so excited" etc. must NOT come
-    # back as distress — the LLM has full conversation history and will handle
+    # back as distress ΓÇö the LLM has full conversation history and will handle
     # these correctly once we return a neutral classification.
     if detect_positive_message(message):
-        logger.info("Message classified as positive/celebratory — skipping ML model")
+        logger.info("Message classified as positive/celebratory ΓÇö skipping ML model")
         return {
             "intent": "unclear",
             "situation": "NO_SITUATION",
@@ -899,13 +828,13 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 0.0, "risk": 0.0}
         }
 
-    # ── Short-message guard ───────────────────────────────────────────────────
-    # Very short messages (≤ 4 words) with no rule-based distress signal are
+    # ΓöÇΓöÇ Short-message guard ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # Very short messages (Γëñ 4 words) with no rule-based distress signal are
     # ambiguous out of context.  Rather than letting the ML model guess, return
     # neutral and let the LLM use conversation history to respond correctly.
     word_count = len(message.strip().split())
     if word_count <= 4 and classify_situation(message) == "NO_SITUATION" and classify_severity(message) == "low":
-        logger.info("Short message with no distress signal — skipping ML model (word_count=%d)", word_count)
+        logger.info("Short message with no distress signal ΓÇö skipping ML model (word_count=%d)", word_count)
         return {
             "intent": "unclear",
             "situation": "NO_SITUATION",
@@ -915,7 +844,7 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 0.0, "risk": 0.0}
         }
 
-    # ── ML model inference ────────────────────────────────────────────────────
+    # ΓöÇΓöÇ ML model inference ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     logger.info("Classifying message with ML model: '%s'", message)
     global _tokenizer, _model, _model_loaded, _torch
 
@@ -966,46 +895,6 @@ def get_classifications(message: str) -> Dict[str, Any]:
             classifications["situation"] = "unclear"
             classifications["severity"] = "low"
 
-        # ── Rule-based fallback for low-confidence ML results ────────────
-        # When the model weights are untrained or confidence is low, use
-        # rule-based classifiers to provide meaningful labels instead of "unclear".
-        if classifications["intent"] == "unclear":
-            rule_intent = classify_intent(message)
-            if rule_intent != "unclear":
-                classifications["intent"] = rule_intent
-                logger.info("ML intent unclear, rule-based fallback: %s", rule_intent)
-
-        # Always check rule-based situation — the ML model may have untrained
-        # weights producing random high-confidence outputs for wrong labels.
-        rule_situation = classify_situation(message)
-        if rule_situation != "NO_SITUATION":
-            if classifications["situation"] == "unclear" or classifications["situation"] != rule_situation:
-                logger.info("Rule-based situation override: %s -> %s", classifications["situation"], rule_situation)
-                classifications["situation"] = rule_situation
-        else:
-            # Rule-based found nothing (NO_SITUATION). If the untrained ML model produced
-            # a crisis-related situation label, that label is almost certainly a false positive.
-            # detect_crisis() would have already caught any real crisis. Reset to "unclear"
-            # so the LLM prompt doesn't get confused by a dangerous-sounding but wrong label.
-            _CRISIS_SPECIFIC_SITUATIONS = {
-                "PASSIVE_DEATH_WISH", "SUICIDAL", "SELF_HARM",
-                "SEVERE_HOPELESSNESS", "SEVERE_BURDEN", "SEVERE_DISTRESS",
-                "GIVING_AWAY", "SAYING_GOODBYE"
-            }
-            if classifications["situation"] in _CRISIS_SPECIFIC_SITUATIONS:
-                logger.info(
-                    "Rule-based found NO_SITUATION; ML crisis label cleared to avoid false positive: %s",
-                    classifications["situation"]
-                )
-                classifications["situation"] = "unclear"
-
-        # Apply rule-based severity when it detects something stronger
-        rule_severity = classify_severity(message)
-        if rule_severity == "high" or (rule_severity == "medium" and classifications["severity"] == "low"):
-            if classifications["severity"] != rule_severity:
-                logger.info("Rule-based severity override: %s -> %s", classifications["severity"], rule_severity)
-                classifications["severity"] = rule_severity
-
         logger.info(
             "ML model classification: intent=%s severity=%s",
             classifications["intent"], classifications["severity"]
@@ -1030,11 +919,11 @@ def _escalate_risk_with_user_memory(
     Adjust the ML-derived risk_level upward when the user's cross-session
     memory contains known risk signals.
 
-    Rules (conservative — only escalate, never de-escalate):
+    Rules (conservative ΓÇö only escalate, never de-escalate):
       - risk_signals present (non-empty) + current risk_level == "medium"
-        → escalate to "high"
+        ΓåÆ escalate to "high"
       - emotional_baseline == "high_distress" + current risk_level == "low"
-        → escalate to "medium"
+        ΓåÆ escalate to "medium"
 
     This prevents under-detecting risk in users who have a documented history
     of high-risk disclosures but whose current message looks mild in isolation.
@@ -1045,18 +934,18 @@ def _escalate_risk_with_user_memory(
     risk_signals = user_memory.get("risk_signals")
     emotional_baseline = user_memory.get("emotional_baseline", "")
 
-    # Escalate medium → high when there are known risk signals
+    # Escalate medium ΓåÆ high when there are known risk signals
     if risk_signals and risk_level == "medium":
         logger.info(
-            "Risk escalated medium→high based on user_memory risk_signals | score=%.3f",
+            "Risk escalated mediumΓåÆhigh based on user_memory risk_signals | score=%.3f",
             risk_score,
         )
         return "high"
 
-    # Escalate low → medium when baseline is documented as high distress
+    # Escalate low ΓåÆ medium when baseline is documented as high distress
     if emotional_baseline == "high_distress" and risk_level == "low":
         logger.info(
-            "Risk escalated low→medium based on user_memory emotional_baseline=high_distress | score=%.3f",
+            "Risk escalated lowΓåÆmedium based on user_memory emotional_baseline=high_distress | score=%.3f",
             risk_score,
         )
         return "medium"
@@ -1082,8 +971,8 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
         user_memory = getattr(state, "user_memory", None) or {}
         final_risk_level = _escalate_risk_with_user_memory(raw_risk_level, risk_score, user_memory)
 
-        # Derive emotion_intensity from risk_score (0.0–1.0).
-        # risk_score is a sigmoid output that captures emotional distress intensity —
+        # Derive emotion_intensity from risk_score (0.0ΓÇô1.0).
+        # risk_score is a sigmoid output that captures emotional distress intensity ΓÇö
         # a reasonable proxy until a dedicated emotion intensity model is added.
         emotion_intensity = round(risk_score, 3)
 
@@ -1093,7 +982,6 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
             "severity": classifications["severity"],
             "is_greeting": classifications.get("is_greeting", False),
             "is_crisis_detected": classifications.get("is_crisis_detected", False),
-            "crisis_category": classifications.get("crisis_category", None),
             "is_out_of_scope": classifications.get("is_out_of_scope", False),
             "out_of_scope_reason": classifications.get("out_of_scope_reason"),
             "risk_level": final_risk_level,

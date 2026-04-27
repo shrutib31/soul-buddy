@@ -1,4 +1,4 @@
-"""
+﻿"""
 Response Generator Node for LangGraph
 
 This node generates responses using both Ollama and GPT-4o-mini to compare
@@ -17,7 +17,7 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Configuration — read once from centralised settings
+# Configuration ΓÇö read once from centralised settings
 OLLAMA_BASE_URL = settings.ollama.base_url
 OLLAMA_MODEL = settings.ollama.model
 OLLAMA_TIMEOUT = settings.ollama.timeout
@@ -34,7 +34,7 @@ if COMPARE_RESULTS:
     if not OPENAI_API_KEY:
         logger.warning("COMPARE_RESULTS=true but OPENAI_API_KEY is not set")
 elif not OLLAMA_FLAG and not OPENAI_FLAG:
-    logger.warning("COMPARE_RESULTS=false and neither OLLAMA_FLAG nor OPENAI_FLAG is true — no LLM will be called")
+    logger.warning("COMPARE_RESULTS=false and neither OLLAMA_FLAG nor OPENAI_FLAG is true ΓÇö no LLM will be called")
 
 
 # ============================================================================
@@ -125,10 +125,10 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
         chat_preference = preference_style
         conversation_history = state.conversation_history or []
 
-        # ── Cross-session context (token-optimised, first turn only) ─────────
+        # ΓöÇΓöÇ Cross-session context (token-optimised, first turn only) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
         # Injected only when a new conversation has just started.
         # Injects at most ~250 tokens: growth_summary (~100) + last session (~150).
-        # Mid-session turns use conversation_history exclusively — zero extra tokens.
+        # Mid-session turns use conversation_history exclusively ΓÇö zero extra tokens.
         cross_session_context: Optional[str] = None
         if state.is_new_session:
             cross_session_context = _build_cross_session_context(
@@ -179,7 +179,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             )
             return {"response_draft": template}
 
-        # No template — route to LLM(s) based on provider flags.
+        # No template ΓÇö route to LLM(s) based on provider flags.
         history = state.conversation_history or []
         args = (user_message, chat_preference, situation, severity, intent, history, language)
 
@@ -214,7 +214,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
 
         # Single-provider or first-available mode.
         if OLLAMA_FLAG and OPENAI_FLAG:
-            # Both enabled but no comparison — use first successful response.
+            # Both enabled but no comparison ΓÇö use first successful response.
             ollama_response, gpt_response = await asyncio.gather(
                 generate_response_ollama(*args),
                 generate_response_gpt(*args),
@@ -229,7 +229,7 @@ async def response_generator_node(state: ConversationState) -> Dict[str, Any]:
             source = "openai"
         else:
             logger.error("response_generator: no LLM provider enabled")
-            return {"error": "No LLM provider enabled — set COMPARE_RESULTS, OLLAMA_FLAG, or OPENAI_FLAG"}
+            return {"error": "No LLM provider enabled ΓÇö set COMPARE_RESULTS, OLLAMA_FLAG, or OPENAI_FLAG"}
 
         logger.info(
             "response_generator: completed via single provider",
@@ -252,7 +252,7 @@ _INTENT_GUIDELINES = {
     "venting": (
         "The user is venting and needs emotional validation above all else.\n"
         "- Lead with empathy: acknowledge and name the emotion they expressed\n"
-        "- DO NOT jump to advice or solutions — they haven't asked for any\n"
+        "- DO NOT jump to advice or solutions ΓÇö they haven't asked for any\n"
         "- Reflect back what you heard to show you understand\n"
         "- Gently invite them to share more if they want to\n"
         "- Keep it warm and short (2-4 sentences)"
@@ -261,7 +261,7 @@ _INTENT_GUIDELINES = {
         "The user is seeking emotional support and connection.\n"
         "- Validate their feelings and make them feel heard\n"
         "- Reassure them that reaching out was the right thing to do\n"
-        "- Be present and warm — avoid clinical language\n"
+        "- Be present and warm ΓÇö avoid clinical language\n"
         "- Ask a gentle follow-up to show you care\n"
         "- Keep response supportive (3-5 sentences)"
     ),
@@ -291,7 +291,7 @@ _INTENT_GUIDELINES = {
         "- Help them explore and understand their emotions without judging\n"
         "- Normalise their experience (\"that's a really common reaction\")\n"
         "- Ask reflective questions to deepen their self-understanding\n"
-        "- Avoid over-intellectualising — keep it human (3-5 sentences)"
+        "- Avoid over-intellectualising ΓÇö keep it human (3-5 sentences)"
     ),
 }
 
@@ -302,30 +302,30 @@ _SITUATION_CONTEXT = {
     "FINANCIAL_STRESS": "They are stressed about money or finances. Acknowledge the real weight of financial pressure.",
     "HEALTH_CONCERNS": "They are worried about health issues. Be empathetic and encourage professional medical consultation if needed.",
     "BELONGING_DOUBT": "They feel like they don't belong or are isolated. Validate the pain of loneliness and remind them they're not alone.",
-    "LOW_MOTIVATION": "They are struggling with low motivation or feeling stuck. Avoid pushing productivity — meet them where they are.",
+    "LOW_MOTIVATION": "They are struggling with low motivation or feeling stuck. Avoid pushing productivity ΓÇö meet them where they are.",
     "FUTURE_UNCERTAINTY": "They are anxious about their future, career, or life direction. Normalise the uncertainty and help ground them.",
     "GENERAL_OVERWHELM": "They feel overwhelmed by everything. Acknowledge the weight without rushing to fix it.",
     "ANXIETY": "They are experiencing anxiety or panic. Be calming and grounding in your response.",
     "SLEEP_ISSUES": "They are struggling with sleep. Acknowledge how exhausting that is.",
     "BURNOUT": "They are experiencing burnout. Validate the exhaustion without pushing them to do more.",
-    "GRIEF_LOSS": "They are grieving a loss. Be especially gentle — avoid silver linings or rushing through grief.",
+    "GRIEF_LOSS": "They are grieving a loss. Be especially gentle ΓÇö avoid silver linings or rushing through grief.",
 }
 
 _SEVERITY_GUIDANCE = {
     "high": (
-        "This is a high-severity message — the user is in significant distress.\n"
+        "This is a high-severity message ΓÇö the user is in significant distress.\n"
         "- Prioritise emotional safety and validation\n"
-        "- Take extra care with your words — avoid anything that could feel dismissive\n"
+        "- Take extra care with your words ΓÇö avoid anything that could feel dismissive\n"
         "- If appropriate, gently encourage professional support\n"
         "- Respond with 4-6 thoughtful sentences"
     ),
     "medium": (
-        "This is a moderate-severity message — the user is struggling but not in crisis.\n"
+        "This is a moderate-severity message ΓÇö the user is struggling but not in crisis.\n"
         "- Balance validation with gentle exploration\n"
         "- Respond with 3-5 sentences"
     ),
     "low": (
-        "This is a lower-severity message — the user may be checking in or exploring.\n"
+        "This is a lower-severity message ΓÇö the user may be checking in or exploring.\n"
         "- Be warm and conversational\n"
         "- Respond with 2-3 sentences"
     ),
@@ -374,7 +374,7 @@ def _build_prompt(
         history_block = (
             f"\nConversation so far:\n{formatted}\n\n"
             f"Continue the conversation naturally. Reference earlier messages "
-            f"when relevant — don't repeat yourself or re-introduce topics "
+            f"when relevant ΓÇö don't repeat yourself or re-introduce topics "
             f"already discussed. Build on what has been shared.\n"
         )
 
@@ -384,13 +384,13 @@ def _build_prompt(
 
     return (
         f"You are SoulBuddy, a compassionate mental wellness companion. "
-        f"You are NOT a therapist — you are a warm, caring friend who listens without judgment.\n\n"
+        f"You are NOT a therapist ΓÇö you are a warm, caring friend who listens without judgment.\n\n"
         f"{history_block}"
         f"User message: \"{user_message}\"\n"
         f"{situation_line}\n"
         f"Severity: {severity or 'low'}\n"
         f"{preference_line}\n\n"
-        f"Response approach (based on user's intent — {intent or 'unclear'}):\n"
+        f"Response approach (based on user's intent ΓÇö {intent or 'unclear'}):\n"
         f"{intent_guide}\n\n"
         f"Severity guidance:\n"
         f"{severity_guide}\n\n"
