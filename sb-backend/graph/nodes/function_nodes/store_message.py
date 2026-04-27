@@ -24,6 +24,7 @@ Graph position: runs after load_user_context in parallel with out_of_scope
 and stays off the classification/render critical path.
 """
 
+import asyncio
 import logging
 from typing import Dict, Any, Optional
 from sqlalchemy import select, func
@@ -136,6 +137,11 @@ async def store_message_node(state: ConversationState) -> Dict[str, Any]:
 
         return {}
 
+    except asyncio.CancelledError:
+        # Parallel branch was cancelled by LangGraph (e.g. out-of-scope fast path won).
+        # Return quietly so the cancellation does not propagate and crash the graph.
+        logger.debug("store_message: cancelled by parallel path | conversation_id=%r", state.conversation_id)
+        return {}
     except Exception as e:
         logger.error(
             "store_message: failed | conversation_id=%r error=%s",

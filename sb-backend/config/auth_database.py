@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Callable
 from contextlib import asynccontextmanager
 import asyncpg
 from dotenv import load_dotenv
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 load_dotenv()
 
@@ -37,7 +37,7 @@ def parse_postgres_url(url: str) -> Dict[str, str]:
         'port': str(parsed.port or 5432),
         'database': parsed.path.lstrip('/') if parsed.path else 'postgres',
         'user': parsed.username or 'postgres',
-        'password': parsed.password or ''
+        'password': unquote(parsed.password) if parsed.password else ''
     }
 
 
