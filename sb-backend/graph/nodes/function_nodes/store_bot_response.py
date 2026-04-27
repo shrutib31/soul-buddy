@@ -31,7 +31,8 @@ from typing import Dict, Any, Optional
 from sqlalchemy import select, func, or_
 
 from graph.state import ConversationState
-from orm.models import ConversationTurn, SessionSummary, SbConversation
+from sqlalchemy import update as sa_update
+from orm.models import ConversationTurn, ConversationContext, SessionSummary, SbConversation
 from config.sqlalchemy_db import SQLAlchemyDataDB
 from services.cache_service import cache_service
 from services.key_manager import get_key_manager
@@ -115,6 +116,36 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
                 mixed_content=mixed,
             )
             session.add(turn)
+
+            # ----------------------------------------------------------------
+            # 3. Back-fill intensity on the most recent USER turn's context.
+            #    classification_node has run by now and state.severity is set.
+            # ----------------------------------------------------------------
+            _SEVERITY_INTENSITY = {"low": 0.2, "medium": 0.5, "high": 0.8}
+            computed_intensity = _SEVERITY_INTENSITY.get(state.severity or "", None)
+            if computed_intensity is not None:
+                # Find the latest user turn id for this conversation
+                latest_user_turn_stmt = (
+                    select(ConversationTurn.id)
+                    .where(
+                        ConversationTurn.session_id == conversation_id,
+                        ConversationTurn.speaker == "user",
+                    )
+                    .order_by(ConversationTurn.turn_index.desc())
+                    .limit(1)
+                )
+                r2 = await session.execute(latest_user_turn_stmt)
+                user_turn_id = r2.scalar_one_or_none()
+                if user_turn_id:
+                    await session.execute(
+                        sa_update(ConversationContext)
+                        .where(ConversationContext.turn_id == user_turn_id)
+                        .values(
+                            intensity=computed_intensity,
+                            detected_emotion=state.intent or None,
+                        )
+                    )
+
             await session.commit()
 
         # turn_count after the bot turn is now turn_count + 1
@@ -187,6 +218,9 @@ async def store_bot_response_node(state: ConversationState) -> Dict[str, Any]:
 
         return {}
 
+    except asyncio.CancelledError:
+        logger.debug("store_bot_response: cancelled by parallel path | conversation_id=%r", state.conversation_id)
+        return {}
     except Exception as e:
         logger.error(
             "store_bot_response: failed | conversation_id=%r error=%s",
