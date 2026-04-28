@@ -1,4 +1,4 @@
-﻿from typing import Dict, Any
+from typing import Dict, Any
 import os
 import logging
 import re
@@ -103,19 +103,18 @@ def load_model():
 def detect_greeting(message: str) -> bool:
     """
     Detect if a message is a conversation-initiating greeting. Covers:
-    - Common words:      hi, hello, hey, namaste, yo, sup, hiya ΓÇª
+    - Common words:      hi, hello, hey, namaste, yo, sup, hiya …
     - Enthusiastic form: hiii, heyyy (repeated trailing chars normalised)
     - Time-based:        good morning/afternoon/evening/night/day, gm, gn
-    - Phrases:           hi there, hello there, nice to meet you ΓÇª
-    - Informal:          what's up, wassup, howdy, hola ΓÇª
-    - Check-in openers:  how are you, how r u, how have you been ΓÇª
-    - Casual variants:   what is up baby, what's up bro, whats up buddy ΓÇª
+    - Phrases:           hi there, hello there, nice to meet you …
+    - Informal:          what's up, wassup, howdy, hola …
+    - Check-in openers:  how are you, how r u, how have you been …
     """
     message_lower = message.lower().strip()
     if not message_lower:
         return False
 
-    # Normalise repeated trailing characters so "hiii" ΓåÆ "hii", "heyyy" ΓåÆ "heyy"
+    # Normalise repeated trailing characters so "hiii" → "hii", "heyyy" → "heyy"
     message_lower = re.sub(r'(.)\1{2,}', r'\1\1', message_lower)
 
     # Strip punctuation for clean word comparison
@@ -124,7 +123,7 @@ def detect_greeting(message: str) -> bool:
     if not words:
         return False
 
-    # Rule 1: Exact match against known greeting phrases
+    # ── Rule 1: Exact match against known greeting phrases ──────────────────
     EXACT_GREETINGS = {
         "hi", "hii", "hello", "hey", "heyy", "greetings", "howdy",
         "hi there", "hey there", "hello there", "howdy there",
@@ -142,7 +141,7 @@ def detect_greeting(message: str) -> bool:
     if message_clean in EXACT_GREETINGS:
         return True
 
-    # Rule 2: Short messages (<= 4 words) starting with a greeting word
+    # ── Rule 2: Short messages (≤ 4 words) starting with a greeting word ────
     GREETING_STARTERS = {
         "hi", "hii", "hello", "hey", "heyy", "howdy", "hiya",
         "namaste", "namaskar", "yo", "sup", "hola", "greetings", "morning",
@@ -150,7 +149,7 @@ def detect_greeting(message: str) -> bool:
     if len(words) <= 4 and words[0] in GREETING_STARTERS:
         return True
 
-    # Rule 3: Time-based greetings as first two words
+    # ── Rule 3: Time-based greetings as first two words ─────────────────────
     TIME_GREETING_PAIRS = {
         "good morning", "good afternoon", "good evening",
         "good night", "good day",
@@ -400,7 +399,7 @@ _POSITIVE_WORDS = {
     "nice", "good", "cool", "sweet", "rad", "yay", "woah", "wow",
 }
 
-# Multi-word positive phrases ΓÇö tested against the full normalised text, not token-by-token
+# Multi-word positive phrases — tested against the full normalised text, not token-by-token
 _POSITIVE_PHRASES = {"of course", "good news", "good day", "great day", "best day"}
 
 _DISTRESS_WORDS = {
@@ -411,7 +410,7 @@ _DISTRESS_WORDS = {
     "dead", "kill", "harm", "cut", "hate",
 }
 
-# Multi-word distress phrases ΓÇö tested against the full normalised text
+# Multi-word distress phrases — tested against the full normalised text
 _DISTRESS_PHRASES = {"give up", "gave up"}
 
 
@@ -436,7 +435,7 @@ def detect_positive_message(message: str) -> bool:
         return False
     positive_count = sum(1 for w in words if w in _POSITIVE_WORDS)
     positive_count += sum(1 for phrase in _POSITIVE_PHRASES if phrase in normalised)
-    # Short messages (Γëñ 6 words): one positive word/phrase is enough
+    # Short messages (≤ 6 words): one positive word/phrase is enough
     # Longer messages: require at least two positive words/phrases
     threshold = 1 if len(words) <= 6 else 2
     return positive_count >= threshold
@@ -446,7 +445,7 @@ def detect_positive_message(message: str) -> bool:
 # RULE-BASED INTENT CLASSIFICATION
 # ============================================================================
 
-# Evaluated in order ΓÇö first match wins (more specific intents first)
+# Evaluated in order — first match wins (more specific intents first)
 _INTENT_PATTERNS = [
     ("open_to_solution", [
         r"\bwhat should i (do|try)\b",
@@ -516,7 +515,7 @@ def classify_intent(message: str) -> str:
 # RULE-BASED SITUATION CLASSIFICATION
 # ============================================================================
 
-# Evaluated in order ΓÇö first match wins
+# Evaluated in order — first match wins
 _SITUATION_PATTERNS = [
     ("EXAM_ANXIETY", [
         r"\b(exam|test|finals|quiz|midterm|assessment|board exam)\b",
@@ -640,16 +639,16 @@ def classify_severity(message: str) -> str:
 #
 # KEY DESIGN RULE: patterns must combine a REQUEST VERB directed at the bot
 # AND an off-domain topic in a single phrase.  Bare topic words (recipe, code, law)
-# must NOT appear as standalone patterns ΓÇö that would incorrectly flag personal
+# must NOT appear as standalone patterns — that would incorrectly flag personal
 # narratives like "I told my friend about a recipe" or "I was coding all night".
 
 _OUT_OF_SCOPE_PATTERNS = [
-    # ΓöÇΓöÇ Cooking / Food ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Cooking / Food ────────────────────────────────────────────────────────
     r"\b(give|tell|share|send|show|write|suggest|recommend)\s+(me\s+)?(a\s+|an\s+|some\s+)?(recipe|recipes|ingredients?|cooking instructions?|how to cook|how to make|how to bake|dish|meal plan)\b",
     r"\b(how\s+(do|can|should)\s+i\s+(cook|bake|prepare|make)\b)",
     r"\bwhat\s+(should\s+i\s+(cook|bake|eat|make)|can\s+i\s+cook|can\s+i\s+make)\b",
 
-    # ΓöÇΓöÇ Programming / Tech ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Programming / Tech ────────────────────────────────────────────────────
     r"\b(write|create|build|generate|make|fix|debug|code|implement)\s+(me\s+)?(a\s+|an\s+|some\s+)?(code|function|script|program|app|application|algorithm|class|module|snippet)\b",
     r"\b(write|create|build|fix|debug)\s+me\s+.{0,20}(code|function|script|program|app)\b",
     r"\bhelp\s+me\s+(write|build|create|fix|debug).{0,30}(code|function|script|program|app|bug)\b",
@@ -658,13 +657,13 @@ _OUT_OF_SCOPE_PATTERNS = [
     r"\bwrite\s+(me\s+)?(a\s+)?(python|javascript|java|sql|html|css|typescript|react|node)\b",
     r"\b(what\s+is|explain)\s+the\s+(syntax|code|algorithm|data structure|design pattern)\s+(for|of|in)\b",
 
-    # ΓöÇΓöÇ Legal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Legal ─────────────────────────────────────────────────────────────────
     r"\b(give|provide|tell|explain)\s+(me\s+)?(legal\s+(advice|guidance|opinion|help)|your\s+legal\s+opinion)\b",
     r"\bwhat\s+(is\s+the\s+law|are\s+my\s+legal\s+rights|should\s+i\s+do\s+legally)\b",
     r"\b(draft|write|prepare)\s+(me\s+)?(a\s+|an\s+)?(legal\s+document|contract|will|lawsuit|legal\s+letter)\b",
     r"\bam\s+i\s+(legally|liable|entitled\s+to)\b",
 
-    # ΓöÇΓöÇ Financial / Investment ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Financial / Investment ────────────────────────────────────────────────
     r"\b(give|provide|tell)\s+(me\s+)?(financial\s+(advice|tips|planning|guidance)|investment\s+(advice|tips|recommendations?))\b",
     r"\b(should\s+i\s+invest|how\s+(do|should)\s+i\s+invest|where\s+to\s+invest)\b",
     r"\b(best\s+)?(stocks?|crypto|mutual\s+funds?|etf)\s+to\s+(buy|invest|pick)\b",
@@ -672,27 +671,27 @@ _OUT_OF_SCOPE_PATTERNS = [
     r"\bshould\s+i\s+(buy|invest\s+in|pick)\s+(stocks?|crypto|shares?|etf|mutual\s+funds?)\b",
     r"\b(help\s+me\s+)?(file\s+(my\s+)?tax(es)?|do\s+(my\s+)?taxes|calculate\s+(my\s+)?tax)\b",
 
-    # ΓöÇΓöÇ Entertainment recommendations ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Entertainment recommendations ─────────────────────────────────────────
     r"\b(recommend|suggest|tell\s+me)\s+(a\s+|an\s+|some\s+)?(good\s+)?(movie|film|show|series|anime|book|novel|song|playlist|game)\s+to\s+(watch|read|play|listen)\b",
     r"\b(what\s+(movies?|shows?|books?|games?|songs?|anime)\s+should\s+i\s+(watch|read|play|listen))\b",
 
-    # ΓöÇΓöÇ Travel / Logistics ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Travel / Logistics ────────────────────────────────────────────────────
     r"\b(plan|book|suggest|help\s+me\s+plan)\s+(my\s+|a\s+|an\s+)?(trip|vacation|holiday|travel|itinerary|flight|hotel)\b",
     r"\b(best\s+places?\s+to\s+visit|where\s+should\s+i\s+(travel|go\s+for\s+vacation))\b",
 
-    # ΓöÇΓöÇ Academic / Homework (non-wellness) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Academic / Homework (non-wellness) ────────────────────────────────────
     r"\b(solve|answer|do|complete|help\s+me\s+(with|solve|do|answer))\s+(my\s+|this\s+|the\s+)?(homework|assignment|math\s+problem|physics\s+problem|chemistry\s+problem|essay)\b",
     r"\b(write\s+(my|the|an?)\s+(essay|report|thesis|assignment|homework))\b",
     r"\b(solve\s+this\s+(equation|problem|question|sum))\b",
 
-    # ΓöÇΓöÇ Math / Calculations ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Math / Calculations ───────────────────────────────────────────────────
     r"\bwhat\s+is\s+(the\s+)?(average|mean|median|mode|sum|total|product|difference|quotient|square\s+root|percentage)\s+of\b",
     r"\b(calculate|compute|find|evaluate)\s+(the\s+|my\s+)?(average|mean|median|mode|sum|total|percentage|interest|profit|loss|gpa|cgpa|discount|tax\s+amount)\b",
     r"\bwhat\s+is\s+\d+\s*[\+\-\*\/\^]\s*\d+\b",    # "what is 5 + 3", "what is 10 / 2"
     r"\bwhat\s+is\s+\d+\s*percent\s+of\b",           # "what is 20 percent of 150"
     r"\b(convert|how\s+many)\s+.{0,20}\s+to\s+(km|miles|kg|pounds|celsius|fahrenheit|dollars|rupees|euros)\b",
 
-    # ΓöÇΓöÇ Weather / News / Sports ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Weather / News / Sports ───────────────────────────────────────────────
     r"\b(what'?s\s+the\s+weather|weather\s+(today|tomorrow|this\s+week|forecast))\b",
     r"\b(latest\s+news|breaking\s+news|what'?s\s+happening\s+in\s+the\s+news)\b",
     r"\b(cricket|football|soccer|basketball|nfl|nba|ipl)\s+(score|match|result|schedule|live)\b",
@@ -706,9 +705,9 @@ def classify_out_of_scope(message: str) -> bool:
     a general-knowledge query / nonsensical input.
 
     Personal narratives that merely *mention* off-domain topics are NOT flagged:
-      Γ£ù out-of-scope  ΓåÆ  "Can you give me a recipe for pasta?"
-      Γ£ô in-scope      ΓåÆ  "I spoke to my friend about a recipe today"
-      Γ£ô in-scope      ΓåÆ  "I was coding all night and I'm stressed"
+      ✗ out-of-scope  →  "Can you give me a recipe for pasta?"
+      ✓ in-scope      →  "I spoke to my friend about a recipe today"
+      ✓ in-scope      →  "I was coding all night and I'm stressed"
     """
     if not message or not isinstance(message, str):
         return False
@@ -730,11 +729,11 @@ def get_classifications(message: str) -> Dict[str, Any]:
     Classify a message.
 
     Evaluation order:
-    1. Empty message  ΓåÆ unclear / NO_SITUATION / low
-    2. Greeting       ΓåÆ greeting intent, no situation, low risk
-    3. Out-of-scope   ΓåÆ redirect template, no model call
-    4. Crisis         ΓåÆ crisis_disclosure, specific situation, high risk
-    5. ML model       ΓåÆ SoulBuddyClassifier for intent / situation / severity
+    1. Empty message  → unclear / NO_SITUATION / low
+    2. Greeting       → greeting intent, no situation, low risk
+    3. Out-of-scope   → redirect template, no model call
+    4. Crisis         → crisis_disclosure, specific situation, high risk
+    5. ML model       → SoulBuddyClassifier for intent / situation / severity
     """
     if not message or message.strip() == "":
         logger.warning("Received empty message for classification")
@@ -812,13 +811,13 @@ def get_classifications(message: str) -> Dict[str, Any]:
             }
         }
 
-    # ΓöÇΓöÇ Positive emotion short-circuit ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── Positive emotion short-circuit ───────────────────────────────────────
     # Prevents the ML model from misclassifying joyful / affirmative messages.
     # "yes so much", "that was amazing", "I'm so excited" etc. must NOT come
-    # back as distress ΓÇö the LLM has full conversation history and will handle
+    # back as distress — the LLM has full conversation history and will handle
     # these correctly once we return a neutral classification.
     if detect_positive_message(message):
-        logger.info("Message classified as positive/celebratory ΓÇö skipping ML model")
+        logger.info("Message classified as positive/celebratory — skipping ML model")
         return {
             "intent": "unclear",
             "situation": "NO_SITUATION",
@@ -828,13 +827,13 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 0.0, "risk": 0.0}
         }
 
-    # ΓöÇΓöÇ Short-message guard ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-    # Very short messages (Γëñ 4 words) with no rule-based distress signal are
+    # ── Short-message guard ───────────────────────────────────────────────────
+    # Very short messages (≤ 4 words) with no rule-based distress signal are
     # ambiguous out of context.  Rather than letting the ML model guess, return
     # neutral and let the LLM use conversation history to respond correctly.
     word_count = len(message.strip().split())
     if word_count <= 4 and classify_situation(message) == "NO_SITUATION" and classify_severity(message) == "low":
-        logger.info("Short message with no distress signal ΓÇö skipping ML model (word_count=%d)", word_count)
+        logger.info("Short message with no distress signal — skipping ML model (word_count=%d)", word_count)
         return {
             "intent": "unclear",
             "situation": "NO_SITUATION",
@@ -844,7 +843,7 @@ def get_classifications(message: str) -> Dict[str, Any]:
             "raw_scores": {"situation": 0.0, "severity": 0.0, "intent": 0.0, "risk": 0.0}
         }
 
-    # ΓöÇΓöÇ ML model inference ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    # ── ML model inference ────────────────────────────────────────────────────
     logger.info("Classifying message with ML model: '%s'", message)
     global _tokenizer, _model, _model_loaded, _torch
 
@@ -919,11 +918,11 @@ def _escalate_risk_with_user_memory(
     Adjust the ML-derived risk_level upward when the user's cross-session
     memory contains known risk signals.
 
-    Rules (conservative ΓÇö only escalate, never de-escalate):
+    Rules (conservative — only escalate, never de-escalate):
       - risk_signals present (non-empty) + current risk_level == "medium"
-        ΓåÆ escalate to "high"
+        → escalate to "high"
       - emotional_baseline == "high_distress" + current risk_level == "low"
-        ΓåÆ escalate to "medium"
+        → escalate to "medium"
 
     This prevents under-detecting risk in users who have a documented history
     of high-risk disclosures but whose current message looks mild in isolation.
@@ -934,18 +933,18 @@ def _escalate_risk_with_user_memory(
     risk_signals = user_memory.get("risk_signals")
     emotional_baseline = user_memory.get("emotional_baseline", "")
 
-    # Escalate medium ΓåÆ high when there are known risk signals
+    # Escalate medium → high when there are known risk signals
     if risk_signals and risk_level == "medium":
         logger.info(
-            "Risk escalated mediumΓåÆhigh based on user_memory risk_signals | score=%.3f",
+            "Risk escalated medium→high based on user_memory risk_signals | score=%.3f",
             risk_score,
         )
         return "high"
 
-    # Escalate low ΓåÆ medium when baseline is documented as high distress
+    # Escalate low → medium when baseline is documented as high distress
     if emotional_baseline == "high_distress" and risk_level == "low":
         logger.info(
-            "Risk escalated lowΓåÆmedium based on user_memory emotional_baseline=high_distress | score=%.3f",
+            "Risk escalated low→medium based on user_memory emotional_baseline=high_distress | score=%.3f",
             risk_score,
         )
         return "medium"
@@ -972,7 +971,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
         final_risk_level = _escalate_risk_with_user_memory(raw_risk_level, risk_score, user_memory)
 
         # Derive emotion_intensity from risk_score (0.0ΓÇô1.0).
-        # risk_score is a sigmoid output that captures emotional distress intensity ΓÇö
+        # risk_score is a sigmoid output that captures emotional distress intensity —
         # a reasonable proxy until a dedicated emotion intensity model is added.
         emotion_intensity = round(risk_score, 3)
 
