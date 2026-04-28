@@ -1,4 +1,4 @@
-﻿"""
+"""
 Response Templates
 
 Pre-defined responses for high-confidence, time-sensitive situations where a
@@ -21,36 +21,36 @@ from typing import Optional
 
 _GREETING_TEMPLATES = {
     "student": [
-        "Hey! I'm SoulBuddy, your personal wellness companion. Whether it's exam stress, friendships, or just a tough day ΓÇö I'm here to listen. How are you feeling today?",
+        "Hey! I'm SoulBuddy, your personal wellness companion. Whether it's exam stress, friendships, or just a tough day — I'm here to listen. How are you feeling today?",
         "Hi there! Really glad you stopped by. Student life can be a lot to handle sometimes. I'm here whenever you're ready to talk. What's on your mind?",
-        "Hello! I'm SoulBuddy. I know being a student comes with its own set of pressures. You don't have to face them alone ΓÇö I'm here. How are you doing today?",
-        "Hey! Welcome back. Whether it's academics, social stuff, or just life in general ΓÇö I'm all ears. What's going on?",
+        "Hello! I'm SoulBuddy. I know being a student comes with its own set of pressures. You don't have to face them alone — I'm here. How are you doing today?",
+        "Hey! Welcome back. Whether it's academics, social stuff, or just life in general — I'm all ears. What's going on?",
         "Hi! I'm SoulBuddy. Think of me as that friend who's always around when you need to talk. How's your day going?",
-        "Hello there! Student life has its ups and downs ΓÇö and I'm here for all of it. What would you like to talk about today?",
+        "Hello there! Student life has its ups and downs — and I'm here for all of it. What would you like to talk about today?",
     ],
     "employee": [
-        "Hey! I'm SoulBuddy, your wellness companion at work. Whether it's work pressure, burnout, or just needing someone to talk to ΓÇö I'm here. How are you doing?",
+        "Hey! I'm SoulBuddy, your wellness companion at work. Whether it's work pressure, burnout, or just needing someone to talk to — I'm here. How are you doing?",
         "Hi there! Good to see you. Workplace stress is real, and it's okay to take a moment for yourself. I'm here to listen. What's on your mind?",
-        "Hello! I'm SoulBuddy. Navigating work life can be tough ΓÇö I'm here as a safe space whenever you need it. How are you feeling today?",
+        "Hello! I'm SoulBuddy. Navigating work life can be tough — I'm here as a safe space whenever you need it. How are you feeling today?",
         "Hey! Taking a moment to check in with yourself is a great step. I'm here if you want to talk through anything. How are things going?",
-        "Hi! Whether it's deadlines, colleagues, or just feeling drained ΓÇö I'm here to listen without any judgment. What's up?",
+        "Hi! Whether it's deadlines, colleagues, or just feeling drained — I'm here to listen without any judgment. What's up?",
         "Hello! I'm SoulBuddy, here to support your wellbeing at work. No agenda, just a space to be heard. How are you doing right now?",
     ],
     "corporate": [
-        "Hi! I'm SoulBuddy, your professional wellness companion. I'm here to support your wellbeing ΓÇö no matter what you're navigating. How are you doing today?",
+        "Hi! I'm SoulBuddy, your professional wellness companion. I'm here to support your wellbeing — no matter what you're navigating. How are you doing today?",
         "Hello! Great to connect. High-pressure environments can take a toll. I'm here as a confidential space to talk things through. What's on your mind?",
-        "Hey! I'm SoulBuddy. Whether it's a difficult project, team dynamics, or just the day catching up with you ΓÇö I'm here. How are you feeling right now?",
+        "Hey! I'm SoulBuddy. Whether it's a difficult project, team dynamics, or just the day catching up with you — I'm here. How are you feeling right now?",
         "Hi there! Stepping back to check in with yourself shows real self-awareness. I'm here whenever you'd like to talk. How are things?",
-        "Hello! I'm SoulBuddy. Leadership, targets, team challenges ΓÇö whatever's weighing on you, this is a safe space to unpack it. What's on your mind?",
+        "Hello! I'm SoulBuddy. Leadership, targets, team challenges — whatever's weighing on you, this is a safe space to unpack it. What's on your mind?",
         "Hey! Good to see you here. Balancing performance with wellbeing matters. I'm here to support that balance. How are you feeling?",
     ],
     "general": [
         "Hey! I'm SoulBuddy, your mental wellness companion. I'm really glad you're here. How are you feeling today?",
         "Hello! It's great to connect with you. I'm here to listen and support you, whatever's on your mind. How are you doing?",
-        "Hi there! I'm SoulBuddy. Whenever you're ready to talk, I'm here ΓÇö no judgment, just a caring space. What's going on with you today?",
-        "Hey! Welcome. I'm SoulBuddy ΓÇö think of me as a companion who's here to listen. How are things with you?",
+        "Hi there! I'm SoulBuddy. Whenever you're ready to talk, I'm here — no judgment, just a caring space. What's going on with you today?",
+        "Hey! Welcome. I'm SoulBuddy — think of me as a companion who's here to listen. How are things with you?",
         "Hi! I'm really glad you reached out. Whatever's on your mind, big or small, I'm here for it. How are you feeling right now?",
-        "Hello! I'm SoulBuddy. There's no wrong way to start ΓÇö just say whatever feels right. What's going on?",
+        "Hello! I'm SoulBuddy. There's no wrong way to start — just say whatever feels right. What's going on?",
     ],
 }
 
@@ -63,23 +63,23 @@ _GREETING_TEMPLATES = {
 
 _HIGH_RISK_TEMPLATES = [
     (
-        "I hear you, and what you've shared matters deeply to me. Please know that you are not alone right now ΓÇö not even for a second. "
+        "I hear you, and what you've shared matters deeply to me. Please know that you are not alone right now — not even for a second. "
         "If you're in immediate danger, please reach out to iCall at 9152987821 (MonΓÇôSat, 8amΓÇô10pm) or the Vandrevala Foundation at 1860-2662-345 (available 24/7). "
         "I'm right here with you. Can you tell me a little more about what you're feeling right now?"
     ),
     (
-        "Thank you for trusting me with this ΓÇö that took real courage. What you're going through sounds incredibly painful, and your life matters. "
-        "Please consider reaching out to AASRA at 91-22-27546669 or iCall at 9152987821 ΓÇö they're there to help, day or night. "
+        "Thank you for trusting me with this — that took real courage. What you're going through sounds incredibly painful, and your life matters. "
+        "Please consider reaching out to AASRA at 91-22-27546669 or iCall at 9152987821 — they're there to help, day or night. "
         "I'm not going anywhere either. Would you like to talk about what's been happening?"
     ),
     (
         "I'm really glad you reached out. I want you to know I'm taking what you've said seriously, and I care about your safety. "
         "If things feel overwhelming right now, please call the Vandrevala Foundation at 1860-2662-345 (24/7) or iCall at 9152987821. "
-        "You don't have to face this alone. I'm here ΓÇö what's going on for you right now?"
+        "You don't have to face this alone. I'm here — what's going on for you right now?"
     ),
     (
         "What you're sharing is important, and so are you. I'm genuinely concerned and I want to make sure you're safe. "
-        "If you're in crisis, please reach out to iCall (9152987821) or AASRA (91-22-27546669) ΓÇö trained counsellors are there to listen. "
+        "If you're in crisis, please reach out to iCall (9152987821) or AASRA (91-22-27546669) — trained counsellors are there to listen. "
         "And so am I. Can you tell me more about what's been happening?"
     ),
 ]
@@ -148,7 +148,7 @@ _CRISIS_TEMPLATES_BY_CATEGORY = {
         ),
         (
             "What you just said matters, and so do you. When things feel that exhausting, it can be hard to "
-            "see a way forward ΓÇö but I'm here with you right now. "
+            "see a way forward — but I'm here with you right now. "
             "If you ever feel like you need more support, iCall (9152987821) is a safe space to reach out. "
             "What's been weighing on you the most?"
         ),
@@ -160,29 +160,29 @@ _CRISIS_TEMPLATES_BY_CATEGORY = {
     ],
     "SELF_HARM": [
         (
-            "Thank you for trusting me with that ΓÇö it takes real courage to share something so personal. "
+            "Thank you for trusting me with that — it takes real courage to share something so personal. "
             "Self-harm often means there's a lot of pain underneath, and I want to understand what you're going through. "
-            "Please know you can also reach iCall at 9152987821 ΓÇö they're trained to support exactly this. "
+            "Please know you can also reach iCall at 9152987821 — they're trained to support exactly this. "
             "Are you safe right now? Can you tell me more about what's been going on?"
         ),
         (
             "I'm really glad you said something. What you're describing tells me you're hurting deeply, "
-            "and you deserve real support ΓÇö not judgment. "
+            "and you deserve real support — not judgment. "
             "If you're in immediate distress, please reach out to the Vandrevala Foundation at 1860-2662-345 (24/7). "
             "I'm here too. Can we talk about what's been going on?"
         ),
     ],
     "SUICIDAL_IDEATION": [
         (
-            "Thank you for trusting me with this ΓÇö that took real courage. What you're going through sounds "
+            "Thank you for trusting me with this — that took real courage. What you're going through sounds "
             "incredibly painful, and your life matters. "
-            "Please consider reaching out to AASRA at 91-22-27546669 or iCall at 9152987821 ΓÇö "
+            "Please consider reaching out to AASRA at 91-22-27546669 or iCall at 9152987821 — "
             "they're there to help, day or night. I'm not going anywhere either. "
             "Would you like to talk about what's been happening?"
         ),
         (
             "I hear you, and what you've shared matters deeply to me. Please know that you are not alone "
-            "right now ΓÇö not even for a second. "
+            "right now — not even for a second. "
             "If you're in immediate danger, please reach out to iCall at 9152987821 (MonΓÇôSat, 8amΓÇô10pm) "
             "or the Vandrevala Foundation at 1860-2662-345 (available 24/7). "
             "I'm right here with you. Can you tell me a little more about what you're feeling right now?"
@@ -192,22 +192,22 @@ _CRISIS_TEMPLATES_BY_CATEGORY = {
             "and I care about your safety. "
             "If things feel overwhelming right now, please call the Vandrevala Foundation at 1860-2662-345 (24/7) "
             "or iCall at 9152987821. "
-            "You don't have to face this alone. I'm here ΓÇö what's going on for you right now?"
+            "You don't have to face this alone. I'm here — what's going on for you right now?"
         ),
     ],
     "SUICIDAL_PLAN": [
         (
             "I'm very concerned about you right now, and I'm so glad you told me. "
-            "Please reach out immediately ΓÇö AASRA is available 24/7 at 91-22-27546669, "
+            "Please reach out immediately — AASRA is available 24/7 at 91-22-27546669, "
             "and the Vandrevala Foundation is at 1860-2662-345 (also 24/7). "
             "If you are in immediate danger, please call emergency services (112 in India). "
             "You matter, and help is there right now."
         ),
         (
             "What you're sharing is serious, and I want to make sure you're safe. "
-            "Please contact a crisis line immediately ΓÇö iCall at 9152987821 or AASRA at 91-22-27546669. "
+            "Please contact a crisis line immediately — iCall at 9152987821 or AASRA at 91-22-27546669. "
             "If you're in immediate danger, call 112. "
-            "You don't have to go through this alone ΓÇö there are people who want to help you right now."
+            "You don't have to go through this alone — there are people who want to help you right now."
         ),
     ],
     "DEFAULT": _HIGH_RISK_TEMPLATES,
@@ -231,12 +231,12 @@ _CHAT_PREFERENCES = {
     ),
 }
 
-# Chat mode ΓÇö user-selectable per session; shapes the interaction contract.
+# Chat mode — user-selectable per session; shapes the interaction contract.
 _CHAT_MODES = {
     "default": (
-        "Talk like a close, caring friend ΓÇö casual, natural, zero jargon. "
+        "Talk like a close, caring friend — casual, natural, zero jargon. "
         "Keep replies SHORT (1ΓÇô2 sentences max). React the way a friend would: 'oh no, what happened?' or "
-        "'ugh that's annoying, tell me more' ΓÇö never like a counselor. "
+        "'ugh that's annoying, tell me more' — never like a counselor. "
         "No clinical phrases like 'it's completely normal', 'I hear you', or 'that sounds really hard'. "
         "Just be real, warm, and human."
     ),
@@ -246,7 +246,7 @@ _CHAT_MODES = {
         "Do NOT offer solutions or advice. Help the user arrive at their own insights through guided self-inquiry."
     ),
     "venting": (
-        "You are a compassionate listener in pure listening mode. The user needs to vent ΓÇö your only job is to "
+        "You are a compassionate listener in pure listening mode. The user needs to vent — your only job is to "
         "acknowledge, validate, and affirm their feelings without steering or advising. "
         "Use phrases like 'That sounds really hard', 'I hear you', 'It makes sense you feel that way'. "
         "Never offer solutions, suggestions, or silver linings unless the user explicitly asks."
@@ -255,7 +255,7 @@ _CHAT_MODES = {
         "You are a supportive, structured mental wellness coach drawing on evidence-based approaches "
         "(CBT, mindfulness, motivational interviewing). Use psychoeducation where helpful. "
         "Gently challenge unhelpful thought patterns. Suggest concrete coping techniques or short exercises. "
-        "Maintain a warm but professional tone ΓÇö structured, grounding, and empowering."
+        "Maintain a warm but professional tone — structured, grounding, and empowering."
     ),
 }
 
@@ -275,9 +275,9 @@ def get_template_response(
     Return a readymade template response if one applies, otherwise None.
 
     Priority order:
-      1. is_crisis_detected ΓåÆ crisis template  (safety-critical, must come first)
-      2. is_out_of_scope    ΓåÆ out-of-scope template
-      3. is_greeting        ΓåÆ greeting template
+      1. is_crisis_detected → crisis template  (safety-critical, must come first)
+      2. is_out_of_scope    → out-of-scope template
+      3. is_greeting        → greeting template
 
     Args:
         is_crisis_detected: True when classification_node detected a crisis.
