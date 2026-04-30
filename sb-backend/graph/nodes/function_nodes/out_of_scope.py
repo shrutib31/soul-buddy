@@ -119,7 +119,9 @@ async def out_of_scope_node(state: ConversationState) -> Dict[str, Any]:
         "risk_level": "low",
         "is_out_of_scope": True,
         "out_of_scope_reason": out_of_scope_reason,
-        "response_draft": get_out_of_scope_response(state.domain),
+        "response_draft": get_out_of_scope_response(
+            state.domain, reason=out_of_scope_reason
+        ),
     }
 
 
