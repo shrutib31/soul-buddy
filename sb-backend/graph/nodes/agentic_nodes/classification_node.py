@@ -109,7 +109,6 @@ def detect_greeting(message: str) -> bool:
     - Phrases:           hi there, hello there, nice to meet you …
     - Informal:          what's up, wassup, howdy, hola …
     - Check-in openers:  how are you, how r u, how have you been …
-    - Casual variants:   what is up baby, what's up bro, whats up buddy …
     """
     message_lower = message.lower().strip()
     if not message_lower:
@@ -124,7 +123,7 @@ def detect_greeting(message: str) -> bool:
     if not words:
         return False
 
-    # Rule 1: Exact match against known greeting phrases
+    # ── Rule 1: Exact match against known greeting phrases ──────────────────
     EXACT_GREETINGS = {
         "hi", "hii", "hello", "hey", "heyy", "greetings", "howdy",
         "hi there", "hey there", "hello there", "howdy there",
@@ -142,7 +141,7 @@ def detect_greeting(message: str) -> bool:
     if message_clean in EXACT_GREETINGS:
         return True
 
-    # Rule 2: Short messages (<= 4 words) starting with a greeting word
+    # ── Rule 2: Short messages (≤ 4 words) starting with a greeting word ────
     GREETING_STARTERS = {
         "hi", "hii", "hello", "hey", "heyy", "howdy", "hiya",
         "namaste", "namaskar", "yo", "sup", "hola", "greetings", "morning",
@@ -150,7 +149,7 @@ def detect_greeting(message: str) -> bool:
     if len(words) <= 4 and words[0] in GREETING_STARTERS:
         return True
 
-    # Rule 3: Time-based greetings as first two words
+    # ── Rule 3: Time-based greetings as first two words ─────────────────────
     TIME_GREETING_PAIRS = {
         "good morning", "good afternoon", "good evening",
         "good night", "good day",
@@ -282,7 +281,14 @@ def detect_crisis(message: str, logger=None) -> Dict[str, Any]:
                 r"don't want to be here anymore", r"do not want to be here anymore",
                 r"don't want to exist", r"do not want to exist",
                 r"wish i could disappear", r"want to disappear",
-                r"would be better if i wasn't here", r"would be easier if i was gone"
+                r"would be better if i wasn't here", r"would be easier if i was gone",
+                # "Better off without me" family
+                r"everyone would be better off without me", r"everyone('?d| would) be better off",
+                r"better off without me", r"world would be better without me",
+                r"they('?d| would) be better off without me",
+                r"no one would miss me", r"nobody would miss me",
+                r"(i('?m| am))?\s*a burden", r"i('?m| am) just a burden",
+                r"don'?t deserve to (be here|live|exist)"
             ],
             "intent": "crisis_disclosure", "situation": "PASSIVE_DEATH_WISH", "severity": "high",
             "risk_level": "high", "risk_score": 0.8, "requires_immediate_response": True,
@@ -964,7 +970,7 @@ def classification_node(state: ConversationState) -> Dict[str, Any]:
         user_memory = getattr(state, "user_memory", None) or {}
         final_risk_level = _escalate_risk_with_user_memory(raw_risk_level, risk_score, user_memory)
 
-        # Derive emotion_intensity from risk_score (0.0–1.0).
+        # Derive emotion_intensity from risk_score (0.0ΓÇô1.0).
         # risk_score is a sigmoid output that captures emotional distress intensity —
         # a reasonable proxy until a dedicated emotion intensity model is added.
         emotion_intensity = round(risk_score, 3)

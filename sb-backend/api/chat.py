@@ -3,6 +3,7 @@ from api.supabase_auth import optional_supabase_token, verify_supabase_token
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any
+import asyncio
 import uuid
 import logging
 
@@ -66,7 +67,11 @@ async def invoke_graph(state: ConversationState) -> Dict[str, Any]:
     try:
         flow = await get_flow()
         return await flow.ainvoke(state.model_dump())
+    except asyncio.CancelledError as e:
+        logger.error("invoke_graph: CancelledError", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Graph execution cancelled: {str(e)}")
     except Exception as e:
+        logger.error("invoke_graph: Exception: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Graph execution failed: {str(e)}")
 
 
@@ -144,6 +149,8 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
         )
         result = await invoke_graph(state)
         return result.get("api_response", {"success": False, "error": "No response generated"})
+    except asyncio.CancelledError as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": f"Chat cancelled: {str(e)}"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "error": f"Chat failed: {str(e)}"})
 
