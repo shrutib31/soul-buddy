@@ -19,7 +19,7 @@ import uuid
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select, delete, and_
+from sqlalchemy import select, delete
 
 from config.settings import settings
 from config.sqlalchemy_db import SQLAlchemyDataDB
