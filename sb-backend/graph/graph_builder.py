@@ -1,4 +1,4 @@
-﻿from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, END
 from graph.state import ConversationState
 
 from graph.nodes.function_nodes.out_of_scope import (
