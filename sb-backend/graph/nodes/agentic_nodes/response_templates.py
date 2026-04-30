@@ -275,9 +275,9 @@ def get_template_response(
     Return a readymade template response if one applies, otherwise None.
 
     Priority order:
-      1. is_crisis_detected ΓåÆ crisis template  (safety-critical, must come first)
-      2. is_out_of_scope    ΓåÆ out-of-scope template
-      3. is_greeting        ΓåÆ greeting template
+      1. is_crisis_detected → crisis template  (safety-critical, must come first)
+      2. is_out_of_scope    → out-of-scope template
+      3. is_greeting        → greeting template
 
     Args:
         is_crisis_detected: True when classification_node detected a crisis.
