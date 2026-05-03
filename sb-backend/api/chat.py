@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from api.supabase_auth import optional_supabase_token, verify_supabase_token
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import uuid
 import logging
 
@@ -58,6 +58,26 @@ class ChatRequest(BaseModel):
         raise ValueError("language must be a string")
 
 
+class VeraMessage(BaseModel):
+    role: str
+    content: str = Field(..., min_length=1)
+
+
+class VeraChatRequest(BaseModel):
+    """
+    Compatibility request shape for VERA-MH style chat clients.
+
+    The wrapper defaults SoulBuddy-specific fields so VERA only needs to send
+    its model/messages/stream/conversation_id payload.
+    """
+    model: str = Field("app", description="Client/model identifier from VERA-MH")
+    messages: List[VeraMessage] = Field(..., min_length=1)
+    stream: bool = Field(False, description="This wrapper currently supports non-streaming calls")
+    conversation_id: Optional[str] = None
+    domain: str = Field("general", description="Optional SoulBuddy domain override")
+    chat_preference: str = Field("general", description="Optional SoulBuddy chat preference override")
+
+
 # ============================================================================
 # HELPERS
 # ============================================================================
@@ -76,6 +96,13 @@ def _is_valid_uuid(value: str) -> bool:
         return True
     except (ValueError, AttributeError):
         return False
+
+
+def _latest_user_message(messages: List[VeraMessage]) -> str:
+    for message in reversed(messages):
+        if message.role == "user" and message.content.strip():
+            return message.content.strip()
+    raise HTTPException(status_code=400, detail="At least one user message is required")
 
 
 async def create_initial_state(
@@ -146,6 +173,66 @@ async def chat(req: ChatRequest, user=Depends(optional_supabase_token)):
         return result.get("api_response", {"success": False, "error": "No response generated"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "error": f"Chat failed: {str(e)}"})
+
+
+@router.post("/vera")
+async def vera_chat(req: VeraChatRequest):
+    """
+    VERA-MH compatibility wrapper around the normal chat graph.
+
+    Accepts a messages-style request, forwards the latest user message through
+    SoulBuddy, and returns only the reply plus the conversation id to reuse on
+    the next turn.
+    """
+    if req.stream:
+        raise HTTPException(
+            status_code=400,
+            detail="VERA chat wrapper only supports stream=false. Use /api/v1/chat/stream for SSE.",
+        )
+
+    try:
+        user_message = _latest_user_message(req.messages)
+        state = await create_initial_state(
+            message=user_message,
+            mode="incognito",
+            domain=req.domain,
+            conversation_id=req.conversation_id,
+            supabase_uid=None,
+            chat_preference=req.chat_preference,
+        )
+        result = await invoke_graph(state)
+        api_response = result.get("api_response") or {}
+        reply = api_response.get("response", "")
+        conversation_id = api_response.get("conversation_id") or state.conversation_id or req.conversation_id
+
+        if not api_response.get("success") and not reply:
+            raise HTTPException(
+                status_code=500,
+                detail=api_response.get("error", "No response generated"),
+            )
+
+        message = {"content": reply}
+        message_id = api_response.get("message_id")
+        if message_id:
+            message["id"] = message_id
+
+        return {
+            "message": message,
+            "conversation_id": conversation_id,
+            "model": req.model,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "message": {"content": ""},
+                "conversation_id": req.conversation_id,
+                "model": req.model,
+                "error": f"VERA chat failed: {str(e)}",
+            },
+        )
 
 
 @router.get("/conversations/messages")

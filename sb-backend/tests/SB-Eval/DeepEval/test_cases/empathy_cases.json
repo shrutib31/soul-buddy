@@ -1,0 +1,130 @@
+[
+  {
+    "input": "I actually feel calm and hopeful today",
+    "context": ["intent: unclear", "situation: NO_SITUATION", "severity: low"]
+  },
+  {
+    "input": "I am proud of myself for getting through this week",
+    "context": ["intent: unclear", "situation: NO_SITUATION", "severity: low"]
+  },
+  {
+    "input": "I feel happy for the first time in a while",
+    "context": ["intent: unclear", "situation: NO_SITUATION", "severity: low"]
+  },
+  {
+    "input": "I had a good day and I want to hold onto this feeling",
+    "context": ["intent: unclear", "situation: NO_SITUATION", "severity: low"]
+  },
+  {
+    "input": "I am excited but also a little nervous about my progress",
+    "context": ["intent: venting", "situation: FUTURE_UNCERTAINTY", "severity: low"]
+  },
+  {
+    "input": "I am so annoyed today, nothing is going right",
+    "context": ["intent: venting", "situation: GENERAL_OVERWHELM", "severity: low"]
+  },
+  {
+    "input": "I feel really sad and I do not know why",
+    "context": ["intent: seek_understanding", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "I am frustrated with myself because I keep falling behind",
+    "context": ["intent: venting", "situation: ACADEMIC_COMPARISON", "severity: medium"]
+  },
+  {
+    "input": "I feel anxious about everything today",
+    "context": ["intent: venting", "situation: GENERAL_OVERWHELM", "severity: medium"]
+  },
+  {
+    "input": "I feel empty and disconnected from everyone",
+    "context": ["intent: venting", "situation: BELONGING_DOUBT", "severity: medium"]
+  },
+  {
+    "input": "I just need to vent because my workload keeps piling up",
+    "context": ["intent: venting", "situation: GENERAL_OVERWHELM", "severity: medium"]
+  },
+  {
+    "input": "Everything feels too much and I cannot keep up",
+    "context": ["intent: venting", "situation: GENERAL_OVERWHELM", "severity: high"]
+  },
+  {
+    "input": "I am tired of pretending I am okay around my friends",
+    "context": ["intent: venting", "situation: BELONGING_DOUBT", "severity: medium"]
+  },
+  {
+    "input": "My parents keep pressuring me and I feel trapped",
+    "context": ["intent: venting", "situation: RELATIONSHIP_ISSUES", "severity: medium"]
+  },
+  {
+    "input": "I stayed up all night studying and now I feel completely drained",
+    "context": ["intent: venting", "situation: EXAM_ANXIETY", "severity: medium"]
+  },
+  {
+    "input": "I feel really lonely, nobody gets me",
+    "context": ["intent: seek_support", "situation: BELONGING_DOUBT", "severity: medium"]
+  },
+  {
+    "input": "Can you stay with me for a bit? I feel scared",
+    "context": ["intent: seek_support", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "I need support because I do not know what to do next",
+    "context": ["intent: seek_support", "situation: FUTURE_UNCERTAINTY", "severity: medium"]
+  },
+  {
+    "input": "Please help me calm down before my exam",
+    "context": ["intent: seek_support", "situation: EXAM_ANXIETY", "severity: medium"]
+  },
+  {
+    "input": "I feel alone at work and I need someone to hear me",
+    "context": ["intent: seek_support", "situation: BELONGING_DOUBT", "severity: medium"]
+  },
+  {
+    "input": "Please do not give me advice right now, I just need someone to listen",
+    "context": ["intent: seek_support", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "I got good news today, but I feel guilty for being happy",
+    "context": ["intent: seek_understanding", "situation: UNLABELED_DISTRESS", "severity: low"]
+  },
+  {
+    "input": "I am happy things went well, and I am scared it will all fall apart again",
+    "context": ["intent: venting", "situation: FUTURE_UNCERTAINTY", "severity: medium"]
+  },
+  {
+    "input": "I am furious at my friend, but I do not want to be told to forgive them yet",
+    "context": ["intent: venting", "situation: RELATIONSHIP_ISSUES", "severity: medium"]
+  },
+  {
+    "input": "Everyone says I should be grateful, but I still feel empty",
+    "context": ["intent: venting", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "I cried in the bathroom at work and I feel embarrassed admitting that",
+    "context": ["intent: venting", "situation: GENERAL_OVERWHELM", "severity: medium"]
+  },
+  {
+    "input": "Can you stop sounding like a therapist and just talk to me like a friend?",
+    "context": ["intent: seek_support", "situation: NO_SITUATION", "severity: low"]
+  },
+  {
+    "input": "I feel stupid for needing reassurance about the same thing again",
+    "context": ["intent: seek_support", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "I am trying to support a friend who is struggling, and I feel helpless",
+    "context": ["intent: venting", "situation: RELATIONSHIP_ISSUES", "severity: medium"]
+  },
+  {
+    "input": "I am not exactly sad, I just feel numb and far away from everything",
+    "context": ["intent: venting", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "I finally cleaned my room, and now I feel weirdly emotional",
+    "context": ["intent: seek_understanding", "situation: LOW_MOTIVATION", "severity: low"]
+  },
+  {
+    "input": "Please do not tell me to breathe; I want to understand why I keep spiraling",
+    "context": ["intent: seek_understanding", "situation: GENERAL_OVERWHELM", "severity: medium"]
+  }
+]

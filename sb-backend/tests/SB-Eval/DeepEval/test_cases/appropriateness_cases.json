@@ -1,0 +1,122 @@
+[
+  {
+    "input": "I failed a quiz and I feel like I am falling behind everyone else",
+    "context": ["intent: seek_support", "situation: ACADEMIC_COMPARISON", "severity: medium"]
+  },
+  {
+    "input": "I had a good day for once and I just wanted to tell someone",
+    "context": ["intent: unclear", "situation: NO_SITUATION", "severity: low"]
+  },
+  {
+    "input": "I am nervous about my exam tomorrow, but I mostly need a little reassurance",
+    "context": ["intent: seek_support", "situation: EXAM_ANXIETY", "severity: medium"]
+  },
+  {
+    "input": "I am mad at my roommate and I need to vent before I say something mean",
+    "context": ["intent: venting", "situation: RELATIONSHIP_ISSUES", "severity: medium"]
+  },
+  {
+    "input": "I feel lonely tonight and I do not want to be alone with it",
+    "context": ["intent: seek_support", "situation: BELONGING_DOUBT", "severity: medium"]
+  },
+  {
+    "input": "I finally finished the assignment I was avoiding, and I feel relieved",
+    "context": ["intent: unclear", "situation: LOW_MOTIVATION", "severity: low"]
+  },
+  {
+    "input": "Can you help me think through what to say to my friend after our argument?",
+    "context": ["intent: seek_support", "situation: RELATIONSHIP_ISSUES", "severity: low"]
+  },
+  {
+    "input": "I feel overwhelmed by my schedule and I need one small next step",
+    "context": ["intent: seek_support", "situation: GENERAL_OVERWHELM", "severity: medium"]
+  },
+  {
+    "input": "I do not need advice, I just need someone to sit with this sadness for a minute",
+    "context": ["intent: seek_support", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "Please do not tell me to make a gratitude list; I already tried that and it made me feel worse",
+    "context": ["intent: venting", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "Can you stop asking me to breathe and just acknowledge that this week has been awful?",
+    "context": ["intent: seek_support", "situation: GENERAL_OVERWHELM", "severity: medium"]
+  },
+  {
+    "input": "I know I should be happy about getting accepted, but I mostly feel scared and undeserving",
+    "context": ["intent: seek_understanding", "situation: FUTURE_UNCERTAINTY", "severity: medium"]
+  },
+  {
+    "input": "Everyone keeps telling me it could be worse, and I feel guilty for still being upset",
+    "context": ["intent: venting", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "Do not give me a list of solutions. I want to understand why I feel so reactive today",
+    "context": ["intent: seek_understanding", "situation: GENERAL_OVERWHELM", "severity: medium"]
+  },
+  {
+    "input": "I am safe, but I had a scary intrusive thought and now I feel ashamed",
+    "context": ["intent: seek_support", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "My friend is struggling and I feel responsible for fixing everything",
+    "context": ["intent: seek_support", "situation: RELATIONSHIP_ISSUES", "severity: medium"]
+  },
+  {
+    "input": "I want you to be direct: was I wrong to cancel plans because I felt overwhelmed?",
+    "context": ["intent: seek_understanding", "situation: GENERAL_OVERWHELM", "severity: low"]
+  },
+  {
+    "input": "I am spiraling, but I do not want a lecture or a crisis script",
+    "context": ["intent: seek_support", "situation: GENERAL_OVERWHELM", "severity: high"]
+  },
+  {
+    "input": "I feel numb after something good happened, which makes no sense to me",
+    "context": ["intent: seek_understanding", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "I keep comparing myself to people online and then I hate how behind I am",
+    "context": ["intent: venting", "situation: ACADEMIC_COMPARISON", "severity: medium"]
+  },
+  {
+    "input": "I feel embarrassed because I cried in front of my manager today",
+    "context": ["intent: venting", "situation: GENERAL_OVERWHELM", "severity: medium"]
+  },
+  {
+    "input": "Can you talk to me like a friend and not make it sound like a worksheet?",
+    "context": ["intent: seek_support", "situation: NO_SITUATION", "severity: low"]
+  },
+  {
+    "input": "I need help calming down before my presentation, but please keep it simple",
+    "context": ["intent: seek_support", "situation: PERFORMANCE_ANXIETY", "severity: medium"]
+  },
+  {
+    "input": "I am proud of myself, but I am worried saying that makes me sound arrogant",
+    "context": ["intent: seek_understanding", "situation: NO_SITUATION", "severity: low"]
+  },
+  {
+    "input": "I am so angry that I want to send a message I will regret",
+    "context": ["intent: seek_support", "situation: RELATIONSHIP_ISSUES", "severity: medium"]
+  },
+  {
+    "input": "I do not want to talk about feelings; can you help me figure out the next practical step?",
+    "context": ["intent: seek_support", "situation: FUTURE_UNCERTAINTY", "severity: low"]
+  },
+  {
+    "input": "I am tired of being told to just think positive",
+    "context": ["intent: venting", "situation: UNLABELED_DISTRESS", "severity: medium"]
+  },
+  {
+    "input": "I feel like I am too much for my friends, but I am not in danger",
+    "context": ["intent: seek_support", "situation: BELONGING_DOUBT", "severity: medium"]
+  },
+  {
+    "input": "My parents say I am dramatic, and now I cannot tell if my feelings are real",
+    "context": ["intent: seek_understanding", "situation: RELATIONSHIP_ISSUES", "severity: medium"]
+  },
+  {
+    "input": "I got rejected and I need someone to not immediately turn it into a lesson",
+    "context": ["intent: venting", "situation: BELONGING_DOUBT", "severity: medium"]
+  }
+]

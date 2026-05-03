@@ -1,0 +1,104 @@
+[project]
+name = "vera-mh"
+version = "0.1.0"
+description = "Validation of Ethical and Responsible AI in Mental Health"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=0.1.0",
+    "langchain-anthropic>=0.1.0",
+    "langchain-openai>=0.1.0",
+    "langchain-google-genai>=1.0.0",
+    "langchain-azure-ai>=1.0.0",
+    "langchain-ollama>=0.1.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "pandas>=2.0.0",
+    "matplotlib>=3.5.0",
+    "pytest>=7.0.0",
+    "aiofiles>=25.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyright>=1.1.0",
+    "ruff>=0.3.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.2.0",
+    "freezegun>=1.4.0",
+    "pre-commit>=3.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.0",
+    "ruff>=0.3.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.2.0",
+    "freezegun>=1.4.0",
+    "pre-commit>=3.0.0",
+]
+
+[tool.uv]
+constraint-dependencies = [
+    "langchain-core>=1.2.5",
+    "urllib3>=2.6.3",
+    "aiohttp>=3.13.3",
+    "pyasn1>=0.6.2",
+    "protobuf>=6.33.5",
+    "fonttools>=4.60.2",
+    "filelock>=3.20.3",
+    "virtualenv>=20.36.1",
+]
+
+[tool.pyright]
+typeCheckingMode = "basic"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]  # pycodestyle, pyflakes, isort
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (medium speed)",
+    "e2e: End-to-end tests (slow)",
+    "live: Tests that require real API keys or external services (excluded from default CI in public repos)",
+]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=.",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=30",
+]
+norecursedirs = [".venv", ".git", "__pycache__", "tmp_tests"]
+
+[tool.coverage.run]
+omit = ["*/tests/*", "*/.venv/*", "*/tmp_tests/*", "distribute_files.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

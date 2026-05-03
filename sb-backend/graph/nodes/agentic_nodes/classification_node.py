@@ -4,8 +4,7 @@ import logging
 import re
 
 from graph.state import ConversationState
-from graph.nodes.function_nodes.out_of_scope import detect_out_of_scope
-from graph.nodes.function_nodes.out_of_scope import looks_like_general_knowledge, looks_like_nonsense
+from graph.nodes.function_nodes.out_of_scope import detect_out_of_scope, looks_like_general_knowledge, looks_like_nonsense
 from config.settings import settings
 
 logger = logging.getLogger(__name__)

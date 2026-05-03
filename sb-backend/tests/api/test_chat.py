@@ -177,6 +177,63 @@ class TestChatEndpointsUnit:
             )
         assert resp.status_code == 401
 
+    def test_vera_chat_wrapper_returns_reply_and_conversation_id(self, client):
+        valid_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        with patch("api.chat.get_flow", new_callable=AsyncMock) as mock_get_flow:
+            mock_flow = AsyncMock()
+            mock_flow.ainvoke = AsyncMock(return_value={
+                "api_response": {
+                    "success": True,
+                    "conversation_id": valid_uuid,
+                    "response": "I'm here with you.",
+                    "metadata": {},
+                }
+            })
+            mock_get_flow.return_value = mock_flow
+
+            resp = client.post(
+                "/api/v1/chat/vera",
+                json={
+                    "model": "app",
+                    "messages": [
+                        {"role": "user", "content": "older message"},
+                        {"role": "assistant", "content": "older reply"},
+                        {"role": "user", "content": "the latest persona/user message"},
+                    ],
+                    "stream": False,
+                    "conversation_id": valid_uuid,
+                },
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == {
+            "message": {"content": "I'm here with you."},
+            "conversation_id": valid_uuid,
+            "model": "app",
+        }
+
+        state_dict = mock_flow.ainvoke.await_args.args[0]
+        assert state_dict["user_message"] == "the latest persona/user message"
+        assert state_dict["conversation_id"] == valid_uuid
+        assert state_dict["mode"] == "incognito"
+        assert state_dict["domain"] == "general"
+        assert state_dict["chat_preference"] == "general"
+
+    def test_vera_chat_wrapper_rejects_streaming_requests(self, client):
+        resp = client.post(
+            "/api/v1/chat/vera",
+            json={
+                "model": "app",
+                "messages": [{"role": "user", "content": "hello"}],
+                "stream": True,
+                "conversation_id": "550e8400-e29b-41d4-a716-446655440000",
+            },
+        )
+
+        assert resp.status_code == 400
+        assert "stream=false" in resp.json()["detail"]
+
     def test_nonsense_chat_fast_paths_through_graph(self, client):
         async def fake_conv_id_handler(_state):
             return {"conversation_id": "test-conv-123"}
